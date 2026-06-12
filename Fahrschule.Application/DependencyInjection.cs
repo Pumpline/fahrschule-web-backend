@@ -1,5 +1,6 @@
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Auth;
+using Fahrschule.Application.LicenseClasses;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -17,6 +18,7 @@ public static class DependencyInjection
         // "Scoped" = eine Instanz pro HTTP-Anfrage (passend zum DbContext).
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuditWriter, AuditWriter>();
+        services.AddScoped<ILicenseClassService, LicenseClassService>();
 
         // "Singleton" = eine Instanz für die gesamte Laufzeit (zustandslos, nur Konfiguration).
         services.AddSingleton<IJwtTokenService, JwtTokenService>();

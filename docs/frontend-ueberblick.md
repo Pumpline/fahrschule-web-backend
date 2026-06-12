@@ -82,6 +82,23 @@ Benutzer (Name, Rollen) aus den API-Antworten.
 - **Responsiv**: unter 900 px klappt die Seitenleiste ein (☰ + abdunkelnder
   Hintergrund), unter 680 px wird die Kopfzeile kompakt – wie im Mockup.
 
+## Adminpanel: Führerscheinklassen (erster Konfigurations-Baustein)
+
+`features/admin/` zeigt das Muster für alle kommenden Adminpanel-Bereiche:
+
+- **AdminPage** mit Bereichs-Reitern (`.tabs` aus dem Mockup); nur die Rolle
+  `Admin` sieht den Menüpunkt und kommt durch den `adminGuard` – verbindlich
+  prüft zusätzlich das Backend.
+- **KlassenVerwaltung**: Tabelle + Dialog (Overlay) zum Anlegen/Bearbeiten,
+  Aktiv/Inaktiv-Umschalter, **Löschen immer mit Bestätigungs-Dialog und
+  Folgen-Hinweis** (Projektregel 2).
+- **API-Service** `LicenseClassesApi` (core/api/) – ein Service pro
+  Backend-Controller. Beim Speichern wandert die **Versionsmarke** mit:
+  meldet die API 409 (jemand anderes hat gespeichert), zeigt die Oberfläche
+  die Meldung und lädt den echten Stand neu.
+- Nach jedem Speichern wird die Liste **vom Server neu geladen** – so zeigt
+  die Tabelle nie einen erfundenen Zwischenstand.
+
 ## Entwicklungsserver & Proxy
 
 `npm start` startet den Dev-Server auf `http://localhost:4200` und leitet

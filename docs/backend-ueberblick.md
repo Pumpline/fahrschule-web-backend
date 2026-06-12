@@ -104,6 +104,26 @@ Schon vorhandene Grundlagen für spätere Module:
 - **`ISoftDeletable`** – Vertrag für „weiches Löschen": markieren statt
   entfernen; echtes Löschen übernimmt später der Aufbewahrungs-Job (Projektregel 7).
 
+## Konfigurationsdaten: Führerscheinklassen (erster Adminpanel-Baustein)
+
+`LicenseClass` ist die erste Umsetzung von Projektregel 3 („fachliche Inhalte
+sind Daten"): Klassen, Mindestalter und Voraussetzungen werden im Adminpanel
+gepflegt, nicht im Code. Das Muster wiederholt sich bei allen kommenden
+Konfigurationsdaten:
+
+- **Service** (`LicenseClassService`) macht die Facharbeit, der Controller bleibt dünn.
+- **Audit-Log**: jede Änderung wird mit Vorher/Nachher-JSON protokolliert.
+- **Soft-Delete**: Löschen markiert nur (`IsDeleted`); ein globaler
+  Query-Filter blendet Gelöschtes überall aus. Der eindeutige Index auf das
+  Kürzel gilt nur für nicht gelöschte Zeilen.
+- **Optimistische Nebenläufigkeit**: PostgreSQLs `xmin`-Systemspalte dient als
+  Versionsmarke. Das Frontend schickt sie beim Speichern mit; hat jemand
+  zwischenzeitlich gespeichert, antwortet die API mit **409 Conflict** und
+  einer verständlichen Meldung, statt Änderungen zu überschreiben.
+- **Rollen**: Lesen dürfen alle Angemeldeten, Schreiben nur `Admin`.
+- **Seed**: Beim ersten Start entstehen gängige Klassen als **Startwerte**
+  (im Adminpanel änderbar – der Code legt nichts fest).
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,

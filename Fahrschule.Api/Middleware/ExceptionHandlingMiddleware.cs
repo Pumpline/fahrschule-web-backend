@@ -23,6 +23,15 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
         {
             await next(context);
         }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
+        {
+            // Optimistische Nebenläufigkeit (Projektregel 7): Jemand anderes hat
+            // den Datensatz zwischenzeitlich gespeichert. Nicht überschreiben,
+            // sondern dem Benutzer verständlich sagen, was zu tun ist.
+            await WriteProblemAsync(context, StatusCodes.Status409Conflict,
+                "Diese Daten wurden zwischenzeitlich von jemand anderem geändert. " +
+                "Bitte laden Sie die Liste neu und tragen Sie Ihre Änderung dann noch einmal ein.");
+        }
         catch (AppException ex)
         {
             // Erwartbarer Fachfehler: die Meldung ist für den Benutzer gedacht.

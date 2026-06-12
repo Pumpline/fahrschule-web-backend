@@ -26,6 +26,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<LicenseClass> LicenseClasses => Set<LicenseClass>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -48,6 +49,27 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
             // Der Schlüssel selbst ist der Primärschlüssel ("Erinnerung.VorlaufMinuten" …).
             setting.HasKey(x => x.Key);
             setting.Property(x => x.Key).HasMaxLength(200);
+        });
+
+        builder.Entity<LicenseClass>(klasse =>
+        {
+            klasse.Property(x => x.Code).HasMaxLength(10);
+            klasse.Property(x => x.Description).HasMaxLength(300);
+            klasse.Property(x => x.Requirements).HasMaxLength(1000);
+
+            // Kürzel eindeutig – aber nur unter den NICHT gelöschten Klassen
+            // (eine gelöschte "B" darf ein neues "B" nicht blockieren).
+            klasse.HasIndex(x => x.Code).IsUnique().HasFilter("\"IsDeleted\" = false");
+
+            // Globaler Filter: Soft-gelöschte Datensätze sind für alle normalen
+            // Abfragen unsichtbar (Projektregel 7) – nur der spätere
+            // Wiederherstellen-/Aufbewahrungs-Code hebt den Filter gezielt auf.
+            klasse.HasQueryFilter(x => !x.IsDeleted);
+
+            // Optimistische Nebenläufigkeit: PostgreSQL führt pro Zeile die
+            // Systemspalte "xmin" (ändert sich bei jedem Schreiben). EF nutzt
+            // sie als Versionsmarke gegen gegenseitiges Überschreiben.
+            klasse.Property<uint>("xmin").IsRowVersion();
         });
 
         builder.Entity<RefreshToken>(token =>

@@ -1,3 +1,4 @@
+using Fahrschule.Domain.Entities;
 using Fahrschule.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -44,7 +45,36 @@ public static class DatabaseInitializer
             }
         }
 
-        // 3. Ersten Admin anlegen – nur, wenn es noch gar keine Benutzer gibt.
+        // 3. Beispiel-Führerscheinklassen anlegen – nur, wenn die Tabelle leer ist.
+        //    Das sind STARTWERTE (gängige Klassen + Mindestalter, Stand der
+        //    Recherche 2026 – bitte fachlich prüfen!). Alles ist danach im
+        //    Adminpanel änderbar; der Code legt hier nichts dauerhaft fest.
+        if (!await db.LicenseClasses.AnyAsync())
+        {
+            var now = DateTime.UtcNow;
+            LicenseClass Neu(string code, string beschreibung, int? alter, string? voraussetzungen, int reihenfolge) => new()
+            {
+                Id = Guid.NewGuid(), Code = code, Description = beschreibung,
+                MinimumAge = alter, Requirements = voraussetzungen,
+                IsActive = true, SortOrder = reihenfolge, CreatedAtUtc = now, UpdatedAtUtc = now,
+            };
+
+            db.LicenseClasses.AddRange(
+                Neu("AM", "Moped/Roller bis 45 km/h", 15, "Mindestalter je nach Bundesland 15 oder 16 Jahre", 10),
+                Neu("A1", "Leichtkrafträder bis 125 cm³", 16, null, 20),
+                Neu("A2", "Krafträder bis 35 kW", 18, "Direkteinstieg oder Aufstieg von A1 nach 2 Jahren", 30),
+                Neu("A", "Krafträder unbeschränkt", 24, "Direkteinstieg ab 24; Aufstieg von A2 nach 2 Jahren ab 20", 40),
+                Neu("B", "Pkw bis 3,5 t", 17, "Mit 17 nur begleitetes Fahren (BF17); allein ab 18", 50),
+                Neu("BE", "Pkw mit Anhänger über 750 kg", 17, "Vorbesitz Klasse B erforderlich", 60),
+                Neu("B96", "Pkw mit Anhänger (Zug bis 4,25 t)", 17, "Erweiterung zu Klasse B (nur Schulung, keine Prüfung)", 70),
+                Neu("L", "Land-/forstwirtschaftliche Zugmaschinen bis 40 km/h", 16, null, 80),
+                Neu("T", "Land-/forstwirtschaftliche Zugmaschinen bis 60 km/h", 16, null, 90));
+
+            await db.SaveChangesAsync();
+            logger.LogInformation("Beispiel-Führerscheinklassen angelegt (Startwerte, im Adminpanel änderbar).");
+        }
+
+        // 4. Ersten Admin anlegen – nur, wenn es noch gar keine Benutzer gibt.
         var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
         if (await userManager.Users.AnyAsync())
         {
