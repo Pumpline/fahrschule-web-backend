@@ -1,0 +1,36 @@
+# Startet die PostgreSQL-Datenbank für die lokale Entwicklung.
+#
+#   docker compose up -d        → Datenbank starten (läuft im Hintergrund)
+#   docker compose down         → Datenbank stoppen (Daten bleiben erhalten)
+#   docker compose down -v      → stoppen UND alle Daten löschen (Neuanfang)
+#
+# Warum Docker? Die Datenbank läuft in einem abgeschotteten Container –
+# nichts muss auf dem Rechner installiert werden, und auf dem späteren
+# Server funktioniert exakt dieselbe Konfiguration (portables Deployment).
+#
+# Die Zugangsdaten hier gelten NUR für die lokale Entwicklung. In Produktion
+# kommen sie aus Umgebungsvariablen und sind selbstverständlich andere.
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: fahrschule-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fahrschule
+      POSTGRES_USER: fahrschule
+      POSTGRES_PASSWORD: fahrschule-dev
+    ports:
+      # links = auf dem eigenen Rechner erreichbar, rechts = im Container
+      - "5432:5432"
+    volumes:
+      # Benanntes Volume: die Daten überleben das Stoppen/Neustarten des Containers.
+      - fahrschule-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fahrschule -d fahrschule"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  fahrschule-db-data:

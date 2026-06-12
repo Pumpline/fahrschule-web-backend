@@ -1,0 +1,17 @@
+# ----- .NET Build-Ausgaben -----
+[Bb]in/
+[Oo]bj/
+*.user
+.vs/
+.idea/
+
+# ----- Geheimnisse / lokale Überschreibungen (NIE committen) -----
+# appsettings.Local.json enthält die echten lokalen Zugangsdaten dieses
+# Rechners (z. B. DB-Passwort) und darf niemals ins Repository.
+appsettings.Local.json
+appsettings.*.local.json
+*.local.env
+
+# Hinweis: appsettings.Development.json ist BEWUSST eingecheckt – es enthält
+# nur ungefährliche Werte für localhost (Dev-DB, Dev-JWT-Schlüssel, Seed-Admin).
+# Das Backend verweigert in Produktion ausdrücklich den Dev-JWT-Schlüssel.

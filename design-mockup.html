@@ -1,0 +1,2249 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fahrschule – Design-Mockup</title>
+<!--
+  STATISCHER DESIGN-ENTWURF (kein echtes Programm, nur zur Ansicht).
+  Beispiel-Daten. Funktioniert: Navigation links, Schriftgröße-Slider, Hell/Dunkel-Umschalter.
+  Theme & Schriftgröße werden lokal gespeichert; Dunkelmodus folgt zu Beginn dem System.
+  Farben sind unten in :root / [data-theme="dark"] zentral änderbar.
+-->
+<script>
+  /* Theme früh setzen (kein Aufblitzen). Reihenfolge: gespeicherte Wahl > System. */
+  (function(){
+    try{
+      var t = localStorage.getItem('theme');
+      if(!t){ t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+      document.documentElement.setAttribute('data-theme', t);
+      var s = localStorage.getItem('schrift');
+      if(s){ document.documentElement.style.setProperty('--basis', s+'px'); }
+    }catch(e){}
+  })();
+</script>
+<style>
+  /* ===== HELLES THEME (Standard) ===== */
+  :root{
+    --primary:      #2a6fd6;
+    --primary-stark:#174a87;
+    --grad-kopf:    linear-gradient(120deg, #0e1b2e 0%, #163a66 55%, #1e5fae 100%);
+    --grad-btn:     linear-gradient(135deg, #2a72d8, #1a4f93);
+    --grad-seite:   linear-gradient(180deg, #ffffff, #f3f7fc);
+    --grad-body:    radial-gradient(1200px 600px at 80% -10%, #e9f1fb 0%, #eef2f8 40%, #eef2f8 100%);
+
+    --weich:        #e8f0fb;             /* sanfte blaue Fläche */
+    --gruen:#1f7a33; --gruen-bg:#e6f4e6;
+    --amber:#a4560a; --amber-bg:#fbeed7;
+    --rot:  #b3261e; --rot-bg:#f7e3e2;
+
+    --text:       #16202c;
+    --text-leise: #5a6675;
+    --linie:      #d7dde5;
+    --flaeche:    #ffffff;               /* Karten */
+    --flaeche2:   #f4f7fb;
+    --schatten:   0 8px 24px rgba(20,40,80,.10);
+
+    --basis: 20px;
+    color-scheme: light;       /* native Picker (Datum/Uhrzeit) im Hell-Modus */
+  }
+  /* ===== DUNKLES THEME ===== */
+  :root[data-theme="dark"]{
+    --primary:      #5b9bff;
+    --primary-stark:#2a6fd6;
+    --grad-kopf:    linear-gradient(120deg, #05080d 0%, #0c1a2e 55%, #15396a 100%);
+    --grad-btn:     linear-gradient(135deg, #2e72cf, #1b4585);
+    --grad-seite:   linear-gradient(180deg, #131a25, #0f151e);
+    --grad-body:    radial-gradient(1200px 600px at 80% -10%, #12203a 0%, #0b0f16 45%, #0a0d13 100%);
+
+    --weich:        #16263f;
+    --gruen:#7fd49a; --gruen-bg:#13311d;
+    --amber:#f0b765; --amber-bg:#3a2a12;
+    --rot:  #ff8d86; --rot-bg:#3a1714;
+
+    --text:       #e7ecf3;
+    --text-leise: #9aa6b6;
+    --linie:      #28303d;
+    --flaeche:    #161d29;
+    --flaeche2:   #1c2532;
+    --schatten:   0 10px 30px rgba(0,0,0,.45);
+    color-scheme: dark;        /* native Picker (Datum/Uhrzeit) im Dunkel-Modus */
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  [hidden]{ display:none !important; }   /* greift auch bei Elementen mit eigenem display (z. B. .btn) */
+  body{
+    font-family:"Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+    font-size:var(--basis); color:var(--text);
+    background:var(--grad-body); background-attachment:fixed;
+    line-height:1.5;
+  }
+
+  /* ---- Kopfzeile ---- */
+  .kopf{
+    background:var(--grad-kopf); color:#fff;
+    display:flex; align-items:center; gap:18px;
+    padding:14px 24px; position:sticky; top:0; z-index:10;
+    box-shadow:0 4px 18px rgba(0,0,0,.18);
+    font-size:17px;            /* feste Größe – ändert sich NICHT mit dem Schrift-Schieberegler */
+  }
+  .kopf .logo{ font-weight:700; font-size:1.25em; display:flex; align-items:center; gap:11px; }
+  .kopf .logo .mark{ background:#fff; color:#1e5fae; width:40px;height:40px;border-radius:11px;
+    display:grid;place-items:center;font-size:1.1em; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  .kopf .rechts{ margin-left:auto; display:flex; align-items:center; gap:22px; }
+
+  .schiebe{ display:flex; align-items:center; gap:10px; color:#dbe7f7; font-size:.78em; }
+  .schiebe .klein{ font-size:.8em; } .schiebe .grossA{ font-size:1.25em; }
+  input[type=range]{ width:130px; accent-color:#fff; cursor:pointer; }
+
+  .umschalt{ border:1px solid #ffffff55; background:#ffffff1a; color:#fff; border-radius:999px;
+    padding:9px 16px; cursor:pointer; font-size:.78em; display:flex; align-items:center; gap:8px; }
+  .umschalt:hover{ background:#ffffff2e; }
+
+  .nutzerbox{ position:relative; }
+  .nutzer{ display:flex;align-items:center;gap:10px;font-size:.82em; cursor:pointer; user-select:none;
+    padding:6px 10px; border-radius:999px; }
+  .nutzer:hover{ background:#ffffff1f; }
+  .nutzer .kreis{ width:40px;height:40px;border-radius:50%;
+    background:linear-gradient(135deg,#3f7fd0,#1c3c6e); display:grid;place-items:center;font-weight:700; }
+  .menu{ position:absolute; right:0; top:calc(100% + 12px); background:var(--flaeche); color:var(--text);
+    border:1px solid var(--linie); border-radius:16px; box-shadow:var(--schatten); min-width:250px; padding:8px; display:none; z-index:30; }
+  .menu.auf{ display:block; }
+  .menu .kopfinfo{ padding:12px 14px; border-bottom:1px solid var(--linie); margin-bottom:6px; }
+  .menu .kopfinfo b{ display:block; } .menu .kopfinfo span{ color:var(--text-leise); font-size:.82em; }
+  .menu a{ display:flex; align-items:center; gap:13px; padding:13px 14px; border-radius:11px; cursor:pointer;
+    text-decoration:none; color:var(--text); font-weight:600; font-size:.92em; }
+  .menu a:hover{ background:var(--weich); }
+  .menu a.abmelden{ color:var(--rot); }
+
+  /* ---- Gerüst ---- */
+  .raum{ display:flex; min-height:calc(100vh - 70px); }
+  .seite{ width:282px; background:var(--grad-seite); border-right:1px solid var(--linie);
+    padding:18px 14px; flex-shrink:0; }
+  .seite h4{ margin:18px 12px 8px; font-size:.7em; letter-spacing:.07em; text-transform:uppercase; color:var(--text-leise); }
+  .seite a{ display:flex; align-items:center; gap:13px; padding:13px 15px; border-radius:12px;
+    color:var(--text); text-decoration:none; font-weight:600; margin-bottom:4px; cursor:pointer; }
+  .seite a .ic{ font-size:1.15em; width:26px; text-align:center; }
+  .seite a:hover{ background:var(--weich); }
+  .seite a.an{ background:var(--grad-btn); color:#fff; box-shadow:var(--schatten); }
+
+  .inhalt{ flex:1; padding:28px 36px; max-width:1120px; }
+  .seitentitel{ font-size:1.7em; font-weight:700; margin:0 0 4px; }
+  .untertitel{ color:var(--text-leise); margin:0 0 22px; }
+
+  /* ---- Bausteine ---- */
+  .btn{ font-size:1em; font-weight:700; border:0; border-radius:12px; padding:14px 22px; cursor:pointer;
+    background:var(--grad-btn); color:#fff; display:inline-flex; align-items:center; gap:10px; box-shadow:var(--schatten); }
+  .btn:hover{ filter:brightness(1.06); }
+  .btn:disabled{ opacity:.4; cursor:default; pointer-events:none; }
+  .btn.zweit{ background:transparent; color:var(--primary); border:2px solid var(--primary); box-shadow:none; }
+  .btn.gross{ font-size:1.1em; padding:18px 26px; }
+  .btn.rot{ background:linear-gradient(135deg,#c8362d,#9a201a); }
+
+  .karte{ background:var(--flaeche); border:1px solid var(--linie); border-radius:18px; padding:22px; box-shadow:var(--schatten); }
+  .karten{ display:grid; grid-template-columns:repeat(auto-fill,minmax(232px,1fr)); gap:18px; }
+  .kachel{ background:var(--flaeche); border:1px solid var(--linie); border-radius:20px; padding:26px; text-align:center;
+    cursor:pointer; color:var(--text); display:block; transition:.12s; box-shadow:var(--schatten); }
+  .kachel:hover{ border-color:var(--primary); transform:translateY(-3px); }
+  .kachel .gross-ic{ font-size:2.5em; }
+  .kachel .name{ font-weight:700; font-size:1.08em; margin-top:8px; }
+  .kachel .zahl{ color:var(--text-leise); margin-top:4px; }
+
+  table{ width:100%; border-collapse:collapse; background:var(--flaeche); border-radius:16px; overflow:hidden;
+    border:1px solid var(--linie); box-shadow:var(--schatten); }
+  th,td{ text-align:left; padding:16px 18px; border-bottom:1px solid var(--linie); }
+  th{ background:var(--weich); font-size:.78em; text-transform:uppercase; letter-spacing:.04em; color:var(--primary-stark); }
+  :root[data-theme="dark"] th{ color:#bcd4f5; }
+  tr:last-child td{ border-bottom:0; }
+  tr:hover td{ background:var(--flaeche2); }
+  tr.leerzeile td{ user-select:none; }
+  tr.leerzeile:hover td{ background:transparent; }   /* Füllzeilen reagieren nicht auf die Maus */
+
+  /* Audit-Log: feste Spaltenbreiten + 1 Textzeile pro Eintrag (lange Texte → „…" mit Tooltip)
+     → Tabellenhöhe ist wirklich konstant, egal wie lang die Einträge sind */
+  #auditTabelle{ table-layout:fixed; }
+  #auditTabelle th:nth-child(1), #auditTabelle td:nth-child(1){ width:10.5em; }
+  #auditTabelle th:nth-child(2), #auditTabelle td:nth-child(2){ width:7em; }
+  #auditTabelle th:nth-child(4), #auditTabelle td:nth-child(4){ width:3.4em; padding-left:4px; padding-right:4px; }
+  #auditTabelle td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+  /* Detail-Ansicht eines Audit-Eintrags */
+  .ad-zeile{ margin-bottom:10px; }
+  #adDelta th, #adDelta td{ padding:10px 14px; font-size:.92em; }
+  #adDelta td.vorher{ color:var(--text-leise); }
+  #adDelta td.nachher{ font-weight:700; }
+
+  .marke{ display:inline-block; padding:5px 13px; border-radius:999px; font-size:.72em; font-weight:700; }
+  .marke.gruen{ background:var(--gruen-bg); color:var(--gruen); }
+  .marke.amber{ background:var(--amber-bg); color:var(--amber); }
+  .marke.blau{ background:var(--weich); color:var(--primary); }
+  .marke.rot{ background:var(--rot-bg); color:var(--rot); }
+  .marke.grau{ background:var(--flaeche2); color:var(--text-leise); }
+
+  .suche{ font-size:1em; padding:13px 16px; border:2px solid var(--linie); border-radius:12px; width:320px;
+    max-width:100%; background:var(--flaeche); color:var(--text); }
+  .zeile{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:20px; }
+  .filterbar{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .filterbar select{ font-size:.92em; padding:11px 12px; border:2px solid var(--linie); border-radius:11px;
+    background:var(--flaeche); color:var(--text); cursor:pointer; }
+  .filterbar label.chk{ display:flex; align-items:center; gap:8px; font-weight:600; cursor:pointer;
+    border:2px solid var(--linie); border-radius:11px; padding:9px 13px; font-size:.92em; background:var(--flaeche2); }
+  .filterbar label.chk:hover{ border-color:var(--primary); }
+  .filterbar label.chk input{ width:20px; height:20px; accent-color:var(--primary); margin:0; }
+  .fzeile{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:10px; }
+  .flabel{ font-weight:700; font-size:.78em; color:var(--text-leise); text-transform:uppercase; letter-spacing:.04em; min-width:64px; }
+  /* Filter-Karte: kompaktere Karte mit ausgerichteten Beschriftungen */
+  .filterkarte{ padding:16px 18px; margin-bottom:18px; }
+  .filterkarte .fzeile{ align-items:flex-start; margin-bottom:12px; }
+  .filterkarte .fzeile:last-of-type{ margin-bottom:0; }
+  .filterkarte .flabel{ padding-top:9px; }   /* Label oben mit erster Chip-Reihe ausrichten */
+  /* Schülerliste kompakter: schmalere Zeilen → mehr Schüler pro Seite sichtbar */
+  #schuelerTabelle th, #schuelerTabelle td{ padding-top:9px; padding-bottom:9px; }
+  #schuelerTabelle .btn.zweit{ padding:7px 15px; font-size:.82em; }   /* kleinere „Öffnen"-Buttons, Text passend dazu */
+  /* Fortschritts-Spalte (Aggregat statt Details – Datensparsamkeit) */
+  .fortzelle{ display:flex; align-items:center; gap:10px; }
+  .fortbar{ width:96px; height:9px; border-radius:999px; background:var(--linie); overflow:hidden; flex-shrink:0; }
+  .fortbar span{ display:block; height:100%; background:var(--grad-btn); border-radius:999px; }
+  .fortpct{ font-weight:700; font-size:.85em; color:var(--text-leise); min-width:2.6em; }
+  .fchips{ display:flex; gap:8px; flex-wrap:wrap; }
+  .fchip{ padding:8px 14px; border-radius:999px; border:2px solid var(--linie); background:var(--flaeche2);
+    font-weight:700; cursor:pointer; font-size:.85em; color:var(--text); user-select:none; }
+  .fchip:hover{ border-color:var(--primary); }
+  .fchip.an{ background:var(--grad-btn); color:#fff; border-color:transparent; }
+
+  .pkt{ display:flex; align-items:center; gap:14px; padding:14px 4px; border-bottom:1px solid var(--linie); user-select:none; }
+  .pkt:last-child{ border-bottom:0; }
+  .haken{ width:30px;height:30px;border-radius:9px;border:2px solid var(--linie); display:grid;place-items:center; flex-shrink:0; cursor:pointer; }
+  .haken.an{ background:var(--gruen); border-color:var(--gruen); color:#06210e; }
+  .pkt .txt{ font-weight:600; }
+  .zaehler{ margin-left:auto; font-weight:700; color:var(--text-leise); }
+
+  /* Zwischenüberschrift Theorie/Praxis innerhalb einer Klassen-Karte */
+  .unterab{ margin:16px 0 4px; font-size:.74em; text-transform:uppercase; letter-spacing:.06em; color:var(--text-leise); }
+
+  /* Zähler für zählbare Punkte (z. B. Sonderfahrten): − Wert/Soll ＋ */
+  .zaehler-ctrl{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
+  .zbtn{ width:36px; height:36px; border-radius:10px; border:2px solid var(--linie); background:var(--flaeche);
+    color:var(--text); font-size:1.05em; font-weight:700; cursor:pointer; line-height:1; }
+  .zbtn:hover{ border-color:var(--primary); }
+  .zbtn:disabled{ opacity:.35; cursor:default; pointer-events:none; }
+  .zwert{ min-width:3.6em; text-align:center; font-weight:700; color:var(--text-leise); }
+  .zwert.voll{ color:var(--gruen); }
+  /* Liste der gezählten Stunden: pro ＋ eine eigene Datums-/Notiz-Zeile */
+  .eintraege .reihe{ margin-bottom:10px; }
+  .eintraege .reihe:last-child{ margin-bottom:0; }
+  .eintraege:empty::after{ content:'Noch keine Einträge – mit ＋ eine Stunde eintragen.';
+    color:var(--text-leise); font-size:.85em; font-style:italic; }
+
+  .tabs{ display:flex; gap:6px; border-bottom:2px solid var(--linie); margin:18px 0 22px; flex-wrap:wrap; }
+  .tabs span{ padding:12px 18px; font-weight:700; color:var(--text-leise); border-bottom:3px solid transparent; margin-bottom:-2px; cursor:pointer; }
+  .tabs span.an{ color:var(--primary); border-color:var(--primary); }
+
+  .chips{ display:flex; gap:10px; flex-wrap:wrap; margin:6px 0 18px; }
+  .chip{ padding:10px 17px; border-radius:999px; border:2px solid var(--linie); background:var(--flaeche);
+    font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; }
+  .chip.an{ background:var(--grad-btn); color:#fff; border-color:transparent; }
+  .chip.add{ border-style:dashed; color:var(--text-leise); }
+
+  /* ---- Dialog (Overlay) ---- */
+  .overlay{ position:fixed; inset:0; background:rgba(5,10,20,.55); display:none; align-items:center;
+    justify-content:center; z-index:50; padding:20px; }
+  .overlay.auf{ display:flex; }
+  .dialog{ background:var(--flaeche); color:var(--text); border:1px solid var(--linie); border-radius:20px;
+    box-shadow:var(--schatten); width:min(640px,100%); max-height:90vh; overflow:auto; padding:26px; position:relative; }
+  .dialog h2{ margin:0 0 4px; padding-right:40px; }
+  .schliessen{ position:absolute; top:14px; right:14px; border:0; background:transparent; color:var(--text-leise);
+    font-size:1.3em; width:38px; height:38px; border-radius:9px; cursor:pointer; line-height:1; }
+  .schliessen:hover{ background:var(--weich); color:var(--text); }
+  .box{ border:1px solid var(--linie); border-radius:14px; padding:14px 16px; margin:12px 0; }
+  .box.gut{ border-left:6px solid var(--gruen); }
+  .box.warn{ border-left:6px solid var(--amber); background:var(--amber-bg); }
+  .box.neu{ border-left:6px solid var(--primary); }
+  /* Temporäres-Passwort-Feld + „Neu"-Button auf gleicher Höhe, Feld schrumpfbar */
+  .temprow{ display:flex; gap:10px; align-items:stretch; margin-top:8px; }
+  .tempfeld{ flex:1; min-width:0; font-weight:700; font-size:1.05em; letter-spacing:2px;
+    padding:11px 14px; border:2px solid var(--linie); border-radius:11px; background:var(--flaeche2); color:var(--text); }
+  .temprow .btn{ white-space:nowrap; padding-top:0; padding-bottom:0; }
+  .aktionen{ display:flex; gap:12px; justify-content:flex-end; margin-top:18px; }
+
+  .tag2{ display:inline-block; font-size:.62em; font-weight:700; padding:3px 9px; border-radius:999px;
+    background:var(--weich); color:var(--primary); margin-left:8px; vertical-align:middle; }
+  .note{ font-size:.72em; color:var(--text-leise); margin-left:8px; font-style:italic; }
+
+  /* ---- Eigenes Vorschlags-Dropdown (Autocomplete) ---- */
+  .ac{ position:relative; max-width:420px; }
+  .ac-liste{ display:none; position:absolute; left:0; right:0; top:calc(100% + 4px); background:var(--flaeche);
+    border:2px solid var(--linie); border-radius:12px; box-shadow:var(--schatten); z-index:60; max-height:210px; overflow:auto; }
+  .ac-liste.auf{ display:block; }
+  .ac-item{ padding:11px 14px; cursor:pointer; font-weight:600; }
+  .ac-item:hover{ background:var(--weich); }
+  .ac-item.leer{ color:var(--text-leise); font-weight:400; cursor:default; }
+  .ac-item.leer:hover{ background:transparent; }
+  /* Termin-Dialog: Vorschlags-Dropdown darf überstehen, ohne das Modal scrollbar zu machen */
+  #terminDlg .dialog{ overflow:visible; }
+
+  .detail-panel{ display:none; padding:6px 0 14px 44px; }
+  .detail-panel.auf{ display:block; }
+  .detail-panel .reihe{ display:flex; gap:16px; flex-wrap:wrap; }
+  .detail-panel .feldchen{ flex:1; min-width:200px; }
+  .detail-panel label{ display:block; font-weight:700; font-size:.72em; margin-bottom:5px;
+    color:var(--text-leise); text-transform:uppercase; letter-spacing:.03em; }
+  .detail-panel input{ width:100%; font-size:.92em; padding:10px 12px; border:2px solid var(--linie);
+    border-radius:10px; background:var(--flaeche2); color:var(--text); }
+  .pfeil{ border:0; background:transparent; color:var(--text-leise); cursor:pointer; font-size:1.1em;
+    width:36px; height:36px; border-radius:9px; transition:transform .15s; flex-shrink:0; }
+  .pfeil:hover{ background:var(--weich); }
+  .pfeil.auf{ transform:rotate(180deg); }
+
+  /* ---- Stammdaten ---- */
+  .dlabel{ font-weight:700; font-size:.72em; color:var(--text-leise); text-transform:uppercase; letter-spacing:.03em; margin-bottom:3px; }
+  /* Feld verdeckt (blurred) + Auge zum Aufdecken/Bearbeiten */
+  .sfeld{ margin-bottom:14px; }
+  .sfeld-zeile{ display:flex; align-items:stretch; gap:10px; max-width:420px; }
+  .swert{ flex:1; min-width:0;   /* min-width:0 = Feld darf im Flex-Layout schrumpfen (Inputs haben sonst eine eingebaute Mindestbreite) */
+    font-size:1em; padding:11px 13px; border:2px solid var(--linie); border-radius:11px;
+    background:var(--flaeche); color:var(--text); }
+  .swert.verdeckt{ filter:blur(6px); user-select:none; }
+  .swert::placeholder{ color:var(--amber); font-weight:700; }
+  .auge{ border:2px solid var(--linie); background:var(--flaeche); color:var(--text-leise);
+    width:52px; border-radius:11px; cursor:pointer; font-size:1.1em; flex-shrink:0; }
+    /* keine feste Höhe: durch align-items:stretch ist das Auge immer exakt so hoch wie das Feld */
+  .auge:hover{ border-color:var(--primary); color:var(--text); }
+  /* ---- Unterlagen ---- */
+  .dok{ border:1px solid var(--linie); border-radius:12px; padding:12px 14px; margin-bottom:12px; }
+  .dok-kopf{ display:flex; align-items:center; gap:12px; user-select:none; }
+  .dok-felder{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-top:12px; }
+  .dok-felder .feldchen{ flex:1; min-width:150px; }
+  .dok-felder label{ display:block; font-weight:700; font-size:.7em; color:var(--text-leise); text-transform:uppercase; margin-bottom:5px; }
+  .dok-felder input:not([type=checkbox]){ width:100%; font-size:.92em; padding:9px 11px; border:2px solid var(--linie); border-radius:10px; background:var(--flaeche2); color:var(--text); }
+  /* Klassen-Auswahl per Häkchen (Adminpanel-Dialoge) */
+  .check-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(104px,1fr)); gap:8px; margin:6px 0 14px; }
+  .check-grid label{ display:flex; align-items:center; gap:8px; font-weight:600; border:2px solid var(--linie);
+    border-radius:10px; padding:8px 10px; cursor:pointer; font-size:.88em; background:var(--flaeche2); }
+  .check-grid label:hover{ border-color:var(--primary); }
+  .check-grid input{ width:20px; height:20px; accent-color:var(--primary); margin:0; flex-shrink:0; }
+
+  .dok .detail-panel{ padding:0; }              /* keine Einrückung wie bei Themen */
+  .dok.warnen{ border-color:var(--amber); box-shadow:0 0 0 1px var(--amber) inset; }
+  .pflicht-fehlt{ border-color:var(--amber) !important; background:var(--amber-bg) !important; }
+  .ablauf-badge{ margin-left:6px; }
+
+  .feld{ margin-bottom:16px; }
+  .feld label{ display:block; font-weight:600; margin-bottom:6px; }
+  .feld input,.feld select{ width:100%; max-width:420px; font-size:1em; padding:13px 14px;
+    border:2px solid var(--linie); border-radius:12px; background:var(--flaeche); color:var(--text); }
+
+  .hinweis{ background:var(--amber-bg); border-left:5px solid var(--amber); padding:14px 18px; border-radius:12px; margin:18px 0; }
+
+  /* ---- Kalender: Termin-Karten ---- */
+  .termin{ display:flex; align-items:center; gap:16px; padding:16px; border-radius:14px; margin-bottom:12px;
+    background:var(--flaeche); border:1px solid var(--linie); border-left:6px solid var(--primary); box-shadow:var(--schatten);
+    cursor:pointer; }
+  .termin:hover{ background:var(--flaeche2); }
+  .termin.praxis{ border-left-color:var(--primary); }
+  .termin.theorie{ border-left-color:var(--gruen); }
+  .termin.custom{ border-left-color:var(--text-leise); }
+  .termin .uhr{ font-weight:700; font-size:1.1em; min-width:120px; }
+
+  /* Vollbild-Seiten für Anmeldung / Passwort festlegen */
+  .authscreen{ display:none; position:fixed; inset:0; z-index:80; background:var(--grad-body); background-attachment:fixed;
+    align-items:center; justify-content:center; padding:20px; }
+  .authscreen.auf{ display:flex; }
+  .authcard{ background:var(--flaeche); border:1px solid var(--linie); border-radius:20px; box-shadow:var(--schatten);
+    width:min(420px,100%); padding:30px; }
+  .authlogo{ display:flex; align-items:center; gap:11px; font-weight:700; font-size:1.2em; justify-content:center; }
+  .authlogo .mark{ background:var(--grad-btn); color:#fff; width:44px;height:44px;border-radius:12px;display:grid;place-items:center; }
+  .authcard h2{ text-align:center; margin:10px 0 18px; }
+  .vollbtn{ width:100%; justify-content:center; }
+  /* Einstellungs-Schalter (großes Kontrollkästchen in Box) */
+  .optzeile{ display:flex; align-items:flex-start; gap:12px; border:2px solid var(--linie); border-radius:12px;
+    padding:13px 15px; margin-bottom:12px; cursor:pointer; }
+  .optzeile:hover{ border-color:var(--primary); }
+  .optzeile input{ width:24px; height:24px; accent-color:var(--primary); margin:2px 0 0; flex-shrink:0; }
+  .optzeile .opttxt b{ display:block; }
+  .optzeile .opttxt span{ color:var(--text-leise); font-size:.85em; }
+
+  .schirm{ display:none; } .schirm.an{ display:block; }
+  .fuss{ color:var(--text-leise); font-size:.8em; margin-top:30px; }
+
+  /* ---- Monatskalender ---- */
+  .monat-kopf{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px; }
+  .monat-kopf input[type=month]{ font-size:.92em; padding:11px 12px; border:2px solid var(--linie);
+    border-radius:11px; background:var(--flaeche); color:var(--text); cursor:pointer; }
+  .kal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:8px; }
+  .wochenkopf{ text-align:center; font-weight:700; color:var(--text-leise); font-size:.78em;
+    text-transform:uppercase; letter-spacing:.04em; padding:4px 0; }
+  .kal-zelle{ min-height:108px; background:var(--flaeche); border:1px solid var(--linie); border-radius:12px;
+    padding:8px; display:flex; flex-direction:column; gap:4px; cursor:pointer; }
+  .kal-zelle:hover{ border-color:var(--primary); }
+  .kal-zelle.leer{ background:transparent; border:0; cursor:default; }
+  .kal-zelle .tagnr{ font-weight:700; font-size:.92em; align-self:flex-end; color:var(--text-leise); }
+  .kal-zelle.heute{ border:2px solid var(--primary); background:var(--weich); }
+  .kal-zelle.heute .tagnr{ color:var(--primary); }
+  .kal-zelle.gewaehlt{ box-shadow:0 0 0 3px var(--primary) inset; }
+  .ev{ font-size:.66em; font-weight:700; padding:3px 7px; border-radius:7px; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; }
+  .ev.praxis{ background:var(--weich); color:var(--primary); }
+  .ev.theorie{ background:var(--gruen-bg); color:var(--gruen); }
+  .ev.pruef{ background:var(--amber-bg); color:var(--amber); }
+  .ev.custom{ background:var(--flaeche2); color:var(--text-leise); }
+  .ev.mehr{ color:var(--text-leise); background:transparent; padding:1px 7px; }
+
+  /* ---- Responsiv: Handy / Tablet ---- */
+  .hamburger{ display:none; border:1px solid #ffffff55; background:#ffffff1a; color:#fff;
+    width:42px; height:42px; border-radius:11px; font-size:1.25em; cursor:pointer; }
+  .backdrop{ display:none; }
+  @media (max-width:900px){
+    .hamburger{ display:inline-flex; align-items:center; justify-content:center; }
+    .seite{ position:fixed; top:70px; bottom:0; left:0; width:272px; z-index:40; overflow-y:auto;
+      transform:translateX(-100%); transition:transform .22s ease; }
+    .seite.offen{ transform:translateX(0); box-shadow:0 0 50px rgba(0,0,0,.45); }
+    .backdrop{ position:fixed; top:70px; left:0; right:0; bottom:0; background:rgba(0,0,0,.45); z-index:35; }
+    .backdrop.auf{ display:block; }
+    .inhalt{ padding:20px 16px; }
+  }
+  @media (max-width:680px){
+    .schiebe{ display:none; }            /* Schriftgröße auf dem Handy ausgeblendet */
+    .nutzername{ display:none; }         /* nur Avatar */
+    .kopf{ gap:10px; padding:11px 13px; }
+    .seitentitel{ font-size:1.4em; }
+    .kal-zelle{ min-height:66px; padding:5px; border-radius:9px; gap:3px; }
+    .ev{ font-size:.56em; padding:2px 5px; }
+    .wochenkopf{ font-size:.66em; }
+  }
+  @media (max-width:600px){
+    table{ display:block; overflow-x:auto; white-space:nowrap; }   /* Tabellen seitlich scrollbar */
+  }
+</style>
+</head>
+<body>
+
+<div class="kopf">
+  <button class="hamburger" onclick="toggleSeite()" aria-label="Menü öffnen">☰</button>
+  <div class="logo"><span class="mark">🚗</span> Fahrschule Muster</div>
+  <div class="rechts">
+    <div class="schiebe">
+      <span class="klein">A</span>
+      <input type="range" min="0" max="4" step="1" value="2" oninput="schrift(this.value)" id="slider" title="Schriftgröße" />
+      <span class="grossA">A</span>
+    </div>
+    <button class="umschalt" onclick="theme()" id="themeBtn">🌙 Dunkel</button>
+    <div class="nutzerbox">
+      <div class="nutzer" onclick="menu(event)"><span class="kreis">RM</span> <span class="nutzername">Renate M.</span> <span style="opacity:.7">▾</span></div>
+      <div class="menu" id="usermenu">
+        <div class="kopfinfo"><b>Renate M.</b><span>renate@fahrschule-muster.de</span></div>
+        <a onclick="openPers()">👤 Persönliche Einstellungen</a>
+        <a onclick="openBenachr()">🔔 Benachrichtigungen</a>
+        <a onclick="openPwPreview()">🔑 Passwort ändern</a>
+        <a class="abmelden" onclick="logout()">🚪 Abmelden</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="backdrop" id="backdrop" onclick="toggleSeite()"></div>
+<div class="raum">
+  <nav class="seite">
+    <h4>Verwaltung</h4>
+    <a class="an" data-s="start" onclick="zeige('start',this)"><span class="ic">🏠</span> Start</a>
+    <a data-s="schueler" onclick="zeige('schueler',this)"><span class="ic">👥</span> Schüler</a>
+    <h4>Fahrlehrer</h4>
+    <a data-s="kalender" onclick="zeige('kalender',this)"><span class="ic">📅</span> Kalender</a>
+    <h4>Einrichtung</h4>
+    <a data-s="admin" onclick="zeige('admin',this)"><span class="ic">⚙️</span> Adminpanel</a>
+  </nav>
+
+  <main class="inhalt">
+
+    <!-- ===== START ===== -->
+    <section id="start" class="schirm an">
+      <h1 class="seitentitel">Guten Tag, Renate!</h1>
+      <p class="untertitel">Mittwoch, 3. Juni 2026 · 18 aktive Schüler</p>
+
+      <div class="karte">
+        <h3 style="margin-top:0">🔔 Bald fällig</h3>
+        <div class="pkt"><span class="marke rot">Läuft ab</span><span class="txt">Max Becker – Theorieprüfung gültig bis 11.06. (Praxis bis dahin bestehen)</span><span class="zaehler">in 9 Tagen</span></div>
+        <div class="pkt"><span class="marke amber">Prüfung</span><span class="txt">Sara Vogt – Praxisprüfung am 05.06.</span><span class="zaehler">in 3 Tagen</span></div>
+        <div class="pkt"><span class="marke amber">Hinweis</span><span class="txt">Lisa Wagner – Sehtest läuft bald ab</span><span class="zaehler">in 3 Wochen</span></div>
+        <div class="pkt"><span class="marke amber">Hinweis</span><span class="txt">Jonas Klein – Antrag bei der Behörde läuft bald ab</span><span class="zaehler">in 4 Wochen</span></div>
+      </div>
+
+      <div class="karte" style="margin-top:18px">
+        <h3 style="margin-top:0">🕒 Letzte Änderungen</h3>
+        <div class="pkt"><span class="txt">✏️ Renate M. hat eine Praxisstunde bei <b>Max Becker</b> eingetragen</span><span class="zaehler">vor 10 Min.</span></div>
+        <div class="pkt"><span class="txt">📄 Unterlage „Erste-Hilfe-Bescheinigung" bei <b>Sara Vogt</b> als vorgelegt markiert</span><span class="zaehler">heute 09:14</span></div>
+        <div class="pkt"><span class="txt">✅ <b>Lisa Wagner</b> – Theorieprüfung als bestanden eingetragen</span><span class="zaehler">gestern 16:30</span></div>
+        <div class="pkt"><span class="txt">👤 Neuer Schüler <b>Sara Vogt</b> angelegt</span><span class="zaehler">gestern 11:02</span></div>
+      </div>
+    </section>
+
+    <!-- ===== SCHÜLERLISTE ===== -->
+    <section id="schueler" class="schirm">
+      <div class="zeile" style="justify-content:space-between; align-items:flex-start; margin-bottom:8px">
+        <div>
+          <h1 class="seitentitel" style="margin-bottom:2px">Schüler</h1>
+          <p class="untertitel" style="margin:0">Beispieldaten – die Akte zeigt zur Ansicht immer Lisa Wagner</p>
+        </div>
+        <button class="btn">＋ Neuer Schüler</button>
+      </div>
+
+      <div class="karte filterkarte">
+        <div class="fzeile"><span class="flabel">Suche</span>
+          <input class="suche" id="schuelerSuche" placeholder="🔍 Name eingeben …" oninput="schuelerFilter()" style="flex:1; min-width:180px; max-width:340px" />
+        </div>
+        <div class="fzeile"><span class="flabel">Klasse</span>
+          <div class="fchips" id="fKlasse">
+            <button class="fchip alle an" onclick="fchipToggle(this)">Alle</button>
+            <button class="fchip" onclick="fchipToggle(this)">B</button>
+            <button class="fchip" onclick="fchipToggle(this)">BF17</button>
+            <button class="fchip" onclick="fchipToggle(this)">BE</button>
+            <button class="fchip" onclick="fchipToggle(this)">A1</button>
+            <button class="fchip" onclick="fchipToggle(this)">A2</button>
+            <button class="fchip" onclick="fchipToggle(this)">AM</button>
+            <button class="fchip" onclick="fchipToggle(this)">C</button>
+            <button class="fchip" onclick="fchipToggle(this)">CE</button>
+          </div>
+        </div>
+        <div class="fzeile"><span class="flabel">Stand</span>
+          <div class="fchips" id="fStand">
+            <button class="fchip alle an" onclick="fchipToggle(this)">Alle</button>
+            <button class="fchip" onclick="fchipToggle(this)">Theorie</button>
+            <button class="fchip" onclick="fchipToggle(this)">Praxis</button>
+            <button class="fchip" onclick="fchipToggle(this)">Fertig</button>
+          </div>
+        </div>
+        <div class="fzeile"><span class="flabel">Frist</span>
+          <div class="fchips" id="fFrist">
+            <button class="fchip alle an" data-tage="" onclick="fristChip(this)">Alle</button>
+            <button class="fchip" data-tage="7" onclick="fristChip(this)">⏳ &lt; 7 Tage</button>
+            <button class="fchip" data-tage="14" onclick="fristChip(this)">⏳ &lt; 14 Tage</button>
+            <button class="fchip" data-tage="30" onclick="fristChip(this)">⏳ &lt; 30 Tage</button>
+            <button class="fchip" data-tage="custom" onclick="fristChip(this)">⏳ eigene …</button>
+          </div>
+          <input id="fFristTage" type="number" min="1" max="999" placeholder="Tage" hidden
+            oninput="schuelerFilter()" style="width:88px;font-size:.9em;padding:9px 11px;border:2px solid var(--linie);border-radius:10px;background:var(--flaeche);color:var(--text)" />
+        </div>
+        <p class="untertitel" style="margin:4px 0 0">Bei Klasse und Stand sind mehrere gleichzeitig wählbar.</p>
+      </div>
+
+      <table id="schuelerTabelle"></table>
+      <div class="zeile" style="margin-top:14px">
+        <button class="btn zweit" id="schZurueck" onclick="schuelerBlaettern(-1)">‹ Zurück</button>
+        <span id="schSeiteInfo" style="font-weight:600"></span>
+        <button class="btn zweit" id="schWeiter" onclick="schuelerBlaettern(1)">Weiter ›</button>
+      </div>
+    </section>
+
+    <!-- ===== SCHÜLER-AKTE (über „Öffnen") ===== -->
+    <section id="detail" class="schirm">
+      <button class="btn zweit" style="margin-bottom:14px" onclick="navTo('schueler')">← Zurück zur Liste</button>
+      <div class="zeile" style="justify-content:space-between; align-items:flex-start">
+        <div>
+          <h1 class="seitentitel" style="margin-bottom:2px">Lisa Wagner</h1>
+          <p class="untertitel" style="margin:0">macht Klasse B + A1 · seit März 2026</p>
+        </div>
+        <button class="btn gross" onclick="openStunde()">✏️ Stunde eintragen</button>
+      </div>
+
+      <div class="tabs">
+        <span class="an" onclick="tab2(this,'tab-stammdaten')">Stammdaten</span>
+        <span onclick="tab2(this,'tab-fortschritt')">Ausbildungs­fortschritt</span>
+        <span onclick="tab2(this,'tab-pruefungen')">Prüfungen</span>
+      </div>
+
+      <div id="tab-fortschritt" class="tabinhalt" hidden>
+      <p style="font-weight:600; margin:0 0 4px">Welche Klassen macht Lisa zurzeit?</p>
+      <div class="chips">
+        <div class="chip an">🚗 B</div>
+        <div class="chip an">🏍️ A1</div>
+        <div class="chip add" onclick="openKlasse()">＋ Klasse hinzufügen</div>
+      </div>
+
+      <div class="karte">
+        <div class="zeile" style="margin:0 0 4px"><h3 style="margin:0">📖 Theorie – Grundstoff</h3><span class="marke blau" style="margin-left:auto">je Thema klassenabhängig</span></div>
+        <p class="untertitel" style="margin:0 0 10px">Häkchen = abhaken (klappt beim ersten Mal automatisch auf) · Pfeil ▾ = Datum &amp; Notiz ansehen.</p>
+
+        <div class="pkt"><div class="haken an" onclick="check(this,event)">✓</div><span class="txt" style="flex:1">Thema 1 – Persönliche Voraussetzungen <span class="tag2">B · A1</span></span><span class="marke gruen">erledigt</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="reihe">
+          <div class="feldchen"><label>Erledigt am</label><input value="12.05.2026" /></div>
+          <div class="feldchen"><label>Notiz (optional)</label><input placeholder="z. B. nachgeholt, Sondertermin …" /></div>
+        </div></div>
+
+        <div class="pkt"><div class="haken an" onclick="check(this,event)">✓</div><span class="txt" style="flex:1">Thema 2 – Rechtliche Rahmenbedingungen <span class="tag2">B · A1</span></span><span class="marke gruen">erledigt</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="reihe">
+          <div class="feldchen"><label>Erledigt am</label><input value="12.05.2026" /></div>
+          <div class="feldchen"><label>Notiz (optional)</label><input placeholder="z. B. nachgeholt, Sondertermin …" /></div>
+        </div></div>
+
+        <div class="pkt"><div class="haken an" onclick="check(this,event)">✓</div><span class="txt" style="flex:1">Thema 5 – Bahnübergänge <span class="tag2">B · A1</span><span class="note">in alter Version absolviert · angerechnet</span></span><span class="marke gruen">erledigt</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="reihe">
+          <div class="feldchen"><label>Erledigt am</label><input value="03.2024" /></div>
+          <div class="feldchen"><label>Notiz (optional)</label><input value="Aus A1-Ausbildung angerechnet" /></div>
+        </div></div>
+
+        <div class="pkt"><div class="haken" onclick="check(this,event)">　</div><span class="txt" style="flex:1">Thema 11 – Fahrassistenz &amp; Umwelt <span class="tag2">B · A1</span><span class="note">neu in aktueller Version</span></span><span class="marke amber">nachzuholen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="reihe">
+          <div class="feldchen"><label>Erledigt am</label><input placeholder="tt.mm.jjjj" /></div>
+          <div class="feldchen"><label>Notiz (optional)</label><input placeholder="z. B. nachgeholt, Sondertermin …" /></div>
+        </div></div>
+
+        <div class="pkt"><div class="haken" onclick="check(this,event)">　</div><span class="txt" style="flex:1">Thema 12 – Anhänger / Beladung <span class="tag2">nur B</span></span><span class="marke amber">offen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="reihe">
+          <div class="feldchen"><label>Erledigt am</label><input placeholder="tt.mm.jjjj" /></div>
+          <div class="feldchen"><label>Notiz (optional)</label><input placeholder="z. B. nachgeholt, Sondertermin …" /></div>
+        </div></div>
+
+      </div>
+
+      <div class="karte" style="margin-top:18px">
+        <h3 style="margin-top:0">🚗 Klasse B</h3>
+
+        <h4 class="unterab">📖 Theorie</h4>
+        <div class="pkt" data-einheit="Doppelstunde"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger">−</button><span class="zwert" data-ist="1" data-soll="2">1 / 2</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Zusatzstoff (B-spezifische Doppelstunden)</span><span class="marke amber">offen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege">
+          <div class="reihe"><div class="feldchen"><label>1. Doppelstunde am</label><input value="20.05.2026" /></div><div class="feldchen"><label>Notiz (optional)</label><input placeholder="z. B. nachgeholt, Sondertermin …" /></div></div>
+        </div></div>
+
+        <div class="pkt" data-einheit="Doppelstunde"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger" disabled>−</button><span class="zwert" data-ist="0" data-soll="0">0</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Zusätzliche Theoriestunden (freiwillige Wiederholungen)</span><span class="marke grau">freiwillig</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege"></div></div>
+
+        <h4 class="unterab">🚗 Praxis</h4>
+        <div class="pkt" data-einheit="Fahrt"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger" disabled>−</button><span class="zwert" data-ist="0" data-soll="5">0 / 5</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Überlandfahrt</span><span class="marke amber">offen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege"></div></div>
+
+        <div class="pkt" data-einheit="Fahrt"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger" disabled>−</button><span class="zwert" data-ist="0" data-soll="4">0 / 4</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Autobahnfahrt</span><span class="marke amber">offen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege"></div></div>
+
+        <div class="pkt" data-einheit="Fahrt"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger" disabled>−</button><span class="zwert" data-ist="0" data-soll="3">0 / 3</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Nachtfahrt</span><span class="marke amber">offen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege"></div></div>
+
+        <div class="pkt"><div class="haken" onclick="check(this,event)">　</div><span class="txt" style="flex:1">Grundfahraufgaben (z. B. Einparken, Gefahrbremsung)</span><span class="marke amber">offen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="reihe"><div class="feldchen"><label>Erledigt am</label><input placeholder="tt.mm.jjjj" /></div><div class="feldchen"><label>Notiz (optional)</label><input placeholder="z. B. nachgeholt, Sondertermin …" /></div></div></div>
+
+        <div class="pkt" data-einheit="Stunde"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger" disabled>−</button><span class="zwert" id="ueb-b-praxis" data-ist="0" data-soll="0">0</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Übungs-/Zusatzstunden (über die Pflicht hinaus)</span><span class="marke grau">freiwillig</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege"></div></div>
+      </div>
+
+      <div class="karte" style="margin-top:18px">
+        <h3 style="margin-top:0">🏍️ Klasse A1</h3>
+
+        <h4 class="unterab">📖 Theorie</h4>
+        <div class="pkt" data-einheit="Doppelstunde"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger" disabled>−</button><span class="zwert" data-ist="0" data-soll="4">0 / 4</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Zusatzstoff (A1 – Motorrad, Doppelstunden)</span><span class="marke amber">offen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege"></div></div>
+
+        <div class="pkt" data-einheit="Doppelstunde"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger" disabled>−</button><span class="zwert" data-ist="0" data-soll="0">0</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Zusätzliche Theoriestunden (freiwillige Wiederholungen)</span><span class="marke grau">freiwillig</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege"></div></div>
+
+        <h4 class="unterab">🏍️ Praxis</h4>
+        <div class="pkt"><div class="haken" onclick="check(this,event)">　</div><span class="txt" style="flex:1">Grundfahraufgaben Motorrad (z. B. Slalom, Ausweichen)</span><span class="marke amber">offen</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="reihe"><div class="feldchen"><label>Erledigt am</label><input placeholder="tt.mm.jjjj" /></div><div class="feldchen"><label>Notiz (optional)</label><input placeholder="z. B. nachgeholt, Sondertermin …" /></div></div></div>
+
+        <div class="pkt" data-einheit="Stunde"><div class="zaehler-ctrl"><button class="zbtn minus" onclick="zaehler(this,-1)" title="Eine weniger" disabled>−</button><span class="zwert" data-ist="0" data-soll="0">0</span><button class="zbtn plus" onclick="zaehler(this,1)" title="Eine mehr">＋</button></div><span class="txt" style="flex:1">Übungs-/Zusatzstunden (über die Pflicht hinaus)</span><span class="marke grau">freiwillig</span><button class="pfeil" onclick="togglePanel(this,event)" title="Details">▾</button></div>
+        <div class="detail-panel"><div class="eintraege"></div></div>
+      </div>
+      </div><!-- /tab-fortschritt -->
+
+      <div id="tab-stammdaten" class="tabinhalt">
+        <div class="karte" style="max-width:640px">
+          <p class="untertitel" style="margin-top:0">Name ist sichtbar. Weitere Daten sind aus Datenschutzgründen verdeckt – rechts auf das 👁 klicken zum Ansehen/Bearbeiten.</p>
+          <div class="reihe" style="display:flex;gap:16px;flex-wrap:wrap">
+            <div class="sfeld" style="flex:1;min-width:220px"><div class="dlabel">Vorname</div><div class="sfeld-zeile"><input class="swert" value="Lisa" /></div></div>
+            <div class="sfeld" style="flex:1;min-width:220px"><div class="dlabel">Nachname</div><div class="sfeld-zeile"><input class="swert" value="Wagner" /></div></div>
+          </div>
+          <div class="reihe" style="display:flex;gap:16px;flex-wrap:wrap">
+            <div class="sfeld" style="flex:1;min-width:220px"><div class="dlabel">Geburtsdatum</div><div class="sfeld-zeile"><input class="swert verdeckt" value="02.09.2008" readonly /><button class="auge" onclick="reveal(this)" title="Anzeigen/Bearbeiten">👁</button></div></div>
+            <div class="sfeld" style="flex:1;min-width:220px"><div class="dlabel">Telefon</div><div class="sfeld-zeile"><input class="swert verdeckt" value="0151 98765432" readonly /><button class="auge" onclick="reveal(this)" title="Anzeigen/Bearbeiten">👁</button></div></div>
+          </div>
+          <div class="sfeld"><div class="dlabel">E-Mail</div><div class="sfeld-zeile"><input class="swert" value="" placeholder="leer – bitte nachfragen" readonly /><button class="auge" onclick="reveal(this)" title="Anzeigen/Bearbeiten">👁</button></div></div>
+          <div class="sfeld"><div class="dlabel">Adresse</div><div class="sfeld-zeile"><input class="swert verdeckt" value="Lindenweg 12 · 04109 Leipzig" readonly /><button class="auge" onclick="reveal(this)" title="Anzeigen/Bearbeiten">👁</button></div></div>
+          <div style="margin-top:8px"><button class="btn">Speichern</button></div>
+        </div>
+
+        <div class="karte" style="max-width:640px;margin-top:18px">
+          <h3 style="margin-top:0">Unterlagen</h3>
+          <p class="untertitel" style="margin-top:0">Die benötigten Unterlagen richten sich automatisch nach den gewählten Klassen (hier: B, A1).
+            Ist ein Ablaufdatum eingetragen, wird <b>automatisch</b> rechtzeitig erinnert. Die Dokumente selbst werden aus Datenschutzgründen nicht gespeichert.</p>
+
+          <div class="dok">
+            <div class="dok-kopf"><div class="haken an" onclick="dokToggle(this)">✓</div><span class="txt" style="flex:1">Sehtest</span><span class="marke gruen">liegt vor</span><button class="pfeil" onclick="dokPanel(this)" title="Details">▾</button></div>
+            <div class="detail-panel"><div class="dok-felder">
+              <div class="feldchen"><label>Vorgelegt am</label><input value="12.05.2026" /></div>
+              <div class="feldchen"><label>Läuft ab am</label><input class="ablauf" placeholder="tt.mm.jjjj" /></div>            </div></div>
+          </div>
+
+          <div class="dok">
+            <div class="dok-kopf"><div class="haken an" onclick="dokToggle(this)">✓</div><span class="txt" style="flex:1">Erste-Hilfe-Bescheinigung</span><span class="marke gruen">liegt vor</span><button class="pfeil" onclick="dokPanel(this)" title="Details">▾</button></div>
+            <div class="detail-panel"><div class="dok-felder">
+              <div class="feldchen"><label>Vorgelegt am</label><input value="10.05.2026" /></div>
+              <div class="feldchen"><label>Läuft ab am</label><input class="ablauf" placeholder="tt.mm.jjjj" /></div>            </div></div>
+          </div>
+
+          <div class="dok">
+            <div class="dok-kopf"><div class="haken" onclick="dokToggle(this)">　</div><span class="txt" style="flex:1">Passbild</span><span class="marke amber">fehlt</span><button class="pfeil" onclick="dokPanel(this)" title="Details">▾</button></div>
+            <div class="detail-panel"><div class="dok-felder">
+              <div class="feldchen"><label>Vorgelegt am</label><input placeholder="tt.mm.jjjj" /></div>
+              <div class="feldchen"><label>Läuft ab am</label><input class="ablauf" placeholder="tt.mm.jjjj" /></div>            </div></div>
+          </div>
+
+          <div class="dok" data-pflicht="1">
+            <div class="dok-kopf"><div class="haken an" onclick="dokToggle(this)">✓</div><span class="txt" style="flex:1">Fahrerlaubnis-Antrag (Amt) <span class="tag2">Ablaufdatum Pflicht</span></span><span class="marke gruen">liegt vor</span><button class="pfeil" onclick="dokPanel(this)" title="Details">▾</button></div>
+            <div class="detail-panel"><div class="dok-felder">
+              <div class="feldchen"><label>Vorgelegt am</label><input value="02.04.2026" /></div>
+              <div class="feldchen"><label>Läuft ab am</label><input class="ablauf" value="20.06.2026" oninput="pflichtOk(this)" /></div>            </div>
+            <p class="untertitel pflicht-hinweis" hidden style="margin:8px 0 0">⚠ Diese Unterlage braucht ein <b>Ablaufdatum</b> – bitte zuerst eintragen, dann abhaken.</p></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-pruefungen" class="tabinhalt" hidden>
+        <div class="zeile"><button class="btn" onclick="openPruef()">＋ Prüfung eintragen</button></div>
+        <table id="pruefTabelle"></table>
+        <p class="untertitel" style="margin-top:10px">Vorprüfungen (interne Probe: Theorie am Laptop, Praxis-Testfahrt)
+          werden nur <b>vermerkt</b> – sie zählen nicht als Prüfungsversuch und lösen keine Sperre aus.</p>
+
+        <div class="karte" style="margin-top:18px">
+          <h3 style="margin-top:0">⏳ Wiederholungs-Sperre · Praxisprüfung (B) nicht bestanden am 27.05.2026</h3>
+          <p class="untertitel" style="margin-top:0">Nach einer nicht bestandenen Prüfung gilt eine Sperre von
+            <b>2 Wochen</b>. Mit <b>2 Übungsstunden</b> verkürzt sie sich auf <b>1 Woche</b>
+            (Werte im Adminpanel einstellbar). Jeder Fehlversuch bekommt seinen eigenen Sperr-Block.</p>
+          <div class="pkt"><span class="txt">Frühestens wieder prüfen am</span><span class="marke amber" id="sperreBadge" style="margin-left:auto">10.06.2026 (normale Sperre: 2 Wochen)</span></div>
+          <div class="pkt"><span class="txt" style="flex:1">Übungsstunden für die Verkürzung <span class="note">werden im Tab „Ausbildungsfortschritt" eingetragen</span></span><span class="marke amber" id="sperreFortschritt" style="margin-left:auto">0 von 2</span></div>
+          <p class="untertitel" style="margin:10px 0 0">💡 Der geplante 2. Versuch am 05.06. ist nur mit verkürzter Sperre möglich – trage 2 Praxis-Übungsstunden im Ausbildungsfortschritt (Klasse B → Praxis) ein, dann passt das Datum automatisch.</p>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ===== KALENDER (Monatsansicht) ===== -->
+    <section id="kalender" class="schirm">
+      <h1 class="seitentitel">Kalender</h1>
+      <div class="monat-kopf">
+        <button class="btn zweit" title="Voriger Monat" onclick="monatWechsel(-1)">‹</button>
+        <h2 style="margin:0" id="monatTitel">Juni 2026</h2>
+        <button class="btn zweit" title="Nächster Monat" onclick="monatWechsel(1)">›</button>
+        <button class="btn zweit" onclick="gehHeute()">Heute</button>
+        <input type="month" id="monatPicker" title="Bestimmten Monat anzeigen" onchange="monatWaehlen(this.value)" />
+        <button class="btn" style="margin-left:auto" onclick="openTermin()">＋ Neuer Termin</button>
+      </div>
+      <div class="kal-grid" id="kalGrid"></div>
+      <h3 id="tagTitel" style="margin-top:24px">Termine</h3>
+      <div id="tagListe"></div>
+    </section>
+
+    <!-- ===== STUNDE EINTRAGEN (aus der Schüler-Akte heraus) ===== -->
+    <section id="stunde" class="schirm">
+      <button class="btn zweit" style="margin-bottom:14px" onclick="openDetail()">← Zurück zum Schüler</button>
+      <h1 class="seitentitel">Stunde eintragen</h1>
+      <p class="untertitel">für <b>Lisa Wagner</b></p>
+      <div class="karte" style="max-width:560px">
+        <div class="zeile"><button class="btn gross">📖 Theorie</button><button class="btn gross zweit">🚗 Praxis</button></div>
+        <div class="feld"><label>Für welche Klasse?</label>
+          <select><option>Grundstoff (zählt für B + A1)</option><option>Klasse B</option><option>Klasse A1</option></select>
+        </div>
+        <div class="feld"><label>Datum</label><input value="02.06.2026" /></div>
+        <div class="feld"><label>Dauer</label><select><option>90 Minuten (Doppelstunde)</option><option>45 Minuten</option></select></div>
+        <h3>Was wurde heute behandelt?</h3>
+        <div class="pkt"><div class="haken an">✓</div><span class="txt">Grundstoff Thema 7 – Verkehrszeichen</span></div>
+        <div class="pkt"><div class="haken">　</div><span class="txt">Grundstoff Thema 8 – Vorfahrt</span></div>
+        <div class="pkt"><div class="haken">　</div><span class="txt">Grundstoff Thema 9 – Geschwindigkeit</span></div>
+        <div style="margin-top:20px"><button class="btn gross" onclick="openDetail()">✓ Stunde speichern</button></div>
+      </div>
+    </section>
+
+    <!-- ===== ADMINPANEL ===== -->
+    <section id="admin" class="schirm">
+      <h1 class="seitentitel">Adminpanel</h1>
+      <p class="untertitel">Hier stellen Sie fast alles selbst ein – ohne Programmierung</p>
+
+      <div class="karte">
+        <div class="zeile" style="margin-bottom:8px"><h3 style="margin:0">Führerscheinklassen</h3><button class="btn zweit" style="margin-left:auto" onclick="klasseEdit(-1)">＋ Klasse hinzufügen</button></div>
+        <table id="klassenTabelle"></table>
+      </div>
+      <div class="hinweis">💡 Ändert sich ein Gesetz (z. B. andere Pflichtstunden), passen Sie das einfach hier an – am Programm muss nichts neu gebaut werden.</div>
+
+      <div class="karte" style="margin-top:6px">
+        <div class="zeile" style="margin-bottom:8px"><h3 style="margin:0">Theorie-Grundstoff – Themen</h3><button class="btn zweit" style="margin-left:auto" onclick="katalogEdit('thema',-1)">＋ Thema hinzufügen</button></div>
+        <table id="themenTabelle"></table>
+        <p class="untertitel" style="margin-top:10px">Per Häkchen wählt man, für welche Klassen ein Thema gilt (z. B. LKW-Themen nur für C/CE). Wird ein Thema geändert, entsteht eine neue Version – ältere Versionen bleiben für bereits absolvierte Schüler erhalten und werden dort als „alte Version" angezeigt.</p>
+      </div>
+
+      <div class="karte" style="margin-top:18px">
+        <div class="zeile" style="margin-bottom:8px"><h3 style="margin:0">🗂️ Unterlagen je Klasse</h3><button class="btn zweit" style="margin-left:auto" onclick="katalogEdit('dok',-1)">＋ Unterlage hinzufügen</button></div>
+        <table id="dokKatTabelle"></table>
+        <p class="untertitel" style="margin-top:10px">Steuert, welche Unterlagen in der Schüler-Akte erscheinen – je nach gewählten Klassen. „Alle" = Standard-Unterlage für jede Klasse.</p>
+      </div>
+
+      <div class="karte" style="margin-top:18px">
+        <h3 style="margin-top:0">🔔 Erinnerungen</h3>
+        <div class="reihe" style="display:flex;gap:16px;flex-wrap:wrap">
+          <div class="feld" style="flex:1;min-width:220px"><label>Unterlagen: Hinweis vor Ablauf</label>
+            <select id="setAblauf" onchange="ablaufAendern(this)">
+              <option value="14">14 Tage</option>
+              <option value="21" selected>21 Tage (Standard)</option>
+              <option value="30">30 Tage</option>
+              <option value="60">60 Tage</option>
+            </select></div>
+          <div class="feld" style="flex:1;min-width:220px"><label>Termin-Erinnerung Fahrlehrer (Push)</label>
+            <select id="setPush" onchange="einstellungOk()">
+              <option value="15">15 Minuten</option>
+              <option value="30" selected>30 Minuten (Standard)</option>
+              <option value="60">60 Minuten</option>
+            </select></div>
+        </div>
+        <p class="untertitel" style="margin:0">Läuft eine Unterlage innerhalb der eingestellten Zeit ab, wird sie in der Akte automatisch hervorgehoben und erscheint in „Bald fällig". <span id="setOk" class="marke gruen" hidden>✓ übernommen</span></p>
+      </div>
+
+      <div class="karte" style="margin-top:18px">
+        <h3 style="margin-top:0">⏳ Wiederholungs-Sperre nach nicht bestandener Prüfung</h3>
+        <div class="reihe" style="display:flex;gap:16px;flex-wrap:wrap">
+          <div class="feld" style="flex:1;min-width:180px"><label>Normale Sperre</label>
+            <select onchange="einstellungOk()"><option>2 Wochen (Standard)</option><option>1 Woche</option><option>3 Wochen</option></select></div>
+          <div class="feld" style="flex:1;min-width:180px"><label>Verkürzte Sperre</label>
+            <select onchange="einstellungOk()"><option>1 Woche (Standard)</option><option>Keine Verkürzung möglich</option></select></div>
+          <div class="feld" style="flex:1;min-width:220px"><label>Nachschulungsstunden für Verkürzung</label>
+            <input type="number" value="2" min="0" max="20" onchange="einstellungOk()" /></div>
+        </div>
+        <p class="untertitel" style="margin:0">Gilt für Theorie- und Praxisprüfungen. Jede nicht bestandene Prüfung erzeugt
+          automatisch ihren eigenen Sperr-Block in der Schüler-Akte (Tab „Prüfungen") – auch mehrfach hintereinander.</p>
+      </div>
+
+      <div class="karte" style="margin-top:18px">
+        <div class="zeile" style="margin-bottom:8px"><h3 style="margin:0">👤 Benutzer</h3><button class="btn zweit" style="margin-left:auto" onclick="benutzerEdit(-1)">＋ Benutzer anlegen</button></div>
+        <table id="benutzerTabelle"></table>
+        <p class="untertitel" style="margin-top:10px">Rollen: <b>Admin</b> (alles inkl. Adminpanel) ·
+          <b>Fahrlehrer</b> (bekommt Termin-Push) · <b>Verwaltung</b> (wie Fahrlehrer, aber ohne Push).
+          Der Admin kann Passwörter zurücksetzen – niemand braucht dafür eine E-Mail.</p>
+      </div>
+
+      <div class="karte" style="margin-top:18px">
+        <h3 style="margin-top:0">🔒 Datenschutz (DSGVO)</h3>
+        <div class="zeile" style="align-items:flex-end">
+          <div class="feld" style="margin:0;min-width:260px"><label>Schüler</label>
+            <div class="ac">
+              <input id="dsgvoSchueler" placeholder="🔍 Name eingeben oder anklicken …" autocomplete="off"
+                onfocus="acShow(this,'dsgvoListe')" oninput="acShow(this,'dsgvoListe')" />
+              <div class="ac-liste" id="dsgvoListe"></div>
+            </div>
+          </div>
+          <button class="btn zweit" onclick="dsgvoExport()">📤 Daten exportieren</button>
+          <button class="btn rot" onclick="dsgvoLoeschen()">🗑 Löschen (mit Fristenprüfung)</button>
+        </div>
+        <p class="untertitel">Export = Auskunft/Datenübertragbarkeit (Art. 15/20 DSGVO), lädt eine Datei mit allen
+          gespeicherten Daten des Schülers herunter. Löschen = Soft-Delete; gesetzlich aufzubewahrende Daten
+          (z. B. Ausbildungsnachweis) werden erst nach Fristende automatisch endgültig entfernt.</p>
+
+        <h3>🗑 Zur Löschung vorgemerkt</h3>
+        <table id="geloeschteTabelle"></table>
+        <p class="untertitel" style="margin-top:10px">Bis zum endgültigen Entfernen nach Fristende kann eine
+          Löschung jederzeit <b>rückgängig gemacht</b> werden – auch das wird protokolliert.</p>
+
+        <h3>📋 Audit-Log</h3>
+        <div class="zeile"><input class="suche" id="auditFilter" placeholder="🔍 Filtern: Nutzer, Schüler, Aktion …" oninput="auditFiltern(this.value)" /></div>
+        <table id="auditTabelle"></table>
+        <div class="zeile" style="margin-top:14px">
+          <button class="btn zweit" id="auditZurueck" onclick="auditBlaettern(-1)">‹ Zurück</button>
+          <span id="auditSeiteInfo" style="font-weight:600"></span>
+          <button class="btn zweit" id="auditWeiter" onclick="auditBlaettern(1)">Weiter ›</button>
+        </div>
+        <p class="untertitel" style="margin-top:10px">Jede Änderung an personenbezogenen Daten wird protokolliert (wer/wann/was) – auch Export und Löschung erscheinen hier.</p>
+      </div>
+    </section>
+
+    <p class="fuss">Design-Entwurf zur Ansicht · Beispieldaten · Farben, Schriftgröße &amp; Hell/Dunkel anpassbar</p>
+  </main>
+</div>
+
+<!-- ===== DIALOG: KLASSE HINZUFÜGEN (mit Anrechnung) ===== -->
+<div class="overlay" id="klasseDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeKlasse)">
+  <div class="dialog">
+    <button class="schliessen" onclick="closeKlasse()" aria-label="Schließen">✕</button>
+    <h2>Klasse hinzufügen</h2>
+    <p class="untertitel" style="margin-top:0">für Lisa Wagner · bisher gemacht: A1</p>
+
+    <div class="feld"><label>Welche Klasse soll dazukommen?</label>
+      <select><option>B – PKW</option><option>BE</option><option>A2</option><option>AM</option></select>
+    </div>
+
+    <div class="box gut">
+      <b>✓ Aus früherer Ausbildung angerechnet</b>
+      <div class="untertitel" style="margin:4px 0 8px">Geteilter Theorie-Grundstoff, unverändert gültig</div>
+      <div class="pkt" style="padding:6px 0"><div class="haken an">✓</div><span class="txt">Grundstoff Themen 1–10</span></div>
+    </div>
+
+    <div class="box warn">
+      <b>⚠ Bitte prüfen – Inhalt hat sich seit der A1-Ausbildung geändert</b>
+      <div class="untertitel" style="margin:4px 0 8px">Eventuell erneut nötig – Sie entscheiden</div>
+      <div class="pkt" style="padding:6px 0"><div class="haken">　</div><span class="txt">Grundstoff Thema 11 – Fahrassistenz / Umwelt (überarbeitet)</span></div>
+    </div>
+
+    <div class="box neu">
+      <b>＋ Neu für Klasse B</b>
+      <div class="pkt" style="padding:6px 0"><div class="haken">　</div><span class="txt">Zusatzstoff B (2 Doppelstunden)</span></div>
+      <div class="pkt" style="padding:6px 0"><div class="haken">　</div><span class="txt">Sonderfahrten (12)</span></div>
+      <div class="pkt" style="padding:6px 0"><div class="haken">　</div><span class="txt">Grundfahraufgaben</span></div>
+    </div>
+
+    <p class="untertitel">Was angerechnet werden darf, entscheidet der Fahrlehrer (z. B. Aktualität/Gültigkeit). Bereits erledigte A1-Inhalte bleiben unverändert erhalten.</p>
+
+    <div class="aktionen">
+      <button class="btn zweit" onclick="closeKlasse()">Abbrechen</button>
+      <button class="btn" onclick="closeKlasse()">✓ Klasse hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== BESTÄTIGUNG: ERLEDIGTES WIEDER AUSTRAGEN ===== -->
+<div class="overlay" id="confirmDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,confirmNo)">
+  <div class="dialog" style="max-width:480px">
+    <button class="schliessen" onclick="confirmNo()" aria-label="Schließen">✕</button>
+    <h2>⚠ Eintrag wirklich austragen?</h2>
+    <p>Folgender als <b>erledigt</b> markierter Punkt wird ausgetragen:</p>
+    <div class="box warn" id="confirmItem" style="font-weight:700">…</div>
+    <p>Datum und Notiz gehen dabei verloren.</p>
+    <div class="aktionen">
+      <button class="btn zweit" onclick="confirmNo()">Abbrechen</button>
+      <button class="btn rot" onclick="confirmYes()">Ja, austragen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: NEUER TERMIN ===== -->
+<div class="overlay" id="terminDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeTermin)">
+  <div class="dialog" style="max-width:480px">
+    <button class="schliessen" onclick="closeTermin()" aria-label="Schließen">✕</button>
+    <h2 id="terminTitel">Neuer Termin</h2>
+    <div class="feld"><label>Datum</label>
+      <input id="tDatum" type="date" value="2026-06-03" />
+    </div>
+    <div class="reihe" style="display:flex;gap:16px;flex-wrap:wrap">
+      <div class="feld" style="flex:1;min-width:130px"><label>Von</label><input id="tVon" type="time" value="09:00" /></div>
+      <div class="feld" style="flex:1;min-width:130px"><label>Bis</label><input id="tBis" type="time" value="09:45" /></div>
+    </div>
+    <div class="feld"><label>Art</label>
+      <select id="tArt" onchange="artChange()">
+        <option value="praxis">Praxis</option>
+        <option value="theorie">Theorie</option>
+        <option value="pruef">Praxis-Prüfung</option>
+        <option value="custom">Sonstiges (eigene Eingabe) …</option>
+      </select>
+    </div>
+    <div class="feld" id="tArtCustomWrap" hidden><label>Eigene Bezeichnung</label>
+      <input id="tArtCustom" placeholder="z. B. Sehtest-Termin, Beratung …" />
+    </div>
+    <div class="feld"><label>Schüler (optional)</label>
+      <div class="ac">
+        <input id="tWer" placeholder="Name eingeben oder anklicken …" autocomplete="off"
+          onfocus="acShow(this,'acListe')" oninput="acShow(this,'acListe')" />
+        <div class="ac-liste" id="acListe"></div>
+      </div>
+    </div>
+    <div class="feld"><label>Notiz – was wird gemacht? (optional)</label>
+      <input id="tNotiz" placeholder="z. B. Autobahnfahrt, Thema 7 …" />
+    </div>
+    <div class="aktionen">
+      <button class="btn rot" id="tDelete" onclick="deleteTermin()" hidden style="margin-right:auto">🗑 Löschen</button>
+      <button class="btn zweit" onclick="closeTermin()">Abbrechen</button>
+      <button class="btn" onclick="saveTermin()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: FÜHRERSCHEINKLASSE BEARBEITEN (Adminpanel) ===== -->
+<div class="overlay" id="adminKlasseDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeAdminKlasse)">
+  <div class="dialog" style="max-width:480px">
+    <button class="schliessen" onclick="closeAdminKlasse()" aria-label="Schließen">✕</button>
+    <h2 id="akTitel">Klasse bearbeiten</h2>
+    <div class="reihe" style="display:flex;gap:16px;flex-wrap:wrap">
+      <div class="feld" style="flex:1;min-width:130px"><label>Kürzel</label><input id="akCode" placeholder="z. B. B" /></div>
+      <div class="feld" style="flex:1;min-width:130px"><label>Mindestalter</label><input id="akAlter" type="number" min="14" max="99" /></div>
+    </div>
+    <div class="feld"><label>Theorie-Pflicht (Doppelstunden)</label><input id="akTheorie" type="number" min="0" max="99" /></div>
+    <label style="font-weight:600">Sonderfahrten (Pflicht-Anzahl)</label>
+    <div class="reihe" style="display:flex;gap:16px;flex-wrap:wrap;margin-top:6px">
+      <div class="feld" style="flex:1;min-width:110px"><label>Überland</label><input id="akUe" type="number" min="0" max="99" /></div>
+      <div class="feld" style="flex:1;min-width:110px"><label>Autobahn</label><input id="akAb" type="number" min="0" max="99" /></div>
+      <div class="feld" style="flex:1;min-width:110px"><label>Nacht</label><input id="akNa" type="number" min="0" max="99" /></div>
+    </div>
+    <div class="aktionen">
+      <button class="btn rot" id="akDelete" onclick="klasseDelete()" hidden style="margin-right:auto">🗑 Löschen</button>
+      <button class="btn zweit" onclick="closeAdminKlasse()">Abbrechen</button>
+      <button class="btn" onclick="klasseSave()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: THEMA / UNTERLAGE BEARBEITEN (Adminpanel, mit Klassen-Häkchen) ===== -->
+<div class="overlay" id="katalogDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeKatalog)">
+  <div class="dialog" style="max-width:520px">
+    <button class="schliessen" onclick="closeKatalog()" aria-label="Schließen">✕</button>
+    <h2 id="kgTitel">Bearbeiten</h2>
+    <div class="feld"><label>Bezeichnung</label><input id="kgName" /></div>
+    <div class="feld" id="kgVersionWrap"><label>Version (gültig ab)</label><input id="kgVersion" placeholder="z. B. ab 06.2026" /></div>
+    <div class="feld" id="kgAblaufWrap" hidden>
+      <label style="display:flex;align-items:center;gap:10px;font-weight:600;cursor:pointer">
+        <input type="checkbox" id="kgAblauf" style="width:22px;height:22px;accent-color:var(--primary);margin:0;flex-shrink:0" />
+        Ablaufdatum ist Pflicht
+      </label>
+      <p class="untertitel" style="margin:6px 0 0">Die Unterlage kann beim Schüler erst als „liegt vor"
+        abgehakt werden, wenn ein Ablaufdatum eingetragen ist – so wird nichts vergessen.</p>
+    </div>
+    <label style="font-weight:600">Gilt für folgende Klassen</label>
+    <div class="check-grid" id="kgKlassen"></div>
+    <div class="aktionen">
+      <button class="btn rot" id="kgDelete" onclick="katalogDelete()" hidden style="margin-right:auto">🗑 Löschen</button>
+      <button class="btn zweit" onclick="closeKatalog()">Abbrechen</button>
+      <button class="btn" onclick="katalogSave()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: BENUTZER BEARBEITEN (Adminpanel) ===== -->
+<div class="overlay" id="benutzerDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeBenutzer)">
+  <div class="dialog" style="max-width:460px">
+    <button class="schliessen" onclick="closeBenutzer()" aria-label="Schließen">✕</button>
+    <h2 id="bnTitel">Benutzer bearbeiten</h2>
+    <div class="feld"><label>Name</label><input id="bnName" /></div>
+    <div class="feld"><label>E-Mail (für die Anmeldung)</label><input id="bnMail" type="email" /></div>
+    <div class="feld"><label>Rolle</label>
+      <select id="bnRolle"><option>Admin</option><option>Fahrlehrer</option><option>Verwaltung</option></select>
+    </div>
+    <p class="untertitel" style="margin:0;font-size:.8em">Admin = alles · Fahrlehrer = mit Termin-Push · Verwaltung = wie Fahrlehrer, ohne Push.</p>
+
+    <div class="box gut" id="bnTempWrap" hidden style="margin-top:14px">
+      <b>🔑 Temporäres Passwort</b>
+      <div class="temprow">
+        <input id="bnTempPw" class="tempfeld" readonly />
+        <button class="btn zweit" onclick="bnNeuesTemp()" title="Neu erzeugen">🔄 Neu</button>
+      </div>
+      <p class="untertitel" style="margin:8px 0 0">Diesen Code dem Benutzer mitteilen. Bei der <b>ersten Anmeldung</b>
+        wird er aufgefordert, ein eigenes Passwort zu setzen. <a onclick="closeBenutzer();openPwSet()" style="color:var(--primary);cursor:pointer;text-decoration:underline">Ablauf ansehen</a></p>
+    </div>
+
+    <div id="bnResetWrap" hidden style="margin-top:12px">
+      <button class="btn zweit" onclick="benutzerReset()">🔑 Passwort zurücksetzen</button>
+      <p class="untertitel" style="margin:6px 0 0">Erzeugt ein neues temporäres Passwort; der Benutzer muss es bei der nächsten Anmeldung ändern.</p>
+    </div>
+
+    <div class="aktionen">
+      <button class="btn zweit" onclick="closeBenutzer()">Abbrechen</button>
+      <button class="btn" onclick="benutzerSave()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== VOLLBILD: ANMELDEN ===== -->
+<div class="authscreen auf" id="loginScreen">
+  <div class="authcard">
+    <div class="authlogo"><span class="mark">🚗</span> Fahrschule Muster</div>
+    <h2>Anmelden</h2>
+    <div class="feld"><label>E-Mail</label><input id="loginMail" type="email" value="renate@fahrschule-muster.de" /></div>
+    <div class="feld"><label>Passwort</label><input type="password" placeholder="Passwort" /></div>
+    <button class="btn gross vollbtn" onclick="login()">Anmelden</button>
+    <p class="untertitel" style="text-align:center; margin:14px 0 0">Passwort vergessen? Bitte an den Inhaber wenden –
+      er setzt ein neues temporäres Passwort.</p>
+    <p class="untertitel" style="text-align:center; margin:10px 0 0; font-size:.78em">Demo-Tipp: Anmeldung mit
+      <b>helga@fahrschule-muster.de</b> zeigt die Passwort-Aufforderung (temporäres Passwort).</p>
+  </div>
+</div>
+
+<!-- ===== VOLLBILD: NEUES PASSWORT FESTLEGEN (erzwungen nach erster Anmeldung) ===== -->
+<div class="authscreen" id="pwSetScreen">
+  <div class="authcard">
+    <div class="authlogo"><span class="mark">🚗</span> Fahrschule Muster</div>
+    <h2>Neues Passwort festlegen</h2>
+    <p class="untertitel" style="text-align:center; margin-top:0">Sie haben sich mit einem temporären Passwort angemeldet.
+      Bitte legen Sie jetzt ein eigenes, sicheres Passwort fest.</p>
+    <div class="feld"><label>Neues Passwort</label><input type="password" placeholder="mindestens 8 Zeichen" /></div>
+    <div class="feld"><label>Passwort wiederholen</label><input type="password" /></div>
+    <button class="btn gross vollbtn" onclick="pwSetDone()">✓ Passwort speichern &amp; fortfahren</button>
+  </div>
+</div>
+
+<!-- ===== DIALOG: BENACHRICHTIGUNGEN ===== -->
+<div class="overlay" id="benachrDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeBenachr)">
+  <div class="dialog" style="max-width:500px">
+    <button class="schliessen" onclick="closeBenachr()" aria-label="Schließen">✕</button>
+    <h2>🔔 Benachrichtigungen</h2>
+    <p class="untertitel" style="margin-top:0">Termin-Erinnerungen erhalten nur <b>Fahrlehrer</b> – die Verwaltung sieht den Kalender ohne Push.</p>
+    <label class="optzeile"><input type="checkbox" checked />
+      <span class="opttxt"><b>Termin-Erinnerungen auf diesem Gerät</b><span>Erinnerung vor dem nächsten Termin (Vorlauf vom Inhaber festgelegt: 30 Minuten).</span></span></label>
+    <label class="optzeile"><input type="checkbox" />
+      <span class="opttxt"><b>Ruhezeiten</b><span>Zwischen 21:00 und 7:00 keine Benachrichtigungen.</span></span></label>
+    <div class="hinweis">📱 Auf dem iPhone funktionieren Push-Nachrichten nur, wenn die App zum Startbildschirm
+      hinzugefügt wurde (iOS 16.4 oder neuer).</div>
+    <div class="aktionen">
+      <button class="btn zweit" onclick="closeBenachr()">Schließen</button>
+      <button class="btn" onclick="closeBenachr()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: PERSÖNLICHE EINSTELLUNGEN ===== -->
+<div class="overlay" id="persDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closePers)">
+  <div class="dialog" style="max-width:480px">
+    <button class="schliessen" onclick="closePers()" aria-label="Schließen">✕</button>
+    <h2>👤 Persönliche Einstellungen</h2>
+    <div class="feld"><label>Name</label><input value="Renate M." /></div>
+    <div class="feld"><label>E-Mail (für die Anmeldung)</label><input type="email" value="renate@fahrschule-muster.de" /></div>
+    <div class="feld"><label>Passwort</label>
+      <button class="btn zweit" onclick="closePers();openPwPreview()">🔑 Passwort ändern</button>
+    </div>
+    <p class="untertitel">Darstellung (Schriftgröße, Hell/Dunkel) stellen Sie oben rechts in der Kopfzeile ein.</p>
+    <div class="aktionen">
+      <button class="btn zweit" onclick="closePers()">Abbrechen</button>
+      <button class="btn" onclick="closePers()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: PASSWORT ÄNDERN ===== -->
+<div class="overlay" id="pwPreviewDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closePwPreview)">
+  <div class="dialog" style="max-width:440px">
+    <button class="schliessen" onclick="closePwPreview()" aria-label="Schließen">✕</button>
+    <h2>Passwort ändern</h2>
+    <div class="feld"><label>Aktuelles Passwort</label><input type="password" /></div>
+    <div class="feld"><label>Neues Passwort</label><input type="password" placeholder="mindestens 8 Zeichen" /></div>
+    <div class="feld"><label>Passwort wiederholen</label><input type="password" /></div>
+    <div class="aktionen">
+      <button class="btn zweit" onclick="closePwPreview()">Abbrechen</button>
+      <button class="btn" onclick="closePwPreview()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: SCHÜLER LÖSCHEN (DSGVO, mit Fristenprüfung) ===== -->
+<div class="overlay" id="dsgvoDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeDsgvo)">
+  <div class="dialog" style="max-width:520px">
+    <button class="schliessen" onclick="closeDsgvo()" aria-label="Schließen">✕</button>
+    <h2>⚠ Schüler wirklich löschen?</h2>
+    <p><b id="dsgvoName">…</b> wird als <b>gelöscht markiert</b> (Soft-Delete) und verschwindet aus allen Listen.</p>
+    <div class="box warn">
+      <b>Fristenprüfung:</b> Gesetzlich aufzubewahrende Daten (Ausbildungsnachweis, steuerlich relevante
+      Unterlagen) bleiben bis zum Ende der Aufbewahrungsfrist gespeichert und werden danach
+      <b>automatisch endgültig entfernt</b>. Alles andere wird sofort zur Löschung freigegeben.
+    </div>
+    <div class="box gut">
+      <b>↩ Rückgängig möglich:</b> Bis zum endgültigen Entfernen können Sie die Löschung jederzeit
+      unter „Zur Löschung vorgemerkt" wiederherstellen.
+    </div>
+    <p class="untertitel">Der Vorgang wird im Audit-Log protokolliert.</p>
+    <div class="aktionen">
+      <button class="btn zweit" onclick="closeDsgvo()">Abbrechen</button>
+      <button class="btn rot" onclick="dsgvoLoeschenJa()">Ja, löschen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: KATALOG-EINTRAG LÖSCHEN (Klasse/Thema/Unterlage, mit Folgen-Hinweis) ===== -->
+<div class="overlay" id="adminDelDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeAdminDel)">
+  <div class="dialog" style="max-width:500px">
+    <button class="schliessen" onclick="closeAdminDel()" aria-label="Schließen">✕</button>
+    <h2>⚠ Wirklich löschen?</h2>
+    <p>Folgender Eintrag wird gelöscht:</p>
+    <div class="box warn" id="adminDelName" style="font-weight:700">…</div>
+    <div class="box gut" id="adminDelFolge">…</div>
+    <p class="untertitel">Der Vorgang wird im Audit-Log protokolliert.</p>
+    <div class="aktionen">
+      <button class="btn zweit" onclick="closeAdminDel()">Abbrechen</button>
+      <button class="btn rot" onclick="adminDelJa()">Ja, löschen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: PRÜFUNG EINTRAGEN ===== -->
+<div class="overlay" id="pruefDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closePruef)">
+  <div class="dialog" style="max-width:480px">
+    <button class="schliessen" onclick="closePruef()" aria-label="Schließen">✕</button>
+    <h2>Prüfung eintragen</h2>
+    <div class="feld"><label>Art</label>
+      <select id="prArt" onchange="pruefArtHinweis()">
+        <option>Theorieprüfung</option>
+        <option>Praxisprüfung</option>
+        <option>Theorie-Vorprüfung</option>
+        <option>Praxis-Vorprüfung</option>
+      </select>
+    </div>
+    <p class="untertitel" id="prHinweis" hidden style="margin-top:0">ℹ️ Vorprüfungen werden nur <b>vermerkt</b> –
+      kein Prüfungsversuch, keine Sperre bei Nichtbestehen.</p>
+    <div class="reihe" style="display:flex;gap:16px;flex-wrap:wrap">
+      <div class="feld" style="flex:1;min-width:130px"><label>Klasse</label>
+        <select id="prKlasse"><option>B</option><option>A1</option></select></div>
+      <div class="feld" style="flex:1;min-width:160px"><label>Datum</label>
+        <input id="prDatum" type="date" value="2026-06-03" /></div>
+    </div>
+    <div class="feld"><label>Ergebnis</label>
+      <select id="prErgebnis"><option>geplant</option><option>bestanden</option><option>nicht bestanden</option></select>
+    </div>
+    <div class="aktionen">
+      <button class="btn zweit" onclick="closePruef()">Abbrechen</button>
+      <button class="btn" onclick="pruefSave()">✓ Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DIALOG: AUDIT-EINTRAG IM DETAIL ===== -->
+<div class="overlay" id="auditDlg" onmousedown="overlayDown(event)" onclick="overlayClick(event,closeAuditDlg)">
+  <div class="dialog" style="max-width:580px">
+    <button class="schliessen" onclick="closeAuditDlg()" aria-label="Schließen">✕</button>
+    <h2>Audit-Eintrag im Detail</h2>
+    <div class="ad-zeile"><div class="dlabel">Wann</div><div id="adZeit">…</div></div>
+    <div class="ad-zeile"><div class="dlabel">Wer</div><div id="adNutzer">…</div></div>
+    <div class="ad-zeile"><div class="dlabel">Betroffener Datensatz</div><div id="adEnt">…</div></div>
+    <div class="ad-zeile"><div class="dlabel">Aktion</div><div id="adAktion">…</div></div>
+    <h3 style="margin-bottom:8px">Änderungen (Vorher → Nachher)</h3>
+    <table id="adDelta"></table>
+    <p class="untertitel" style="margin-top:12px">Im echten System werden zusätzlich IP-Adresse und Gerät gespeichert.</p>
+    <div class="aktionen"><button class="btn" onclick="closeAuditDlg()">Schließen</button></div>
+  </div>
+</div>
+
+<script>
+  function zeige(id, el){
+    document.querySelectorAll('.schirm').forEach(s=>s.classList.remove('an'));
+    var ziel=document.getElementById(id); if(ziel) ziel.classList.add('an');
+    document.querySelectorAll('.seite a').forEach(a=>a.classList.remove('an'));
+    if(el) el.classList.add('an');
+    /* auf kleinen Geräten Menü nach Auswahl schließen */
+    if(window.innerWidth<=900){
+      document.querySelector('.seite').classList.remove('offen');
+      document.getElementById('backdrop').classList.remove('auf');
+    }
+    window.scrollTo(0,0);
+  }
+  /* Seitenleiste auf Handy/Tablet ein-/ausblenden */
+  function toggleSeite(){
+    document.querySelector('.seite').classList.toggle('offen');
+    document.getElementById('backdrop').classList.toggle('auf');
+  }
+  /* Navigation per Code: passenden Menüpunkt aktiv setzen */
+  function navTo(id){
+    var link=document.querySelector('.seite a[data-s="'+id+'"]');
+    zeige(id, link);
+  }
+  /* Schüler-Akte öffnen: Menüpunkt „Schüler" bleibt aktiv */
+  function openDetail(){
+    zeige('detail', document.querySelector('.seite a[data-s="schueler"]'));
+  }
+  /* Stunde eintragen aus der Akte heraus (Menüpunkt „Schüler" bleibt aktiv) */
+  function openStunde(){
+    zeige('stunde', document.querySelector('.seite a[data-s="schueler"]'));
+  }
+  /* Dialog nur schließen, wenn der Klick AUF dem Hintergrund begonnen UND geendet hat
+     (verhindert Schließen, wenn man beim Markieren aus dem Feld herauszieht) */
+  var overlayDownSelf=false;
+  function overlayDown(e){ overlayDownSelf = (e.target===e.currentTarget); }
+  function overlayClick(e, fn){
+    if(e.target===e.currentTarget && overlayDownSelf){ fn(); }
+    overlayDownSelf=false;
+  }
+
+  /* Dialog „Klasse hinzufügen" */
+  function openKlasse(){ document.getElementById('klasseDlg').classList.add('auf'); }
+  function closeKlasse(){ document.getElementById('klasseDlg').classList.remove('auf'); }
+  /* Dialog „Neuer Termin" */
+  function openTermin(){
+    editRef=null;
+    document.getElementById('terminTitel').textContent='Neuer Termin';
+    document.getElementById('tDelete').hidden=true;
+    document.getElementById('tDatum').value=gewaehltIso;
+    document.getElementById('tVon').value='09:00';
+    document.getElementById('tBis').value='09:45';
+    document.getElementById('tArt').value='praxis';
+    document.getElementById('tArtCustom').value='';
+    document.getElementById('tWer').value='';
+    document.getElementById('tNotiz').value='';
+    artChange();
+    document.getElementById('terminDlg').classList.add('auf');
+  }
+  /* Bestehenden Termin zum Bearbeiten öffnen (isoKey = Datum JJJJ-MM-TT) */
+  function editTermin(isoKey, idx){
+    var ev=(kalDaten[isoKey]||[])[idx]; if(!ev) return;
+    editRef={iso:isoKey, idx:idx};
+    document.getElementById('terminTitel').textContent='Termin bearbeiten';
+    document.getElementById('tDelete').hidden=false;
+    document.getElementById('tDatum').value=isoKey;
+    document.getElementById('tVon').value=ev.von||'';
+    document.getElementById('tBis').value=ev.bis||'';
+    if(['praxis','theorie','pruef'].indexOf(ev.k)>=0){
+      document.getElementById('tArt').value=ev.k; document.getElementById('tArtCustom').value='';
+    } else {
+      document.getElementById('tArt').value='custom'; document.getElementById('tArtCustom').value=ev.art||'';
+    }
+    document.getElementById('tWer').value=ev.wer||'';
+    document.getElementById('tNotiz').value=ev.notiz||'';
+    artChange();
+    document.getElementById('terminDlg').classList.add('auf');
+  }
+  function deleteTermin(){
+    if(editRef){
+      var key=editRef.iso, arr=kalDaten[key];
+      if(arr) arr.splice(editRef.idx,1);
+      editRef=null;
+      gewaehltIso=key;
+      aktMonat={ jahr:+key.slice(0,4), monat:+key.slice(5,7)-1 };
+      renderKalender();
+    }
+    closeTermin();
+  }
+  /* Eigenes Bezeichnungs-Feld nur bei „Sonstiges" zeigen */
+  function artChange(){
+    var sel=document.getElementById('tArt');
+    document.getElementById('tArtCustomWrap').hidden = (sel.value!=='custom');
+  }
+  function closeTermin(){ document.getElementById('terminDlg').classList.remove('auf'); }
+  function saveTermin(){
+    var datum=document.getElementById('tDatum').value;            // Format JJJJ-MM-TT
+    if(!datum){ alert('Bitte ein Datum wählen.'); return; }
+    var von=document.getElementById('tVon').value, bis=document.getElementById('tBis').value;
+    var sel=document.getElementById('tArt');
+    var artKey, artLabel;
+    if(sel.value==='custom'){
+      artKey='custom';
+      artLabel=document.getElementById('tArtCustom').value.trim() || 'Sonstiges';
+    } else {
+      artKey=sel.value;                                   // praxis/theorie/pruef (für Farbe)
+      artLabel=sel.options[sel.selectedIndex].text;       // Anzeige-Text
+    }
+    var wer=document.getElementById('tWer').value.trim(); // Schüler optional
+    var notiz=document.getElementById('tNotiz').value.trim();
+    var ev={ von:von, bis:bis, k:artKey, art:artLabel, wer:wer, notiz:notiz };
+    if(editRef){                       /* Bearbeiten: alten Eintrag ersetzen (auch bei Datumswechsel) */
+      var alt=kalDaten[editRef.iso]; if(alt) alt.splice(editRef.idx,1);
+      editRef=null;
+    }
+    if(!kalDaten[datum]) kalDaten[datum]=[];
+    kalDaten[datum].push(ev);
+    /* zum Monat des Termins springen und den Tag auswählen */
+    gewaehltIso=datum;
+    aktMonat={ jahr:+datum.slice(0,4), monat:+datum.slice(5,7)-1 };
+    renderKalender();
+    closeTermin();
+  }
+  /* Häkchen: Abhaken ist einfach; Austragen (enthaken) erfordert Bestätigung. */
+  var pendingHaken=null;
+  function check(hk, e){
+    e.stopPropagation();
+    if(hk.classList.contains('an')){
+      /* bereits erledigt → vor dem Austragen nachfragen, mit Namen des Eintrags */
+      pendingHaken=hk;
+      var txtEl=hk.closest('.pkt').querySelector('.txt');
+      document.getElementById('confirmItem').textContent = txtEl ? titelText(txtEl) : '';
+      document.getElementById('confirmDlg').classList.add('auf');
+      return;
+    }
+    /* abhaken (erledigt setzen) + Feld automatisch aufklappen */
+    hk.classList.add('an'); hk.textContent='✓';
+    var row=hk.closest('.pkt'), panel=row.nextElementSibling, pfeil=row.querySelector('.pfeil');
+    if(panel && panel.classList.contains('detail-panel')){
+      panel.classList.add('auf');
+      if(pfeil) pfeil.classList.add('auf');
+    }
+  }
+  function confirmYes(){
+    if(pendingHaken){
+      pendingHaken.classList.remove('an'); pendingHaken.textContent='　';
+      var row=pendingHaken.closest('.pkt'), panel=row.nextElementSibling, pfeil=row.querySelector('.pfeil');
+      if(panel) panel.classList.remove('auf');
+      if(pfeil) pfeil.classList.remove('auf');
+    }
+    pendingHaken=null;
+    document.getElementById('confirmDlg').classList.remove('auf');
+  }
+  function confirmNo(){
+    pendingHaken=null;
+    document.getElementById('confirmDlg').classList.remove('auf');
+  }
+  /* Reinen Titel eines Themas holen (ohne Klassen-Tags und Notizen) */
+  function titelText(el){
+    var c=el.cloneNode(true);
+    c.querySelectorAll('.tag2,.note').forEach(function(n){ n.remove(); });
+    return c.textContent.trim();
+  }
+  /* Zähler für zählbare Punkte (z. B. Sonderfahrten): ＋/− zwischen 0 und Soll.
+     Jede gezählte Stunde bekommt eine EIGENE Datums-/Notiz-Zeile; − entfernt die letzte.
+     Beim Erreichen des Solls wird der Punkt automatisch „erledigt" (grün). */
+  function zaehler(btn, delta){
+    var ctrl=btn.closest('.zaehler-ctrl'), span=ctrl.querySelector('.zwert');
+    var ist=+span.dataset.ist, soll=+span.dataset.soll;   /* soll=0 → unbegrenzt (freiwillige Zusatzstunden) */
+    var unbegrenzt=(soll===0);
+    var neu=unbegrenzt ? Math.max(0, ist+delta) : Math.max(0, Math.min(soll, ist+delta));
+    if(neu===ist) return;
+    span.dataset.ist=neu;
+    span.textContent=unbegrenzt ? String(neu) : (neu+' / '+soll);
+    var fertig=(!unbegrenzt && neu>=soll);
+    span.classList.toggle('voll', fertig);
+    ctrl.querySelector('.minus').disabled=(neu<=0);
+    ctrl.querySelector('.plus').disabled=fertig;
+    var row=ctrl.closest('.pkt');
+    if(!unbegrenzt){    /* bei Pflicht-Zählern Status-Badge pflegen; Zusatzstunden behalten „freiwillig" */
+      var badge=row.querySelector('.marke');
+      if(badge){ badge.textContent = fertig ? 'erledigt' : 'offen'; badge.className='marke '+(fertig?'gruen':'amber'); }
+    }
+    updateSperre();   /* Übungsstunden (B-Praxis) können die Prüfungssperre verkürzen */
+    /* Datums-Zeilen pflegen */
+    var panel=row.nextElementSibling, pfeil=row.querySelector('.pfeil');
+    var liste=(panel && panel.classList.contains('detail-panel')) ? panel.querySelector('.eintraege') : null;
+    if(liste){
+      if(delta>0){
+        var einheit=row.dataset.einheit||'Stunde';
+        var e=document.createElement('div');
+        e.className='reihe';
+        e.innerHTML='<div class="feldchen"><label>'+neu+'. '+einheit+' am</label><input placeholder="tt.mm.jjjj" /></div>'+
+                    '<div class="feldchen"><label>Notiz (optional)</label><input placeholder="z. B. nachgeholt, Sondertermin …" /></div>';
+        liste.appendChild(e);
+        panel.classList.add('auf');                 /* aufklappen + direkt ins neue Datumsfeld springen */
+        if(pfeil) pfeil.classList.add('auf');
+        var di=e.querySelector('input'); if(di) di.focus();
+      } else {
+        var zeilen=liste.querySelectorAll(':scope > .reihe');
+        if(zeilen.length) liste.removeChild(zeilen[zeilen.length-1]);
+      }
+    }
+  }
+  /* Pfeil: Datum/Notiz-Feld nur ein-/ausklappen (ohne den Haken zu ändern) */
+  function togglePanel(btn, e){
+    e.stopPropagation();
+    var row=btn.closest('.pkt'), panel=row.nextElementSibling;
+    if(panel && panel.classList.contains('detail-panel')){
+      var offen=panel.classList.toggle('auf');
+      btn.classList.toggle('auf', offen);
+    }
+  }
+  /* Stammdaten-Feld aufdecken/verbergen (Auge). Aufgedeckt = bearbeitbar. */
+  function reveal(btn){
+    var inp=btn.parentElement.querySelector('.swert');
+    var auf=inp.classList.toggle('offen');
+    if(auf){
+      inp.classList.remove('verdeckt');
+      inp.removeAttribute('readonly');
+      inp.focus();
+      btn.textContent='🙈';
+    } else {
+      if(inp.value) inp.classList.add('verdeckt');   // nur befüllte Felder wieder verschleiern
+      inp.setAttribute('readonly','');
+      btn.textContent='👁';
+    }
+  }
+  /* Unterlage vorhanden/fehlt umschalten.
+     Bei Unterlagen mit Ablaufdatum-Pflicht (data-pflicht="1", im Adminpanel je Unterlage einstellbar):
+     Abhaken erst möglich, wenn ein Ablaufdatum eingetragen ist – so wird nichts vergessen. */
+  function dokToggle(hk){
+    var dok=hk.closest('.dok');
+    var an=!hk.classList.contains('an');
+    if(an && dok.dataset.pflicht==='1'){
+      var ab=dok.querySelector('.ablauf');
+      if(ab && !ab.value.trim()){
+        var panel=dok.querySelector('.detail-panel'); if(panel) panel.classList.add('auf');
+        var pf=dok.querySelector('.pfeil'); if(pf) pf.classList.add('auf');
+        var hint=dok.querySelector('.pflicht-hinweis'); if(hint) hint.hidden=false;
+        ab.classList.add('pflicht-fehlt');
+        ab.focus();
+        return;   /* Haken wird NICHT gesetzt, bis das Ablaufdatum da ist */
+      }
+    }
+    hk.classList.toggle('an', an); hk.textContent = an ? '✓' : '　';
+    var badge=hk.closest('.dok-kopf').querySelector('.marke:not(.ablauf-badge)');
+    if(badge){ badge.textContent = an ? 'liegt vor' : 'fehlt'; badge.className='marke '+(an?'gruen':'amber'); }
+  }
+  /* Sobald ein Ablaufdatum eingetragen wird, verschwinden Markierung + Hinweis */
+  function pflichtOk(inp){
+    if(inp.value.trim()){
+      inp.classList.remove('pflicht-fehlt');
+      var hint=inp.closest('.dok').querySelector('.pflicht-hinweis'); if(hint) hint.hidden=true;
+    }
+  }
+  /* Unterlagen-Detail (Datum/Erinnerung) ein-/ausklappen */
+  function dokPanel(btn){
+    var dok=btn.closest('.dok'), panel=dok.querySelector('.detail-panel');
+    var offen=panel.classList.toggle('auf');
+    btn.classList.toggle('auf', offen);
+  }
+  /* Bald-fällig-Schwelle (im Adminpanel einstellbar), Standard 21 Tage */
+  var ablaufWarnTage = 21;
+  function parseDatum(s){
+    var m=/^(\d{2})\.(\d{2})\.(\d{4})$/.exec((s||'').trim());
+    return m ? new Date(+m[3], +m[2]-1, +m[1]) : null;
+  }
+  /* Unterlagen, die bald ablaufen, automatisch aufklappen + markieren */
+  function initUnterlagen(){
+    var heute=new Date(2026,5,3);   /* Mockup-Referenz: 3. Juni 2026 */
+    document.querySelectorAll('.dok').forEach(function(dok){
+      var ab=dok.querySelector('.ablauf'); if(!ab) return;
+      var d=parseDatum(ab.value); if(!d) return;
+      var tage=Math.round((d-heute)/86400000);
+      if(tage>=0 && tage<=ablaufWarnTage){
+        var panel=dok.querySelector('.detail-panel'); if(panel) panel.classList.add('auf');
+        var pf=dok.querySelector('.pfeil'); if(pf) pf.classList.add('auf');
+        dok.classList.add('warnen');
+        var kopf=dok.querySelector('.dok-kopf');
+        if(kopf && !kopf.querySelector('.ablauf-badge')){
+          var b=document.createElement('span');
+          b.className='marke amber ablauf-badge';
+          b.textContent='läuft in '+tage+' Tagen ab';
+          kopf.insertBefore(b, kopf.querySelector('.pfeil'));
+        }
+      }
+    });
+  }
+  /* Tabs in der Schüler-Akte umschalten */
+  function tab2(el, id){
+    var det=document.getElementById('detail');
+    det.querySelectorAll('.tabs span').forEach(function(s){ s.classList.remove('an'); });
+    el.classList.add('an');
+    det.querySelectorAll('.tabinhalt').forEach(function(c){ c.hidden=true; });
+    var z=document.getElementById(id); if(z) z.hidden=false;
+  }
+  /* 5 feste Schriftgrößen-Stufen – der Regler schnappt dazwischen */
+  var SIZES=[16,18,20,23,27];
+  function schrift(i){
+    var px=SIZES[+i] || 20;
+    document.documentElement.style.setProperty('--basis', px+'px');
+    try{ localStorage.setItem('schrift', px); }catch(e){}
+  }
+  /* Benutzer-Menü oben rechts auf/zu */
+  function menu(e){
+    e.stopPropagation();
+    document.getElementById('usermenu').classList.toggle('auf');
+  }
+  document.addEventListener('click', function(e){
+    var m=document.getElementById('usermenu'); if(m) m.classList.remove('auf');
+    if(!e.target.closest('.ac')){
+      document.querySelectorAll('.ac-liste').forEach(function(l){ l.classList.remove('auf'); });
+    }
+  });
+  /* Schüler-Vorschläge (eigenes Dropdown) */
+  /* Schülerliste (Beispieldaten) – speist Tabelle UND die Namens-Vorschläge */
+  /* fortschritt = aggregierter Gesamtfortschritt in % (Datensparsamkeit: keine Einzelheiten in der Liste) */
+  var schuelerDaten=[
+    {name:'Max Becker',    klassen:'B',     stand:'Praxis',  fortschritt:75},
+    {name:'Lisa Wagner',   klassen:'B, A1', stand:'Theorie', fortschritt:40, frist:'Antrag läuft 20.06. ab', fristTage:17},
+    {name:'Jonas Klein',   klassen:'B',     stand:'Fertig',  fortschritt:100},
+    {name:'Sara Vogt',     klassen:'BE',    stand:'Praxis',  fortschritt:70},
+    {name:'Tim Schuster',  klassen:'B',     stand:'Theorie', fortschritt:25, frist:'Sehtest läuft 09.06. ab', fristTage:6},
+    {name:'Anna Berger',   klassen:'A1',    stand:'Praxis',  fortschritt:65, frist:'Sehtest läuft 28.06. ab', fristTage:25},
+    {name:'Leon Fischer',  klassen:'B',     stand:'Theorie', fortschritt:30},
+    {name:'Marie Hoffmann',klassen:'B, BE', stand:'Praxis',  fortschritt:80},
+    {name:'Paul Schneider',klassen:'B',     stand:'Fertig',  fortschritt:100},
+    {name:'Emma Weber',    klassen:'AM',    stand:'Theorie', fortschritt:35},
+    {name:'Felix Wagner',  klassen:'A2',    stand:'Praxis',  fortschritt:60},
+    {name:'Mia Krüger',    klassen:'B',     stand:'Theorie', fortschritt:20},
+    {name:'Noah Richter',  klassen:'B',     stand:'Praxis',  fortschritt:90},
+    {name:'Lena Koch',     klassen:'BF17',  stand:'Theorie', fortschritt:28},
+    {name:'David Braun',   klassen:'B',     stand:'Praxis',  fortschritt:55},
+    {name:'Sophie Wolf',   klassen:'A1',    stand:'Fertig',  fortschritt:100},
+    {name:'Erik Neumann',  klassen:'C, CE', stand:'Theorie', fortschritt:15, frist:'Eignungsnachweis läuft 15.06. ab', fristTage:12},
+    {name:'Clara Zimmer',  klassen:'B',     stand:'Praxis',  fortschritt:72}
+  ];
+  var schuelerAlle=schuelerDaten.map(function(s){ return s.name; });
+
+  /* Schüler-Tabelle mit Filtern + Seiten (feste Höhe durch Leerzeilen wie beim Audit-Log) */
+  var SCH_PRO_SEITE=12, schSeite=1;
+  function renderSchueler(){
+    var t=document.getElementById('schuelerTabelle'); if(!t) return;
+    var f=(document.getElementById('schuelerSuche').value||'').toLowerCase();
+    var kl=chipAuswahl('fKlasse');   /* gewählte Klassen (leer = alle) */
+    var st=chipAuswahl('fStand');    /* gewählte Stände (leer = alle) */
+    /* Frist-Schwelle in Tagen: aus dem aktiven Frist-Chip; 0 = kein Frist-Filter */
+    var frChip=document.querySelector('#fFrist .fchip.an');
+    var frVal=frChip ? frChip.dataset.tage : '', schwelle=0;
+    if(frVal==='custom'){ schwelle=+document.getElementById('fFristTage').value||0; }
+    else if(frVal){ schwelle=+frVal; }
+    var rows=schuelerDaten.filter(function(s){
+      if(f && (s.name+' '+s.klassen+' '+s.stand).toLowerCase().indexOf(f)<0) return false;
+      if(kl.length){
+        var sk=s.klassen.split(',').map(function(x){return x.trim();});
+        if(!sk.some(function(c){ return kl.indexOf(c)>=0; })) return false;
+      }
+      if(st.length && st.indexOf(s.stand)<0) return false;
+      if(schwelle>0 && !(s.fristTage!=null && s.fristTage<schwelle)) return false;
+      return true;
+    });
+    var seiten=Math.max(1, Math.ceil(rows.length/SCH_PRO_SEITE));
+    if(schSeite>seiten) schSeite=seiten;
+    if(schSeite<1) schSeite=1;
+    var start=(schSeite-1)*SCH_PRO_SEITE;
+    var farbe={Theorie:'blau', Praxis:'amber', Fertig:'gruen'};
+    var h='<tr><th>Name</th><th>Klasse</th><th>Stand</th><th>Fortschritt</th><th>Frist</th><th></th></tr>';
+    var sichtbar=rows.slice(start, start+SCH_PRO_SEITE), zeilen=sichtbar.length;
+    if(!rows.length){ h+='<tr><td colspan="6" style="color:var(--text-leise)">Keine Schüler gefunden.</td></tr>'; zeilen=1; }
+    sichtbar.forEach(function(s){
+      var p=s.fortschritt||0;
+      var fort='<div class="fortzelle"><div class="fortbar"><span style="width:'+p+'%"></span></div><span class="fortpct">'+p+'%</span></div>';
+      var frist = s.frist ? '<span class="marke amber">⏳ '+esc(s.frist)+'</span>' : '<span style="color:var(--text-leise)">–</span>';
+      h+='<tr><td><b>'+esc(s.name)+'</b></td><td>'+esc(s.klassen)+'</td>'+
+         '<td><span class="marke '+(farbe[s.stand]||'blau')+'">'+esc(s.stand)+'</span></td><td>'+fort+'</td>'+
+         '<td>'+frist+'</td>'+
+         '<td><button class="btn zweit" onclick="openDetail()">Öffnen</button></td></tr>';
+    });
+    for(var i=zeilen; i<SCH_PRO_SEITE; i++){ h+='<tr class="leerzeile"><td>&nbsp;</td><td></td><td></td><td></td><td></td><td></td></tr>'; }
+    t.innerHTML=h;
+    document.getElementById('schSeiteInfo').textContent='Seite '+schSeite+' von '+seiten+' · '+rows.length+' Schüler';
+    document.getElementById('schZurueck').disabled=(schSeite<=1);
+    document.getElementById('schWeiter').disabled=(schSeite>=seiten);
+  }
+  function schuelerFilter(){ schSeite=1; renderSchueler(); }
+  function schuelerBlaettern(richtung){ schSeite+=richtung; renderSchueler(); }
+  /* gewählte Chips einer Gruppe als Text-Array (ohne „Alle"; leer = kein Filter) */
+  function chipAuswahl(id){
+    return [].slice.call(document.querySelectorAll('#'+id+' .fchip.an:not(.alle)')).map(function(c){ return c.textContent.trim(); });
+  }
+  function fchipToggle(btn){
+    var grp=btn.parentElement, alle=grp.querySelector('.fchip.alle');
+    if(btn.classList.contains('alle')){
+      grp.querySelectorAll('.fchip').forEach(function(c){ c.classList.remove('an'); });
+      btn.classList.add('an');                       /* „Alle" → alles andere abwählen */
+    } else {
+      btn.classList.toggle('an');
+      if(alle) alle.classList.toggle('an', !grp.querySelector('.fchip.an:not(.alle)'));  /* „Alle" nur aktiv, wenn nichts sonst */
+    }
+    schuelerFilter();
+  }
+  /* Frist-Chips: nur einer aktiv (Einfachauswahl); „eigene" blendet das Tage-Feld ein */
+  function fristChip(btn){
+    document.querySelectorAll('#fFrist .fchip').forEach(function(c){ c.classList.remove('an'); });
+    btn.classList.add('an');
+    var custom=(btn.dataset.tage==='custom'), feld=document.getElementById('fFristTage');
+    feld.hidden=!custom;
+    if(custom){ feld.focus(); }
+    schuelerFilter();
+  }
+
+  /* Prüfungen (neueste zuerst). vor=true → Vorprüfung: nur Vermerk, zählt NICHT als Versuch, keine Sperre */
+  var pruefungen=[
+    {art:'Praxisprüfung',      vor:false, klasse:'B',  datum:'05.06.2026', ergebnis:'geplant'},
+    {art:'Praxisprüfung',      vor:false, klasse:'B',  datum:'27.05.2026', ergebnis:'nicht bestanden'},
+    {art:'Praxis-Vorprüfung',  vor:true,  klasse:'B',  datum:'25.05.2026', ergebnis:'bestanden'},
+    {art:'Theorieprüfung',     vor:false, klasse:'B',  datum:'12.05.2026', ergebnis:'bestanden'},
+    {art:'Theorie-Vorprüfung', vor:true,  klasse:'B',  datum:'08.05.2026', ergebnis:'bestanden'},
+    {art:'Theorieprüfung',     vor:false, klasse:'B',  datum:'28.04.2026', ergebnis:'nicht bestanden'},
+    {art:'Theorieprüfung',     vor:false, klasse:'A1', datum:'–', ergebnis:'noch nicht zugelassen', info:true}
+  ];
+  function renderPruefungen(){
+    var t=document.getElementById('pruefTabelle'); if(!t) return;
+    /* Versuchsnummern nur für echte Prüfungen, älteste zuerst gezählt (Array ist neueste zuerst) */
+    var zaehl={};
+    for(var i=pruefungen.length-1; i>=0; i--){
+      var p=pruefungen[i];
+      if(!p.vor && !p.info){ var k=p.art+'|'+p.klasse; zaehl[k]=(zaehl[k]||0)+1; p._v=zaehl[k]; }
+    }
+    var farbe={'bestanden':'gruen','nicht bestanden':'rot','geplant':'amber','noch nicht zugelassen':'blau'};
+    var h='<tr><th>Art</th><th>Klasse</th><th>Datum</th><th>Ergebnis</th></tr>';
+    pruefungen.forEach(function(p){
+      var art = p.vor ? esc(p.art)+' <span class="tag2">Vermerk</span>'
+              : p.info ? esc(p.art)
+              : esc(p.art)+' ('+p._v+'. Versuch)';
+      h+='<tr><td>'+art+'</td><td>'+esc(p.klasse)+'</td><td>'+esc(p.datum)+'</td>'+
+         '<td><span class="marke '+(farbe[p.ergebnis]||'grau')+'">'+esc(p.ergebnis)+'</span></td></tr>';
+    });
+    t.innerHTML=h;
+  }
+  /* Prüfungs-Sperre verkürzt sich, sobald genug Übungsstunden (B-Praxis) im Ausbildungsfortschritt stehen.
+     So werden ALLE Stunden nur an EINER Stelle eingetragen – die Sperre rechnet selbst. */
+  var SPERRE_NOETIG=2;
+  function updateSperre(){
+    var ueb=document.getElementById('ueb-b-praxis');
+    var info=document.getElementById('sperreFortschritt'), badge=document.getElementById('sperreBadge');
+    if(!ueb || !info || !badge) return;
+    var ist=Math.min(SPERRE_NOETIG, +ueb.dataset.ist||0);
+    var verkuerzt=(ist>=SPERRE_NOETIG);
+    info.textContent=ist+' von '+SPERRE_NOETIG; info.className='marke '+(verkuerzt?'gruen':'amber');
+    badge.textContent=verkuerzt ? '03.06.2026 (verkürzt: 1 Woche)' : '10.06.2026 (normale Sperre: 2 Wochen)';
+    badge.className='marke '+(verkuerzt?'gruen':'amber');
+  }
+  function deDatum(iso){ return iso ? iso.slice(8,10)+'.'+iso.slice(5,7)+'.'+iso.slice(0,4) : ''; }
+  function openPruef(){
+    document.getElementById('prArt').value='Theorieprüfung';
+    document.getElementById('prKlasse').value='B';
+    document.getElementById('prDatum').value='2026-06-03';
+    document.getElementById('prErgebnis').value='geplant';
+    pruefArtHinweis();
+    document.getElementById('pruefDlg').classList.add('auf');
+  }
+  function pruefArtHinweis(){
+    var vor=document.getElementById('prArt').value.indexOf('Vorprüfung')>=0;
+    document.getElementById('prHinweis').hidden=!vor;
+  }
+  function closePruef(){ document.getElementById('pruefDlg').classList.remove('auf'); }
+  function pruefSave(){
+    var iso=document.getElementById('prDatum').value;
+    if(!iso){ alert('Bitte ein Datum wählen.'); return; }
+    var art=document.getElementById('prArt').value;
+    pruefungen.unshift({
+      art:art, vor:art.indexOf('Vorprüfung')>=0,
+      klasse:document.getElementById('prKlasse').value,
+      datum:deDatum(iso),
+      ergebnis:document.getElementById('prErgebnis').value
+    });
+    renderPruefungen();
+    closePruef();
+  }
+
+  /* Wiederverwendbares Vorschlags-Dropdown: funktioniert für jedes Feld mit eigener Liste
+     (Auswahl per Index – robust bei Sonderzeichen im Namen) */
+  var acTreffer=[], acAktiv=null;   /* acAktiv = {inp, box} des gerade offenen Feldes */
+  function acShow(inp, listeId){
+    var box=document.getElementById(listeId), f=(inp.value||'').toLowerCase();
+    acTreffer=schuelerAlle.filter(function(n){ return n.toLowerCase().indexOf(f)>=0; });
+    acAktiv={inp:inp, box:box};
+    if(!acTreffer.length){
+      box.innerHTML='<div class="ac-item leer">Kein Treffer – Eingabe wird übernommen</div>';
+    } else {
+      box.innerHTML=acTreffer.map(function(n,i){ return '<div class="ac-item" onclick="acPick('+i+')">'+esc(n)+'</div>'; }).join('');
+    }
+    box.classList.add('auf');
+  }
+  function acPick(i){
+    if(acAktiv){ acAktiv.inp.value=acTreffer[i]||''; acAktiv.box.classList.remove('auf'); }
+  }
+  function theme(){
+    var jetzt=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
+    document.documentElement.setAttribute('data-theme', jetzt);
+    try{ localStorage.setItem('theme', jetzt); }catch(e){}
+    themeBtnText();
+  }
+  function themeBtnText(){
+    var d=document.documentElement.getAttribute('data-theme')==='dark';
+    document.getElementById('themeBtn').textContent = d ? '☀️ Hell' : '🌙 Dunkel';
+  }
+  /* ---- Monatskalender (beliebiger Monat wählbar; Demo-Termine liegen im Juni 2026) ---- */
+  /* Termine: Schlüssel = Datum (JJJJ-MM-TT), Werte = einzelne Felder (von/bis/k/art/wer/notiz) */
+  var kalDaten = {
+    '2026-06-02':[{von:'09:00',bis:'09:45',k:'praxis',art:'Praxis',wer:'Max Becker',notiz:'Autobahnfahrt'},
+       {von:'10:00',bis:'10:45',k:'praxis',art:'Praxis',wer:'Sara Vogt',notiz:'Pflichtfahrt'},
+       {von:'18:00',bis:'19:30',k:'theorie',art:'Theorie',wer:'',notiz:'Thema 7 · 6 Teilnehmer'}],
+    '2026-06-03':[{von:'11:00',bis:'11:45',k:'praxis',art:'Praxis',wer:'Jonas Klein',notiz:'Stadtfahrt'}],
+    '2026-06-05':[{von:'08:30',bis:'',k:'pruef',art:'Praxis-Prüfung',wer:'Sara Vogt',notiz:'TÜV'}],
+    '2026-06-09':[{von:'14:00',bis:'14:45',k:'praxis',art:'Praxis',wer:'Max Becker',notiz:'Überlandfahrt'}],
+    '2026-06-11':[{von:'08:30',bis:'',k:'pruef',art:'Praxis-Prüfung',wer:'Max Becker',notiz:'TÜV'}],
+    '2026-06-16':[{von:'18:00',bis:'19:30',k:'theorie',art:'Theorie',wer:'',notiz:'Thema 8'}],
+    '2026-06-18':[{von:'15:00',bis:'15:45',k:'praxis',art:'Praxis',wer:'Lisa Wagner',notiz:''}],
+    '2026-06-23':[{von:'18:00',bis:'19:30',k:'theorie',art:'Theorie',wer:'',notiz:'Thema 9'}]
+  };
+  var wtLang=['Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag','Sonntag'];
+  var MONATE=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+  var HEUTE_ISO='2026-06-03';          /* Mockup-Referenz „heute": Mittwoch, 3. Juni 2026 */
+  var aktMonat={ jahr:2026, monat:5 }; /* angezeigter Monat (0-basiert: 5 = Juni) */
+  var gewaehltIso=HEUTE_ISO;           /* aktuell ausgewählter Tag */
+  var editRef=null;   /* {iso, idx} beim Bearbeiten, sonst null (= neuer Termin) */
+  function isoDatum(j,m,t){ return j+'-'+('0'+(m+1)).slice(-2)+'-'+('0'+t).slice(-2); }
+  function monatPrefix(){ return aktMonat.jahr+'-'+('0'+(aktMonat.monat+1)).slice(-2); }
+  /* Nutzereingaben vor dem Einfügen in HTML entschärfen (verhindert kaputtes Layout/Injektion) */
+  function esc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+  function evLang(ev){ return ev.von ? (ev.bis ? ev.von+'–'+ev.bis : ev.von) : '—'; }
+  function evKurz(ev){ return (ev.von?ev.von+' ':'') + (ev.wer || ev.art); }
+  function evX(ev){ var t=[]; if(ev.wer) t.push('<b>'+esc(ev.wer)+'</b>'); t.push(esc(ev.art)); if(ev.notiz) t.push(esc(ev.notiz)); return t.join(' · '); }
+  function renderKalender(){
+    var grid=document.getElementById('kalGrid'); if(!grid) return;
+    var j=aktMonat.jahr, m=aktMonat.monat;
+    document.getElementById('monatTitel').textContent=MONATE[m]+' '+j;
+    var picker=document.getElementById('monatPicker'); if(picker) picker.value=monatPrefix();
+    var tage=new Date(j, m+1, 0).getDate();              /* Anzahl Tage im Monat */
+    var offset=(new Date(j, m, 1).getDay()+6)%7;         /* Wochentag des 1. (Mo=0 … So=6) */
+    var html=''; ['Mo','Di','Mi','Do','Fr','Sa','So'].forEach(function(d){ html+='<div class="wochenkopf">'+d+'</div>'; });
+    for(var l=0; l<offset; l++){ html+='<div class="kal-zelle leer"></div>'; }
+    for(var d=1; d<=tage; d++){
+      var key=isoDatum(j,m,d), evs=kalDaten[key]||[];
+      html+='<div class="kal-zelle'+(key===HEUTE_ISO?' heute':'')+'" onclick="selectDay('+d+',this)"><span class="tagnr">'+d+'</span>';
+      for(var i=0;i<evs.length && i<2;i++){ html+='<span class="ev '+evs[i].k+'">'+esc(evKurz(evs[i]))+'</span>'; }
+      if(evs.length>2){ html+='<span class="ev mehr">+'+(evs.length-2)+' mehr</span>'; }
+      html+='</div>';
+    }
+    for(var e=(offset+tage)%7; e>0 && e<7; e++){ html+='<div class="kal-zelle leer"></div>'; }  /* Rest der letzten Woche */
+    grid.innerHTML=html;
+    /* Auswahl: gewählter Tag (falls im Monat), sonst „heute" (falls im Monat), sonst der 1. */
+    var tag=1;
+    if(gewaehltIso.slice(0,7)===monatPrefix()) tag=+gewaehltIso.slice(8,10);
+    else if(HEUTE_ISO.slice(0,7)===monatPrefix()) tag=+HEUTE_ISO.slice(8,10);
+    selectDay(tag);
+  }
+  function selectDay(d, el){
+    var j=aktMonat.jahr, m=aktMonat.monat;
+    gewaehltIso=isoDatum(j,m,d);
+    document.querySelectorAll('.kal-zelle').forEach(function(z){ z.classList.remove('gewaehlt'); });
+    if(el){ el.classList.add('gewaehlt'); }
+    else {
+      var offset=(new Date(j, m, 1).getDay()+6)%7;
+      var z=document.querySelectorAll('.kal-zelle')[offset+d-1]; if(z) z.classList.add('gewaehlt');
+    }
+    var wt=wtLang[(new Date(j,m,d).getDay()+6)%7];
+    document.getElementById('tagTitel').textContent='Termine am '+wt+', '+d+'. '+MONATE[m]+' '+j;
+    var evs=kalDaten[gewaehltIso]||[], liste=document.getElementById('tagListe');
+    if(!evs.length){ liste.innerHTML='<p class="untertitel">Keine Termine an diesem Tag.</p>'; return; }
+    var farbe={praxis:'blau',theorie:'gruen',pruef:'amber',custom:'grau'};
+    liste.innerHTML=evs.map(function(ev,i){
+      var badge='<span class="marke '+(farbe[ev.k]||'blau')+'" style="margin-left:auto">'+esc(ev.art||'')+'</span>';
+      return '<div class="termin '+ev.k+'" onclick="editTermin(\''+gewaehltIso+'\','+i+')" title="Zum Bearbeiten klicken">'+
+             '<div class="uhr">'+evLang(ev)+'</div><div>'+evX(ev)+'</div>'+badge+'</div>';
+    }).join('');
+  }
+  /* Monats-Navigation: Pfeile, „Heute" und freie Monats-Auswahl */
+  function monatWechsel(delta){
+    var m=aktMonat.monat+delta, j=aktMonat.jahr;
+    if(m<0){ m=11; j--; }
+    if(m>11){ m=0; j++; }
+    aktMonat={jahr:j, monat:m};
+    renderKalender();
+  }
+  function monatWaehlen(wert){
+    if(!wert) return;
+    aktMonat={ jahr:+wert.slice(0,4), monat:+wert.slice(5,7)-1 };
+    renderKalender();
+  }
+  function gehHeute(){
+    aktMonat={ jahr:+HEUTE_ISO.slice(0,4), monat:+HEUTE_ISO.slice(5,7)-1 };
+    gewaehltIso=HEUTE_ISO;
+    renderKalender();
+  }
+
+  /* ===== Adminpanel: Daten & Bearbeiten (Mockup – Änderungen wirken sofort in den Tabellen) ===== */
+  var alleKlassenCodes=['B','BF17','BE','A','A1','A2','AM','L','T','C','CE'];
+  var klassen=[
+    {code:'B',    alter:18, theorie:14, ue:5, ab:4, na:3},
+    {code:'BF17', alter:17, theorie:14, ue:5, ab:4, na:3},
+    {code:'A1',   alter:16, theorie:16, ue:5, ab:4, na:3}
+  ];
+  var themen=[
+    {name:'Thema 1 – Persönliche Voraussetzungen', klassen:['B','A','A1','A2','AM'], version:'ab 01.2021', neu:false},
+    {name:'Thema 11 – Fahrassistenz & Umwelt',     klassen:['B','A','A1','A2','AM'], version:'ab 01.2026', neu:true},
+    {name:'Thema 12 – Anhänger / Beladung',        klassen:['B','BE'],               version:'ab 01.2021', neu:false},
+    {name:'LKW-Grundlagen',                        klassen:['C','CE'],               version:'ab 01.2021', neu:false}
+  ];
+  var dokKatalog=[
+    {name:'Sehtest', klassen:['alle'], ablaufPflicht:false},
+    {name:'Erste-Hilfe-Bescheinigung', klassen:['alle'], ablaufPflicht:false},
+    {name:'Passbild', klassen:['alle'], ablaufPflicht:false},
+    {name:'Fahrerlaubnis-Antrag (Amt)', klassen:['alle'], ablaufPflicht:true},
+    {name:'Ärztlicher Eignungsnachweis (nur Status)', klassen:['C','CE'], ablaufPflicht:true}
+  ];
+  var benutzer=[
+    {name:'Renate M.', mail:'renate@fahrschule-muster.de', rolle:'Admin'},
+    {name:'Werner M.', mail:'werner@fahrschule-muster.de', rolle:'Fahrlehrer'},
+    {name:'Helga M.',  mail:'helga@fahrschule-muster.de',  rolle:'Verwaltung', tempPw:true}
+  ];
+  /* Audit-Einträge: ent = betroffener Datensatz, delta = geänderte Felder (Vorher → Nachher) */
+  var auditLog=[
+    {zeit:'03.06.2026 09:24', nutzer:'Renate M.', aktion:'Praxisstunde bei Max Becker eingetragen', ent:'Stunde · Max Becker', delta:[{f:'Typ',v:'—',n:'Praxis'},{f:'Datum',v:'—',n:'03.06.2026'},{f:'Dauer',v:'—',n:'45 Minuten'}]},
+    {zeit:'03.06.2026 09:14', nutzer:'Renate M.', aktion:'Unterlage „Erste-Hilfe" bei Sara Vogt als vorgelegt markiert', ent:'Unterlage · Sara Vogt', delta:[{f:'Erste-Hilfe-Bescheinigung',v:'fehlt',n:'liegt vor'},{f:'Vorgelegt am',v:'—',n:'03.06.2026'}]},
+    {zeit:'03.06.2026 08:55', nutzer:'Helga M.',  aktion:'Telefonnummer von Jonas Klein geändert', ent:'Schüler · Jonas Klein', delta:[{f:'Telefon',v:'0152 33445566',n:'0152 99887766'}]},
+    {zeit:'02.06.2026 18:05', nutzer:'Werner M.', aktion:'Termin angelegt: Praxis Max Becker am 09.06. 14:00', ent:'Termin · 09.06.2026', delta:[{f:'Von–Bis',v:'—',n:'14:00–14:45'},{f:'Art',v:'—',n:'Praxis'},{f:'Schüler',v:'—',n:'Max Becker'}]},
+    {zeit:'02.06.2026 16:30', nutzer:'Werner M.', aktion:'Theorieprüfung (B) bei Lisa Wagner als bestanden eingetragen', ent:'Prüfung · Lisa Wagner (B)', delta:[{f:'Ergebnis',v:'offen',n:'bestanden'}]},
+    {zeit:'02.06.2026 14:20', nutzer:'Helga M.',  aktion:'Adresse von Sara Vogt geändert', ent:'Schüler · Sara Vogt', delta:[{f:'Straße',v:'Hauptstraße 3',n:'Gartenweg 8'},{f:'PLZ / Ort',v:'04109 Leipzig',n:'04155 Leipzig'}]},
+    {zeit:'02.06.2026 11:02', nutzer:'Renate M.', aktion:'Neuen Schüler Sara Vogt angelegt', ent:'Schüler · Sara Vogt', delta:[{f:'Datensatz',v:'—',n:'neu angelegt'},{f:'Klasse',v:'—',n:'BE'}]},
+    {zeit:'01.06.2026 18:40', nutzer:'Werner M.', aktion:'Sonderfahrt (Überland) bei Max Becker abgehakt', ent:'Fortschritt · Max Becker (B)', delta:[{f:'Überlandfahrt',v:'4 / 5',n:'5 / 5'}]},
+    {zeit:'01.06.2026 17:10', nutzer:'Werner M.', aktion:'Theoriestunde (Thema 7) für 6 Teilnehmer eingetragen', ent:'Stunde · Theorie', delta:[{f:'Thema',v:'—',n:'Thema 7 – Verkehrszeichen'},{f:'Teilnehmer',v:'—',n:'6'}]},
+    {zeit:'01.06.2026 09:30', nutzer:'Renate M.', aktion:'Zulassung zur Praxisprüfung (B) für Max Becker erteilt', ent:'Zulassung · Max Becker (B)', delta:[{f:'Praxisprüfung',v:'nicht zugelassen',n:'zugelassen'}]},
+    {zeit:'31.05.2026 15:45', nutzer:'Helga M.',  aktion:'Prüfungstermin bei TÜV für Sara Vogt am 05.06. eingetragen', ent:'Prüfungstermin · Sara Vogt', delta:[{f:'Datum',v:'—',n:'05.06.2026 08:30'},{f:'Prüforganisation',v:'—',n:'TÜV'}]},
+    {zeit:'30.05.2026 12:00', nutzer:'System',    aktion:'Aufbewahrungs-Job: 2 Datensätze nach Fristende endgültig entfernt', ent:'System · Aufbewahrung', delta:[{f:'Endgültig entfernt',v:'2 Datensätze (Frist abgelaufen)',n:'—'}]},
+    {zeit:'29.05.2026 16:22', nutzer:'Werner M.', aktion:'Grundfahraufgabe „Gefahrbremsung" bei Lisa Wagner abgehakt', ent:'Fortschritt · Lisa Wagner (B)', delta:[{f:'Gefahrbremsung',v:'offen',n:'erledigt'},{f:'Erledigt am',v:'—',n:'29.05.2026'}]},
+    {zeit:'29.05.2026 10:15', nutzer:'Helga M.',  aktion:'Unterlage „Fahrerlaubnis-Antrag" bei Lisa Wagner eingetragen (läuft ab 20.06.2026)', ent:'Unterlage · Lisa Wagner', delta:[{f:'Fahrerlaubnis-Antrag',v:'fehlt',n:'liegt vor'},{f:'Läuft ab am',v:'—',n:'20.06.2026'}]},
+    {zeit:'28.05.2026 14:12', nutzer:'Renate M.', aktion:'Datenexport für Jonas Klein erstellt (Art. 15/20 DSGVO)', ent:'DSGVO · Jonas Klein', delta:[{f:'Export',v:'—',n:'JSON-Datei erstellt (Art. 15/20)'}]},
+    {zeit:'28.05.2026 09:40', nutzer:'Werner M.', aktion:'Termin verschoben: Praxis Jonas Klein vom 28.05. auf 03.06.', ent:'Termin · Jonas Klein', delta:[{f:'Datum',v:'28.05.2026',n:'03.06.2026'}]},
+    {zeit:'27.05.2026 17:55', nutzer:'Werner M.', aktion:'Praxisstunde bei Sara Vogt eingetragen (Pflichtfahrt)', ent:'Stunde · Sara Vogt', delta:[{f:'Typ',v:'—',n:'Praxis (Pflichtfahrt)'},{f:'Dauer',v:'—',n:'45 Minuten'}]},
+    {zeit:'27.05.2026 11:30', nutzer:'Renate M.', aktion:'Ausbildungsplan: Thema 11 „Fahrassistenz & Umwelt" als neue Version angelegt', ent:'Ausbildungsplan · Thema 11', delta:[{f:'Version',v:'ab 01.2021',n:'ab 01.2026'},{f:'Titel',v:'Umweltschonendes Fahren',n:'Fahrassistenz & Umwelt'}]},
+    {zeit:'26.05.2026 13:18', nutzer:'Helga M.',  aktion:'Geburtsdatum von Max Becker korrigiert', ent:'Schüler · Max Becker', delta:[{f:'Geburtsdatum',v:'14.03.2008',n:'14.03.2007'}]},
+    {zeit:'25.05.2026 19:02', nutzer:'Werner M.', aktion:'Theoriestunde (Thema 6) für 8 Teilnehmer eingetragen', ent:'Stunde · Theorie', delta:[{f:'Thema',v:'—',n:'Thema 6'},{f:'Teilnehmer',v:'—',n:'8'}]},
+    {zeit:'25.05.2026 09:00', nutzer:'Renate M.', aktion:'Benutzer Helga M. angelegt (Rolle: Verwaltung)', ent:'Benutzer · Helga M.', delta:[{f:'Rolle',v:'—',n:'Verwaltung'},{f:'Termin-Push',v:'—',n:'nein'}]},
+    {zeit:'22.05.2026 15:34', nutzer:'Werner M.', aktion:'Sonderfahrt (Nacht) bei Max Becker abgehakt', ent:'Fortschritt · Max Becker (B)', delta:[{f:'Nachtfahrt',v:'0 / 3',n:'1 / 3'}]},
+    {zeit:'21.05.2026 10:48', nutzer:'Renate M.', aktion:'Klasse A1 bei Lisa Wagner hinzugefügt (Grundstoff angerechnet)', ent:'Schüler · Lisa Wagner', delta:[{f:'Klassen',v:'B',n:'B, A1'},{f:'Grundstoff Themen 1–10',v:'—',n:'aus B angerechnet'}]},
+    {zeit:'20.05.2026 16:40', nutzer:'Werner M.', aktion:'Praxisstunde bei Lisa Wagner eingetragen', ent:'Stunde · Lisa Wagner', delta:[{f:'Typ',v:'—',n:'Praxis'},{f:'Dauer',v:'—',n:'45 Minuten'}]},
+    {zeit:'19.05.2026 08:30', nutzer:'Helga M.',  aktion:'Sehtest bei Max Becker als vorgelegt markiert', ent:'Unterlage · Max Becker', delta:[{f:'Sehtest',v:'fehlt',n:'liegt vor'},{f:'Vorgelegt am',v:'—',n:'19.05.2026'}]},
+    {zeit:'16.05.2026 14:25', nutzer:'Renate M.', aktion:'Erinnerungs-Vorlauf für Unterlagen auf 21 Tage gesetzt', ent:'Einstellungen', delta:[{f:'Unterlagen-Vorlauf',v:'14 Tage',n:'21 Tage'}]},
+    {zeit:'12.05.2026 17:20', nutzer:'Werner M.', aktion:'Theorieprüfung (B) für Lisa Wagner beim TÜV angemeldet', ent:'Prüfungstermin · Lisa Wagner', delta:[{f:'Datum',v:'—',n:'12.05.2026'},{f:'Prüforganisation',v:'—',n:'TÜV'}]},
+    {zeit:'09.05.2026 11:11', nutzer:'Renate M.', aktion:'Ausbildungsvertrag für Sara Vogt erstellt', ent:'Dokument · Sara Vogt', delta:[{f:'Ausbildungsvertrag',v:'—',n:'erstellt (PDF)'}]},
+    {zeit:'05.05.2026 09:50', nutzer:'Helga M.',  aktion:'Neuen Schüler Jonas Klein angelegt', ent:'Schüler · Jonas Klein', delta:[{f:'Datensatz',v:'—',n:'neu angelegt'},{f:'Klasse',v:'—',n:'B'}]},
+    {zeit:'12.01.2026 09:03', nutzer:'Renate M.', aktion:'Schüler Peter Alt als gelöscht markiert (Soft-Delete, endgültig nach Fristende)', ent:'DSGVO · Peter Alt', delta:[{f:'Status',v:'aktiv',n:'gelöscht (Soft-Delete)'},{f:'Endgültig entfernt am',v:'—',n:'31.12.2036'}]}
+  ];
+  /* Zur Löschung vorgemerkte Schüler (Soft-Delete) – bis Fristende wiederherstellbar */
+  var geloeschte=[
+    {name:'Peter Alt', am:'12.01.2026', endgueltig:'31.12.2036 (AO §147: 10 Jahre)'}
+  ];
+  function klassenText(arr){ return (arr[0]==='alle') ? 'Alle' : arr.join(', '); }
+
+  function renderKlassen(){
+    var t=document.getElementById('klassenTabelle'); if(!t) return;
+    var h='<tr><th>Klasse</th><th>Mindestalter</th><th>Theorie (Doppelstd.)</th><th>Sonderfahrten Ü/A/N</th><th></th></tr>';
+    klassen.forEach(function(k,i){
+      h+='<tr><td><b>'+esc(k.code)+'</b></td><td>'+k.alter+'</td><td>'+k.theorie+'</td><td>'+k.ue+' / '+k.ab+' / '+k.na+'</td>'+
+         '<td><button class="btn zweit" onclick="klasseEdit('+i+')">Bearbeiten</button></td></tr>';
+    });
+    t.innerHTML=h;
+  }
+  var akIdx=-1;
+  function klasseEdit(i){
+    akIdx=i;
+    var k = i>=0 ? klassen[i] : {code:'',alter:18,theorie:14,ue:5,ab:4,na:3};
+    document.getElementById('akTitel').textContent = i>=0 ? ('Klasse '+k.code+' bearbeiten') : 'Neue Klasse';
+    document.getElementById('akCode').value=k.code;
+    document.getElementById('akAlter').value=k.alter;
+    document.getElementById('akTheorie').value=k.theorie;
+    document.getElementById('akUe').value=k.ue; document.getElementById('akAb').value=k.ab; document.getElementById('akNa').value=k.na;
+    document.getElementById('akDelete').hidden=(i<0);   /* Löschen nur beim Bearbeiten, nicht beim Anlegen */
+    document.getElementById('adminKlasseDlg').classList.add('auf');
+  }
+  function closeAdminKlasse(){ document.getElementById('adminKlasseDlg').classList.remove('auf'); }
+  function klasseSave(){
+    var code=document.getElementById('akCode').value.trim();
+    if(!code){ alert('Bitte ein Kürzel angeben (z. B. B).'); return; }
+    var k={ code:code,
+      alter:+document.getElementById('akAlter').value||0,
+      theorie:+document.getElementById('akTheorie').value||0,
+      ue:+document.getElementById('akUe').value||0,
+      ab:+document.getElementById('akAb').value||0,
+      na:+document.getElementById('akNa').value||0 };
+    if(akIdx>=0) klassen[akIdx]=k; else klassen.push(k);
+    renderKlassen(); closeAdminKlasse();
+  }
+
+  function renderThemen(){
+    var t=document.getElementById('themenTabelle'); if(!t) return;
+    var h='<tr><th>Thema</th><th>Gilt für Klassen</th><th>Version</th><th></th></tr>';
+    themen.forEach(function(x,i){
+      var v = x.neu ? '<span class="marke gruen">neu · '+esc(x.version)+'</span>' : esc(x.version);
+      h+='<tr><td>'+esc(x.name)+'</td><td>'+esc(klassenText(x.klassen))+'</td><td>'+v+'</td>'+
+         '<td><button class="btn zweit" onclick="katalogEdit(\'thema\','+i+')">Bearbeiten</button></td></tr>';
+    });
+    t.innerHTML=h;
+  }
+  function renderDokKat(){
+    var t=document.getElementById('dokKatTabelle'); if(!t) return;
+    var h='<tr><th>Unterlage</th><th>Gilt für Klassen</th><th>Ablaufdatum</th><th></th></tr>';
+    dokKatalog.forEach(function(x,i){
+      var ab = x.ablaufPflicht ? '<span class="marke amber">Pflicht</span>' : '<span class="marke grau">optional</span>';
+      h+='<tr><td>'+esc(x.name)+'</td><td>'+esc(klassenText(x.klassen))+'</td><td>'+ab+'</td>'+
+         '<td><button class="btn zweit" onclick="katalogEdit(\'dok\','+i+')">Bearbeiten</button></td></tr>';
+    });
+    t.innerHTML=h;
+  }
+  var kgMode='thema', kgIdx=-1;
+  function katalogEdit(mode,i){
+    kgMode=mode; kgIdx=i;
+    var liste = mode==='thema' ? themen : dokKatalog;
+    var x = i>=0 ? liste[i] : {name:'', klassen:[], version:'ab 06.2026'};
+    document.getElementById('kgTitel').textContent =
+      (mode==='thema'?'Theorie-Thema':'Unterlage') + (i>=0?' bearbeiten':' anlegen');
+    document.getElementById('kgName').value=x.name;
+    document.getElementById('kgVersionWrap').hidden = (mode!=='thema');
+    document.getElementById('kgVersion').value=x.version||'';
+    document.getElementById('kgAblaufWrap').hidden = (mode!=='dok');
+    document.getElementById('kgAblauf').checked = !!x.ablaufPflicht;
+    var alleAn = x.klassen[0]==='alle';
+    var h='<label><input type="checkbox" id="kgAlle" '+(alleAn?'checked':'')+' onchange="kgAlleToggle(this)"> <b>Alle</b></label>';
+    alleKlassenCodes.forEach(function(c){
+      h+='<label><input type="checkbox" class="kgK" value="'+c+'" '+(x.klassen.indexOf(c)>=0?'checked':'')+' '+(alleAn?'disabled':'')+'> '+c+'</label>';
+    });
+    document.getElementById('kgKlassen').innerHTML=h;
+    document.getElementById('kgDelete').hidden=(i<0);   /* Löschen nur beim Bearbeiten, nicht beim Anlegen */
+    document.getElementById('katalogDlg').classList.add('auf');
+  }
+  function kgAlleToggle(cb){
+    document.querySelectorAll('#kgKlassen .kgK').forEach(function(k){ k.disabled=cb.checked; if(cb.checked) k.checked=false; });
+  }
+  function closeKatalog(){ document.getElementById('katalogDlg').classList.remove('auf'); }
+  function katalogSave(){
+    var name=document.getElementById('kgName').value.trim();
+    if(!name){ alert('Bitte eine Bezeichnung angeben.'); return; }
+    var kl;
+    if(document.getElementById('kgAlle').checked){ kl=['alle']; }
+    else {
+      kl=[]; document.querySelectorAll('#kgKlassen .kgK:checked').forEach(function(k){ kl.push(k.value); });
+      if(!kl.length){ alert('Bitte mindestens eine Klasse wählen (oder „Alle").'); return; }
+    }
+    var liste = kgMode==='thema' ? themen : dokKatalog;
+    var eintrag={ name:name, klassen:kl };
+    if(kgMode==='thema'){
+      eintrag.version=document.getElementById('kgVersion').value.trim()||'ab 06.2026';
+      eintrag.neu = kgIdx>=0 ? liste[kgIdx].neu : true;   /* neue Themen als „neu" markieren */
+    } else {
+      eintrag.ablaufPflicht=document.getElementById('kgAblauf').checked;
+    }
+    if(kgIdx>=0) liste[kgIdx]=eintrag; else liste.push(eintrag);
+    renderThemen(); renderDokKat(); closeKatalog();
+  }
+
+  /* Löschen aus den Katalogen (Klasse/Thema/Unterlage) – immer mit Bestätigung + Folgen-Hinweis */
+  var pendingDel=null;   /* {typ:'klasse'|'thema'|'dok', idx} */
+  function adminDelOeffnen(typ, idx, name){
+    pendingDel={typ:typ, idx:idx};
+    var folgen={
+      klasse:'Schüler, die diese Klasse bereits machen, behalten ihre Daten und ihren Fortschritt – die Klasse steht nur für neue Anmeldungen nicht mehr zur Auswahl.',
+      thema:'Schüler, die das Thema bereits absolviert haben oder gerade machen, behalten es in ihrer persönlichen Checkliste (Versionierung) – es erscheint nur nicht mehr im aktuellen Plan.',
+      dok:'Bereits erfasste Unterlagen-Status bei Schülern bleiben erhalten – die Unterlage wird nur bei neuen Schülern nicht mehr verlangt.'
+    };
+    document.getElementById('adminDelName').textContent=name;
+    document.getElementById('adminDelFolge').textContent=folgen[typ]||'';
+    document.getElementById('adminDelDlg').classList.add('auf');
+  }
+  function klasseDelete(){
+    if(akIdx<0) return;
+    adminDelOeffnen('klasse', akIdx, 'Führerscheinklasse '+klassen[akIdx].code);
+  }
+  function katalogDelete(){
+    if(kgIdx<0) return;
+    var liste = kgMode==='thema' ? themen : dokKatalog;
+    adminDelOeffnen(kgMode, kgIdx, (kgMode==='thema'?'Theorie-Thema: ':'Unterlage: ')+liste[kgIdx].name);
+  }
+  function closeAdminDel(){ pendingDel=null; document.getElementById('adminDelDlg').classList.remove('auf'); }
+  function adminDelJa(){
+    if(!pendingDel){ closeAdminDel(); return; }
+    var typ=pendingDel.typ, idx=pendingDel.idx;
+    if(typ==='klasse'){
+      var code=klassen[idx].code;
+      klassen.splice(idx,1); renderKlassen(); closeAdminKlasse();
+      auditEintrag('Führerscheinklasse „'+code+'" gelöscht', 'Einstellungen · Klassen', [{f:'Klasse '+code, v:'vorhanden', n:'gelöscht'}]);
+    } else if(typ==='thema'){
+      var th=themen[idx].name;
+      themen.splice(idx,1); renderThemen(); closeKatalog();
+      auditEintrag('Theorie-Thema „'+th+'" aus dem Plan entfernt', 'Ausbildungsplan', [{f:th, v:'im aktuellen Plan', n:'entfernt (alte Versionen bleiben bei Schülern erhalten)'}]);
+    } else if(typ==='dok'){
+      var dk=dokKatalog[idx].name;
+      dokKatalog.splice(idx,1); renderDokKat(); closeKatalog();
+      auditEintrag('Unterlage „'+dk+'" aus dem Katalog entfernt', 'Einstellungen · Unterlagen', [{f:dk, v:'im Katalog', n:'entfernt'}]);
+    }
+    closeAdminDel();
+  }
+
+  function renderBenutzer(){
+    var t=document.getElementById('benutzerTabelle'); if(!t) return;
+    var rollenFarbe={Admin:'blau', Fahrlehrer:'gruen', Verwaltung:'amber'};
+    var h='<tr><th>Name</th><th>E-Mail</th><th>Rolle</th><th>Termin-Push</th><th>Anmeldung</th><th></th></tr>';
+    benutzer.forEach(function(b,i){
+      var push = b.rolle==='Fahrlehrer' ? '<span class="marke gruen">ja</span>' : '<span class="marke grau">nein</span>';
+      var status = b.tempPw ? '<span class="marke amber">🔑 temporäres Passwort</span>' : '<span class="marke grau">aktiv</span>';
+      h+='<tr><td><b>'+esc(b.name)+'</b></td><td>'+esc(b.mail)+'</td><td><span class="marke '+(rollenFarbe[b.rolle]||'grau')+'">'+esc(b.rolle)+'</span></td>'+
+         '<td>'+push+'</td><td>'+status+'</td>'+
+         '<td style="white-space:nowrap"><button class="btn zweit" onclick="benutzerEdit('+i+')">Bearbeiten</button></td></tr>';
+    });
+    t.innerHTML=h;
+  }
+  var bnIdx=-1;
+  function benutzerEdit(i){
+    bnIdx=i;
+    var b = i>=0 ? benutzer[i] : {name:'',mail:'',rolle:'Fahrlehrer'};
+    document.getElementById('bnTitel').textContent = i>=0 ? 'Benutzer bearbeiten' : 'Neuen Benutzer anlegen';
+    document.getElementById('bnName').value=b.name;
+    document.getElementById('bnMail').value=b.mail;
+    document.getElementById('bnRolle').value=b.rolle;
+    /* Neuer Benutzer → temporäres Passwort gleich erzeugen; bestehender → Reset-Knopf anbieten */
+    document.getElementById('bnTempWrap').hidden = (i>=0);
+    document.getElementById('bnResetWrap').hidden = (i<0);
+    if(i<0){ document.getElementById('bnTempPw').value=generatePw(); }
+    document.getElementById('benutzerDlg').classList.add('auf');
+  }
+  function closeBenutzer(){ document.getElementById('benutzerDlg').classList.remove('auf'); }
+  function benutzerSave(){
+    var name=document.getElementById('bnName').value.trim();
+    if(!name){ alert('Bitte einen Namen angeben.'); return; }
+    var b={ name:name, mail:document.getElementById('bnMail').value.trim(), rolle:document.getElementById('bnRolle').value };
+    if(bnIdx>=0){ b.tempPw=benutzer[bnIdx].tempPw; benutzer[bnIdx]=b; }
+    else { b.tempPw=true; benutzer.push(b);   /* neue Benutzer müssen das temporäre Passwort ändern */
+           auditEintrag('Benutzer '+name+' angelegt (Rolle: '+b.rolle+', temporäres Passwort vergeben)', 'Benutzer · '+name,
+             [{f:'Rolle',v:'—',n:b.rolle},{f:'Passwort',v:'—',n:'temporär (muss geändert werden)'}]); }
+    renderBenutzer(); closeBenutzer();
+  }
+  /* Sicheres, gut lesbares temporäres Passwort (ohne verwechselbare Zeichen) */
+  function generatePw(){
+    var z='ABCDEFGHJKMNPQRSTUVWXYZ23456789', s='';
+    for(var i=0;i<8;i++){ s+=z[Math.floor(Math.random()*z.length)]; }
+    return s.slice(0,4)+'-'+s.slice(4);
+  }
+  function bnNeuesTemp(){ document.getElementById('bnTempPw').value=generatePw(); }
+  function benutzerReset(){
+    if(bnIdx<0) return;
+    benutzer[bnIdx].tempPw=true;
+    document.getElementById('bnResetWrap').hidden=true;
+    document.getElementById('bnTempWrap').hidden=false;
+    document.getElementById('bnTempPw').value=generatePw();
+    renderBenutzer();
+    auditEintrag('Passwort von '+benutzer[bnIdx].name+' zurückgesetzt (neues temporäres Passwort)', 'Benutzer · '+benutzer[bnIdx].name,
+      [{f:'Passwort',v:'gesetzt',n:'temporär (muss geändert werden)'}]);
+  }
+  function openPwPreview(){ document.getElementById('pwPreviewDlg').classList.add('auf'); }
+  function closePwPreview(){ document.getElementById('pwPreviewDlg').classList.remove('auf'); }
+  /* Anmeldung / Abmeldung (Vollbild). Bei temporärem Passwort folgt direkt die Passwort-Aufforderung. */
+  var loginUser=null;
+  function login(){
+    var mail=(document.getElementById('loginMail').value||'').trim().toLowerCase();
+    var u=null;
+    benutzer.forEach(function(b){ if(b.mail.toLowerCase()===mail) u=b; });
+    document.getElementById('loginScreen').classList.remove('auf');
+    if(u && u.tempPw){ loginUser=u; openPwSet(); }   /* temporäres Passwort → ändern erzwingen */
+  }
+  function logout(){ document.getElementById('loginScreen').classList.add('auf'); }
+  function openPwSet(){ document.getElementById('pwSetScreen').classList.add('auf'); }
+  function pwSetDone(){
+    if(loginUser){ loginUser.tempPw=false; renderBenutzer(); loginUser=null; }  /* Passwort jetzt gesetzt */
+    document.getElementById('pwSetScreen').classList.remove('auf');
+  }
+  /* Benachrichtigungen / Persönliche Einstellungen */
+  function openBenachr(){ document.getElementById('benachrDlg').classList.add('auf'); }
+  function closeBenachr(){ document.getElementById('benachrDlg').classList.remove('auf'); }
+  function openPers(){ document.getElementById('persDlg').classList.add('auf'); }
+  function closePers(){ document.getElementById('persDlg').classList.remove('auf'); }
+
+  /* Audit-Log mit Seiten (Pagination): 8 Einträge pro Seite, Filter wirkt auf alle Seiten */
+  var AUDIT_PRO_SEITE=8, auditSeite=1;
+  function renderAudit(filter){
+    var t=document.getElementById('auditTabelle'); if(!t) return;
+    var f=(filter||'').toLowerCase();
+    /* Original-Index merken, damit der 👁-Button auch gefiltert den richtigen Eintrag öffnet */
+    var rows=[];
+    auditLog.forEach(function(a,i){
+      if(!f || (a.zeit+' '+a.nutzer+' '+a.aktion).toLowerCase().indexOf(f)>=0) rows.push({a:a, i:i});
+    });
+    var seiten=Math.max(1, Math.ceil(rows.length/AUDIT_PRO_SEITE));
+    if(auditSeite>seiten) auditSeite=seiten;
+    if(auditSeite<1) auditSeite=1;
+    var start=(auditSeite-1)*AUDIT_PRO_SEITE;
+    var h='<tr><th>Wann</th><th>Wer</th><th>Was</th><th></th></tr>';
+    var sichtbar=rows.slice(start, start+AUDIT_PRO_SEITE);
+    var zeilen=sichtbar.length;
+    if(!rows.length){ h+='<tr><td colspan="4" style="color:var(--text-leise)">Keine Einträge gefunden.</td></tr>'; zeilen=1; }
+    sichtbar.forEach(function(x){
+      var a=x.a;
+      h+='<tr><td>'+esc(a.zeit)+'</td><td title="'+esc(a.nutzer)+'">'+esc(a.nutzer)+'</td>'+
+         '<td title="'+esc(a.aktion)+'">'+esc(a.aktion)+'</td>'+
+         '<td style="text-align:center"><button class="pfeil" onclick="auditDetail('+x.i+')" title="Details ansehen">👁</button></td></tr>';
+    });
+    /* Mit Leerzeilen auf volle Seitenhöhe auffüllen → Tabelle bleibt beim Blättern/Filtern gleich hoch */
+    for(var i=zeilen; i<AUDIT_PRO_SEITE; i++){ h+='<tr class="leerzeile"><td>&nbsp;</td><td></td><td></td><td></td></tr>'; }
+    t.innerHTML=h;
+    document.getElementById('auditSeiteInfo').textContent='Seite '+auditSeite+' von '+seiten+' · '+rows.length+' Einträge';
+    document.getElementById('auditZurueck').disabled=(auditSeite<=1);
+    document.getElementById('auditWeiter').disabled=(auditSeite>=seiten);
+  }
+  function auditFiltern(wert){ auditSeite=1; renderAudit(wert); }   /* neuer Filter → zurück auf Seite 1 */
+  function auditBlaettern(richtung){
+    auditSeite+=richtung;
+    var f=document.getElementById('auditFilter');
+    renderAudit(f ? f.value : '');
+  }
+
+  /* Neuer Audit-Eintrag oben anfügen (Mockup: feste Demo-Uhrzeit, im echten System Serverzeit) */
+  function auditEintrag(text, ent, delta){
+    auditLog.unshift({zeit:'03.06.2026 10:05', nutzer:'Renate M.', aktion:text, ent:ent||'—', delta:delta||null});
+    auditSeite=1;   /* neuer Eintrag steht oben → zur ersten Seite springen */
+    var f=document.getElementById('auditFilter');
+    renderAudit(f ? f.value : '');
+  }
+  /* Detail-Ansicht eines Audit-Eintrags (👁 in der Tabelle) */
+  function auditDetail(i){
+    var a=auditLog[i]; if(!a) return;
+    document.getElementById('adZeit').textContent=a.zeit;
+    document.getElementById('adNutzer').textContent=a.nutzer;
+    document.getElementById('adEnt').textContent=a.ent||'—';
+    document.getElementById('adAktion').textContent=a.aktion;
+    var h='<tr><th>Feld</th><th>Vorher</th><th>Nachher</th></tr>';
+    if(a.delta && a.delta.length){
+      a.delta.forEach(function(d){
+        h+='<tr><td><b>'+esc(d.f)+'</b></td><td class="vorher">'+esc(d.v)+'</td><td class="nachher">'+esc(d.n)+'</td></tr>';
+      });
+    } else {
+      h+='<tr><td colspan="3" style="color:var(--text-leise)">Keine Feld-Details hinterlegt.</td></tr>';
+    }
+    document.getElementById('adDelta').innerHTML=h;
+    document.getElementById('auditDlg').classList.add('auf');
+  }
+  function closeAuditDlg(){ document.getElementById('auditDlg').classList.remove('auf'); }
+  /* DSGVO: Datenexport (Art. 15/20) – lädt eine JSON-Datei mit den Beispieldaten herunter */
+  function dsgvoExport(){
+    var name=document.getElementById('dsgvoSchueler').value.trim();
+    if(!name){ alert('Bitte zuerst einen Schüler eingeben oder aus den Vorschlägen wählen.'); return; }
+    var daten={
+      hinweis:'Beispiel-Export aus dem Design-Entwurf (Auskunft nach Art. 15 / Übertragbarkeit nach Art. 20 DSGVO)',
+      exportiertAm:'03.06.2026', schueler:name,
+      stammdaten:{ geburtsdatum:'(Beispieldaten)', telefon:'(Beispieldaten)', adresse:'(Beispieldaten)' },
+      klassen:['B','A1'],
+      ausbildungsfortschritt:'(alle abgehakten Themen mit Datum/Notiz)',
+      pruefungen:'(alle Prüfungen mit Ergebnis)',
+      unterlagenStatus:'(vorhanden/fehlt + Daten, keine Dokumente)'
+    };
+    var blob=new Blob([JSON.stringify(daten,null,2)],{type:'application/json'});
+    var a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='datenexport-'+name.toLowerCase().replace(/\s+/g,'-')+'.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    auditEintrag('Datenexport für '+name+' erstellt (Art. 15/20 DSGVO)', 'DSGVO · '+name,
+      [{f:'Export', v:'—', n:'JSON-Datei erstellt (Art. 15/20)'}]);
+  }
+  /* DSGVO: Löschung mit Fristenprüfung (Soft-Delete) */
+  function dsgvoLoeschen(){
+    var name=document.getElementById('dsgvoSchueler').value.trim();
+    if(!name){ alert('Bitte zuerst einen Schüler eingeben oder aus den Vorschlägen wählen.'); return; }
+    document.getElementById('dsgvoName').textContent=name;
+    document.getElementById('dsgvoDlg').classList.add('auf');
+  }
+  function closeDsgvo(){ document.getElementById('dsgvoDlg').classList.remove('auf'); }
+  function dsgvoLoeschenJa(){
+    var name=document.getElementById('dsgvoSchueler').value.trim();
+    geloeschte.push({name:name, am:'03.06.2026', endgueltig:'31.12.2036 (AO §147: 10 Jahre)'});
+    renderGeloeschte();
+    auditEintrag('Schüler '+name+' als gelöscht markiert (Soft-Delete, endgültig nach Fristende)', 'DSGVO · '+name,
+      [{f:'Status', v:'aktiv', n:'gelöscht (Soft-Delete)'},{f:'Endgültig entfernt am', v:'—', n:'31.12.2036'}]);
+    document.getElementById('dsgvoSchueler').value='';
+    closeDsgvo();
+  }
+  /* Liste der zur Löschung vorgemerkten Schüler – mit Wiederherstellen-Knopf */
+  function renderGeloeschte(){
+    var t=document.getElementById('geloeschteTabelle'); if(!t) return;
+    if(!geloeschte.length){
+      t.innerHTML='<tr><td style="color:var(--text-leise)">Keine anstehenden Löschungen.</td></tr>';
+      return;
+    }
+    var h='<tr><th>Schüler</th><th>Gelöscht am</th><th>Endgültig entfernt am</th><th></th></tr>';
+    geloeschte.forEach(function(g,i){
+      h+='<tr><td><b>'+esc(g.name)+'</b></td><td>'+esc(g.am)+'</td><td>'+esc(g.endgueltig)+'</td>'+
+         '<td><button class="btn zweit" onclick="dsgvoWiederherstellen('+i+')">↩ Wiederherstellen</button></td></tr>';
+    });
+    t.innerHTML=h;
+  }
+  function dsgvoWiederherstellen(i){
+    var g=geloeschte[i]; if(!g) return;
+    geloeschte.splice(i,1);
+    renderGeloeschte();
+    auditEintrag('Löschung von '+g.name+' rückgängig gemacht (wiederhergestellt)', 'DSGVO · '+g.name,
+      [{f:'Status', v:'gelöscht (Soft-Delete)', n:'aktiv'}]);
+  }
+
+  /* Erinnerungs-Einstellung wirkt sofort auf die Unterlagen in der Schüler-Akte */
+  function ablaufAendern(sel){
+    ablaufWarnTage=+sel.value||21;
+    resetDokWarn(); initUnterlagen();
+    einstellungOk();
+  }
+  function einstellungOk(){
+    var ok=document.getElementById('setOk');
+    ok.hidden=false;
+    clearTimeout(einstellungOk._t);
+    einstellungOk._t=setTimeout(function(){ ok.hidden=true; }, 2000);
+  }
+  function resetDokWarn(){
+    document.querySelectorAll('.dok').forEach(function(dok){
+      dok.classList.remove('warnen');
+      var b=dok.querySelector('.ablauf-badge'); if(b) b.remove();
+      var p=dok.querySelector('.detail-panel'); if(p) p.classList.remove('auf');
+      var pf=dok.querySelector('.pfeil'); if(pf) pf.classList.remove('auf');
+    });
+  }
+
+  /* Startwerte in die Bedienelemente übernehmen */
+  (function(){
+    renderKalender();
+    initUnterlagen();
+    renderSchueler(); renderPruefungen(); updateSperre();
+    renderKlassen(); renderThemen(); renderDokKat(); renderBenutzer(); renderAudit(''); renderGeloeschte();
+    try{
+      var s=localStorage.getItem('schrift');
+      if(s){
+        var px=parseInt(s,10), best=2, bd=999;
+        SIZES.forEach(function(v,i){ var d=Math.abs(v-px); if(d<bd){ bd=d; best=i; } });
+        document.getElementById('slider').value=best;
+        document.documentElement.style.setProperty('--basis', SIZES[best]+'px');
+      }
+    }catch(e){}
+    themeBtnText();
+  })();
+</script>
+</body>
+</html>

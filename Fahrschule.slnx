@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="Fahrschule.Api/Fahrschule.Api.csproj" />
+  <Project Path="Fahrschule.Application/Fahrschule.Application.csproj" />
+  <Project Path="Fahrschule.Contracts/Fahrschule.Contracts.csproj" />
+  <Project Path="Fahrschule.Domain/Fahrschule.Domain.csproj" />
+  <Project Path="Fahrschule.Infrastructure/Fahrschule.Infrastructure.csproj" />
+  <Project Path="Fahrschule.Tests/Fahrschule.Tests.csproj" />
+</Solution>

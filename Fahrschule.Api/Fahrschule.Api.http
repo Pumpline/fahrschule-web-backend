@@ -1,0 +1,35 @@
+### Diese Datei kann man in Rider/VS Code öffnen und die Anfragen direkt
+### ausprobieren ("Play"-Symbol neben der Anfrage). Cookies verwaltet das
+### Werkzeug automatisch – nach dem Login funktionieren auch /me usw.
+
+@host = http://localhost:5080
+
+### Lebenszeichen (ohne Anmeldung)
+GET {{host}}/api/health
+
+### Anmelden (Seed-Admin aus appsettings.Development.json)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@fahrschule.local",
+  "password": "Fahrschule-Start1"
+}
+
+### Wer bin ich?
+GET {{host}}/api/auth/me
+
+### Eigenes Passwort festlegen (nach erster Anmeldung Pflicht)
+POST {{host}}/api/auth/change-password
+Content-Type: application/json
+
+{
+  "currentPassword": "Fahrschule-Start1",
+  "newPassword": "MeinNeuesPasswort1"
+}
+
+### Token-Paar erneuern
+POST {{host}}/api/auth/refresh
+
+### Abmelden
+POST {{host}}/api/auth/logout
