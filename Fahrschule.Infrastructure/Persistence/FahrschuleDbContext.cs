@@ -7,18 +7,15 @@ using Microsoft.EntityFrameworkCore;
 namespace Fahrschule.Infrastructure.Persistence;
 
 /// <summary>
-/// Der DbContext ist die Brücke zwischen C#-Klassen und der PostgreSQL-Datenbank.
+/// The DbContext is the bridge between C# classes and the PostgreSQL database.
 ///
-/// Web-typisches Konzept "ORM" (Object-Relational Mapper): Wir arbeiten im Code
-/// mit normalen Objekten (z. B. AuditLog), und EF Core übersetzt das in
-/// SQL-Befehle. Tabellen entstehen über "Migrationen" – versionierte
-/// Änderungsschritte am Datenbankschema (siehe Ordner Migrations/).
+/// Common web concept "ORM" (Object-Relational Mapper): we work with plain
+/// objects in code (e.g. AuditLog) and EF Core translates that into SQL.
+/// Tables are created via "migrations" - versioned change steps of the
+/// database schema (see the Migrations/ folder).
 ///
-/// Wir erben von IdentityDbContext, damit die fertigen Identity-Tabellen
-/// (Benutzer, Rollen, …) gleich mit dabei sind.
-///
-/// Unity-Brücke: grob vergleichbar mit einem SaveGame-System, das den Zustand
-/// der Objekte automatisch in eine Datei (hier: Datenbank) schreibt und lädt.
+/// We inherit from IdentityDbContext so the ready-made Identity tables
+/// (users, roles, ...) are included automatically.
 /// </summary>
 public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
@@ -31,12 +28,12 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
-        // Wichtig: zuerst die Identity-Konfiguration übernehmen.
+        // Important: apply the Identity configuration first.
         base.OnModelCreating(builder);
 
         builder.Entity<AuditLog>(log =>
         {
-            // Das Audit-Log wird oft nach Zeitraum gefiltert → Index beschleunigt das.
+            // The audit log is often filtered by time range → index speeds that up.
             log.HasIndex(x => x.TimestampUtc);
             log.HasIndex(x => new { x.EntityType, x.EntityId });
             log.Property(x => x.Action).HasMaxLength(100);
@@ -47,76 +44,77 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
 
         builder.Entity<Setting>(setting =>
         {
-            // Der Schlüssel selbst ist der Primärschlüssel ("Erinnerung.VorlaufMinuten" …).
+            // The key itself is the primary key ("Erinnerung.VorlaufMinuten" ...).
             setting.HasKey(x => x.Key);
             setting.Property(x => x.Key).HasMaxLength(200);
         });
 
-        builder.Entity<LicenseClass>(klasse =>
+        builder.Entity<LicenseClass>(licenseClass =>
         {
-            klasse.Property(x => x.Code).HasMaxLength(10);
-            klasse.Property(x => x.Description).HasMaxLength(300);
-            klasse.Property(x => x.Requirements).HasMaxLength(1000);
+            licenseClass.Property(x => x.Code).HasMaxLength(10);
+            licenseClass.Property(x => x.Description).HasMaxLength(300);
+            licenseClass.Property(x => x.Requirements).HasMaxLength(1000);
 
-            // Kürzel eindeutig – aber nur unter den NICHT gelöschten Klassen
-            // (eine gelöschte "B" darf ein neues "B" nicht blockieren).
-            klasse.HasIndex(x => x.Code).IsUnique().HasFilter("\"IsDeleted\" = false");
+            // Code must be unique - but only among NON-deleted classes
+            // (a deleted "B" must not block creating a new "B").
+            licenseClass.HasIndex(x => x.Code).IsUnique().HasFilter("\"IsDeleted\" = false");
 
-            // Globaler Filter: Soft-gelöschte Datensätze sind für alle normalen
-            // Abfragen unsichtbar (Projektregel 7) – nur der spätere
-            // Wiederherstellen-/Aufbewahrungs-Code hebt den Filter gezielt auf.
-            klasse.HasQueryFilter(x => !x.IsDeleted);
+            // Global filter: soft-deleted records are invisible to all normal
+            // queries (project rule 7) - only the future restore/retention
+            // code will bypass the filter explicitly.
+            licenseClass.HasQueryFilter(x => !x.IsDeleted);
 
-            // Optimistische Nebenläufigkeit: PostgreSQL führt pro Zeile die
-            // Systemspalte "xmin" (ändert sich bei jedem Schreiben). EF nutzt
-            // sie als Versionsmarke gegen gegenseitiges Überschreiben.
-            klasse.Property<uint>("xmin").IsRowVersion();
+            // Optimistic concurrency: PostgreSQL maintains the per-row system
+            // column "xmin" (changes on every write). EF uses it as a version
+            // marker to prevent users overwriting each other's changes.
+            licenseClass.Property<uint>("xmin").IsRowVersion();
         });
 
-        builder.Entity<CurriculumItem>(punkt =>
+        builder.Entity<CurriculumItem>(item =>
         {
-            punkt.Property(x => x.Section).HasMaxLength(100);
-            punkt.Property(x => x.Title).HasMaxLength(300);
+            item.Property(x => x.Section).HasMaxLength(100);
+            item.Property(x => x.Title).HasMaxLength(300);
 
-            // Häufigste Abfrage: "aktuelle Version je Kennung" → passender Index.
-            punkt.HasIndex(x => new { x.ItemKey, x.Version }).IsUnique();
-            punkt.HasIndex(x => x.Section);
+            // Most frequent query: "current version per item key" → matching index.
+            item.HasIndex(x => new { x.ItemKey, x.Version }).IsUnique();
+            item.HasIndex(x => x.Section);
 
-            punkt.HasQueryFilter(x => !x.IsDeleted);
-            punkt.Property<uint>("xmin").IsRowVersion();
+            item.HasQueryFilter(x => !x.IsDeleted);
+            item.Property<uint>("xmin").IsRowVersion();
         });
 
-        builder.Entity<CurriculumItemClass>(zuordnung =>
+        builder.Entity<CurriculumItemClass>(link =>
         {
-            // Zusammengesetzter Schlüssel: jede Kombination Punkt+Klasse nur einmal.
-            zuordnung.HasKey(x => new { x.CurriculumItemId, x.LicenseClassId });
+            // Composite key: each item+class combination only once.
+            link.HasKey(x => new { x.CurriculumItemId, x.LicenseClassId });
 
-            zuordnung.HasOne(x => x.CurriculumItem)
+            link.HasOne(x => x.CurriculumItem)
                 .WithMany(x => x.Classes)
                 .HasForeignKey(x => x.CurriculumItemId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Klassen werden nur soft-gelöscht – ein hartes Löschen soll
-            // niemals still Zuordnungen mitreißen (Restrict = Datenbank wehrt sich).
-            zuordnung.HasOne(x => x.LicenseClass)
+            // Licence classes are only ever soft-deleted - a hard delete must
+            // never silently drag link rows along (Restrict = the database
+            // refuses).
+            link.HasOne(x => x.LicenseClass)
                 .WithMany()
                 .HasForeignKey(x => x.LicenseClassId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Wichtig: CurriculumItem filtert gelöschte Zeilen global aus –
-            // EF verlangt, dass abhängige Tabellen denselben Filter spiegeln
-            // (sonst gäbe es Zuordnungen zu "unsichtbaren" Punkten).
-            zuordnung.HasQueryFilter(x => !x.CurriculumItem!.IsDeleted);
+            // Important: CurriculumItem filters deleted rows globally - EF
+            // requires dependent tables to mirror the same filter (otherwise
+            // there could be links to "invisible" items).
+            link.HasQueryFilter(x => !x.CurriculumItem!.IsDeleted);
         });
 
         builder.Entity<RefreshToken>(token =>
         {
-            // Beim Refresh suchen wir das Token über seinen Hash → eindeutiger Index.
+            // The refresh endpoint looks tokens up by hash → unique index.
             token.HasIndex(x => x.TokenHash).IsUnique();
             token.Property(x => x.TokenHash).HasMaxLength(128);
             token.Property(x => x.ReplacedByTokenHash).HasMaxLength(128);
 
-            // Wird ein Benutzer endgültig entfernt, verschwinden auch seine Tokens.
+            // If a user is permanently removed, their tokens go with them.
             token.HasOne(x => x.User)
                 .WithMany()
                 .HasForeignKey(x => x.UserId)

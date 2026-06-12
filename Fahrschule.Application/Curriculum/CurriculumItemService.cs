@@ -11,7 +11,7 @@ namespace Fahrschule.Application.Curriculum;
 
 public interface ICurriculumItemService
 {
-    /// <summary>Alle AKTUELL gültigen Punkte (neueste Version je Kennung).</summary>
+    /// <summary>All CURRENTLY valid items (latest version per item key).</summary>
     Task<List<CurriculumItemDto>> GetCurrentAsync(string? section = null, CancellationToken ct = default);
     Task<CurriculumItemDto> CreateAsync(CreateCurriculumItemRequest request, Actor actor, CancellationToken ct = default);
     Task<CurriculumItemDto> UpdateAsync(Guid id, UpdateCurriculumItemRequest request, Actor actor, CancellationToken ct = default);
@@ -19,19 +19,19 @@ public interface ICurriculumItemService
 }
 
 /// <summary>
-/// Fachlogik für die Pflege der Ausbildungsplan-Punkte (Adminpanel).
+/// Business logic for maintaining curriculum items (admin panel).
 ///
-/// Kern ist die VERSIONIERUNG (KONZEPT 3.3a): Inhaltliche Änderungen legen
-/// eine neue Zeile mit Version+1 an und markieren die alte als abgelöst –
-/// gelöscht wird nie. Schüler-Checklisten (kommen in Schritt 4) verweisen
-/// dann auf die Version, die zu ihrer Anmeldung galt.
+/// The core is VERSIONING (KONZEPT 3.3a): content changes create a new row
+/// with version+1 and flag the old one as superseded - nothing is ever
+/// destroyed. Student checklists (coming in step 4) will reference the
+/// version that applied at their registration time.
 /// </summary>
 public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWriter) : ICurriculumItemService
 {
     public async Task<List<CurriculumItemDto>> GetCurrentAsync(string? section = null, CancellationToken ct = default)
     {
         var query = db.CurriculumItems
-            .Where(x => x.SupersededAtUtc == null); // nur aktuelle Versionen
+            .Where(x => x.SupersededAtUtc == null); // current versions only
 
         if (!string.IsNullOrWhiteSpace(section))
         {
@@ -49,14 +49,14 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
     public async Task<CurriculumItemDto> CreateAsync(CreateCurriculumItemRequest request, Actor actor, CancellationToken ct = default)
     {
         var title = CurriculumRules.NormalizeTitle(request.Title);
-        ThrowWennUngueltig(title, request.RequiredCount);
-        await PruefeKlassenAsync(request.ClassIds, ct);
+        ThrowIfInvalid(title, request.RequiredCount);
+        await EnsureClassesExistAsync(request.ClassIds, ct);
 
         var now = DateTime.UtcNow;
         var entity = new CurriculumItem
         {
             Id = Guid.NewGuid(),
-            ItemKey = Guid.NewGuid(), // neue feste Kennung – bleibt über alle Versionen
+            ItemKey = Guid.NewGuid(), // new fixed identifier - stays the same across versions
             Version = 1,
             ValidFromUtc = now,
             Section = request.Section.Trim(),
@@ -87,32 +87,32 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
 
         if (entity.SupersededAtUtc is not null)
         {
-            // Jemand hat parallel schon eine neuere Version erzeugt.
+            // Someone created a newer version in parallel.
             throw new AppValidationException(
                 "Von diesem Punkt gibt es inzwischen eine neuere Version. Bitte die Liste neu laden und dort weiterarbeiten.");
         }
 
         var title = CurriculumRules.NormalizeTitle(request.Title);
-        ThrowWennUngueltig(title, request.RequiredCount);
-        await PruefeKlassenAsync(request.ClassIds, ct);
+        ThrowIfInvalid(title, request.RequiredCount);
+        await EnsureClassesExistAsync(request.ClassIds, ct);
 
         var oldSnapshot = await SnapshotAsync(entity, ct);
         var oldClassIds = entity.Classes.Select(c => c.LicenseClassId).ToList();
         var now = DateTime.UtcNow;
 
-        // Versionsmarke des Bearbeiters anlegen – schützt vor gegenseitigem Überschreiben.
+        // Apply the editor's version marker - protects against mutual overwrites.
         db.Entry(entity).Property<uint>("xmin").OriginalValue = request.RowVersion;
 
         Guid resultId;
-        string aktion;
+        string auditAction;
 
         if (CurriculumRules.NeedsNewVersion(
                 entity.Title, title, entity.RequiredCount, request.RequiredCount, oldClassIds, request.ClassIds))
         {
-            // Inhalt geändert → alte Version ablösen, neue Zeile anlegen.
+            // Content changed → supersede the old version, add a new row.
             entity.SupersededAtUtc = now;
 
-            var neueVersion = new CurriculumItem
+            var newVersion = new CurriculumItem
             {
                 Id = Guid.NewGuid(),
                 ItemKey = entity.ItemKey,
@@ -127,25 +127,25 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
                 UpdatedAtUtc = now,
                 Classes = [.. request.ClassIds.Distinct().Select(cid => new CurriculumItemClass { LicenseClassId = cid })],
             };
-            db.CurriculumItems.Add(neueVersion);
-            resultId = neueVersion.Id;
-            aktion = $"Geändert (neue Version {neueVersion.Version})";
+            db.CurriculumItems.Add(newVersion);
+            resultId = newVersion.Id;
+            auditAction = $"Geändert (neue Version {newVersion.Version})";
         }
         else
         {
-            // Nur organisatorisch (aktiv/Reihenfolge) → gleiche Version anpassen.
+            // Organisational only (active/sort order) → update the same version.
             entity.IsActive = request.IsActive;
             entity.SortOrder = request.SortOrder;
             entity.UpdatedAtUtc = now;
             resultId = entity.Id;
-            aktion = "Geändert";
+            auditAction = "Geändert";
         }
 
         await db.SaveChangesAsync(ct);
 
-        var neu = await db.CurriculumItems.Include(x => x.Classes).FirstAsync(x => x.Id == resultId, ct);
-        await auditWriter.WriteAsync(actor.UserId, actor.UserName, aktion,
-            "Ausbildungsplan-Punkt", title, oldSnapshot, await SnapshotAsync(neu, ct), ct);
+        var updated = await db.CurriculumItems.Include(x => x.Classes).FirstAsync(x => x.Id == resultId, ct);
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, auditAction,
+            "Ausbildungsplan-Punkt", title, oldSnapshot, await SnapshotAsync(updated, ct), ct);
 
         return await ReloadDtoAsync(resultId, ct);
     }
@@ -155,8 +155,8 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
         var entity = await db.CurriculumItems.FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException("Dieser Punkt wurde nicht gefunden. Vielleicht wurde er bereits gelöscht.");
 
-        // Soft-Delete der aktuellen Version; ältere Versionen bleiben unangetastet
-        // (auf sie verweisen später die Schüler-Checklisten).
+        // Soft-delete the current version; older versions remain untouched
+        // (student checklists will reference them later).
         entity.IsDeleted = true;
         entity.DeletedAtUtc = DateTime.UtcNow;
         entity.DeletedByUserId = actor.UserId;
@@ -166,7 +166,7 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
             "Ausbildungsplan-Punkt", entity.Title, oldValuesJson: await SnapshotAsync(entity, ct), cancellationToken: ct);
     }
 
-    private static void ThrowWennUngueltig(string title, int? requiredCount)
+    private static void ThrowIfInvalid(string title, int? requiredCount)
     {
         var errors = CurriculumRules.Validate(title, requiredCount);
         if (errors.Count > 0)
@@ -175,14 +175,14 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
         }
     }
 
-    /// <summary>Existieren alle angegebenen Klassen wirklich? (Schutz vor kaputten Verweisen)</summary>
-    private async Task PruefeKlassenAsync(Guid[] classIds, CancellationToken ct)
+    /// <summary>Do all referenced classes actually exist? (guards against broken links)</summary>
+    private async Task EnsureClassesExistAsync(Guid[] classIds, CancellationToken ct)
     {
         var distinct = classIds.Distinct().ToArray();
         if (distinct.Length == 0) return;
 
-        var vorhanden = await db.LicenseClasses.CountAsync(x => distinct.Contains(x.Id), ct);
-        if (vorhanden != distinct.Length)
+        var found = await db.LicenseClasses.CountAsync(x => distinct.Contains(x.Id), ct);
+        if (found != distinct.Length)
         {
             throw new AppValidationException(
                 "Mindestens eine der gewählten Klassen existiert nicht mehr. Bitte die Seite neu laden.");
@@ -216,7 +216,7 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
         return ToDto(entity);
     }
 
-    /// <summary>Stand als JSON fürs Audit-Log (mit Klassen-Kürzeln statt IDs – lesbar).</summary>
+    /// <summary>State as JSON for the audit log (class codes instead of IDs - readable).</summary>
     private async Task<string> SnapshotAsync(CurriculumItem x, CancellationToken ct)
     {
         var classIds = x.Classes.Select(c => c.LicenseClassId).ToList();

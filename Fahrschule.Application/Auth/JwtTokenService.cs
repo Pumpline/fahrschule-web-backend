@@ -7,28 +7,28 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Fahrschule.Application.Auth;
 
-/// <summary>Erzeugt signierte Zugriffstokens (JWT) für angemeldete Benutzer.</summary>
+/// <summary>Creates signed access tokens (JWT) for signed-in users.</summary>
 public interface IJwtTokenService
 {
-    /// <summary>Erstellt ein Zugriffstoken samt Ablaufzeitpunkt (UTC).</summary>
+    /// <summary>Creates an access token together with its expiry time (UTC).</summary>
     (string Token, DateTime ExpiresAtUtc) CreateAccessToken(ApplicationUser user, IList<string> roles);
 }
 
 /// <summary>
-/// Web-typisches Konzept "JWT" (JSON Web Token): ein kleines, signiertes
-/// Datenpaket, das der Server beim Anmelden ausstellt. Es enthält "Claims"
-/// (Aussagen über den Benutzer: wer er ist, welche Rollen er hat). Bei jeder
-/// Anfrage prüft der Server nur die Signatur – kein Datenbankzugriff nötig.
+/// Common web concept "JWT" (JSON Web Token): a small, signed data package
+/// the server issues at sign-in. It contains "claims" (statements about the
+/// user: who they are, which roles they have). On every request the server
+/// only verifies the signature - no database access needed.
 ///
-/// Wichtig: Ein JWT ist signiert, aber NICHT verschlüsselt – jeder, der es
-/// besitzt, kann den Inhalt lesen. Deshalb stehen darin keine Geheimnisse,
-/// und es wandert bei uns in ein httpOnly-Cookie (für Schad-Skripte unlesbar).
+/// Important: A JWT is signed but NOT encrypted - anyone holding it can read
+/// its content. That is why it contains no secrets, and why we put it into an
+/// httpOnly cookie (unreadable for malicious scripts).
 /// </summary>
 public class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
 {
     private readonly JwtOptions _options = options.Value;
 
-    /// <summary>Eigener Claim: Benutzer muss erst ein eigenes Passwort setzen.</summary>
+    /// <summary>Custom claim: the user still has to set their own password.</summary>
     public const string MustChangePasswordClaim = "must_change_pwd";
 
     public (string Token, DateTime ExpiresAtUtc) CreateAccessToken(ApplicationUser user, IList<string> roles)
@@ -37,16 +37,17 @@ public class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
 
         var claims = new List<Claim>
         {
-            // "sub" (Subject) = wessen Token ist das. Standard-Claim aus dem JWT-Standard.
+            // "sub" (subject) = whose token this is. Standard claim from the JWT spec.
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(ClaimTypes.Name, user.DisplayName),
-            // Eindeutige Token-ID – nützlich für Protokolle und Fehlersuche.
+            // Unique token id - useful for logs and debugging.
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new(MustChangePasswordClaim, user.MustChangePassword ? "true" : "false"),
         };
 
-        // Rollen als einzelne Claims – daraus macht ASP.NET Core die [Authorize(Roles=…)]-Prüfung.
+        // Roles as individual claims - ASP.NET Core turns these into the
+        // [Authorize(Roles=...)] check.
         claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.SecretKey));

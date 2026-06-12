@@ -9,11 +9,11 @@ using Microsoft.AspNetCore.Mvc;
 namespace Fahrschule.Api.Controllers;
 
 /// <summary>
-/// API für die Führerscheinklassen (Adminpanel).
+/// API for the licence classes (admin panel).
 ///
-/// Lesen dürfen alle angemeldeten Rollen (Fahrlehrer/Verwaltung brauchen die
-/// Klassen später überall), ändern darf nur der Admin – rollenbasierter
-/// Zugriff nach dem Prinzip der geringsten Rechte (Projektregel 1).
+/// All signed-in roles may read (instructors/office staff need the classes
+/// everywhere later); only the admin may write - role-based access following
+/// the least-privilege principle (project rule 1).
 /// </summary>
 [ApiController]
 [Route("api/license-classes")]
@@ -41,11 +41,11 @@ public class LicenseClassesController(ILicenseClassService service) : Controller
         return NoContent();
     }
 
-    /// <summary>Wer ruft auf? (für das Audit-Log – aus den Token-Claims)</summary>
+    /// <summary>Who is calling? (for the audit log - from the token claims)</summary>
     private Actor GetActor()
     {
-        var idWert = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(idWert, out var userId))
+        var idValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(idValue, out var userId))
         {
             throw new AuthenticationFailedException("Die Sitzung ist abgelaufen. Bitte melden Sie sich neu an.");
         }

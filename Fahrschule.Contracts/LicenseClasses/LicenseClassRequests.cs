@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Fahrschule.Contracts.LicenseClasses;
 
-/// <summary>Anfrage "neue Führerscheinklasse anlegen".</summary>
+/// <summary>"Create new licence class" request.</summary>
 public class CreateLicenseClassRequest
 {
     [Required(ErrorMessage = "Bitte ein Kürzel für die Klasse eintragen (z. B. B, A1, BE).")]
@@ -15,8 +15,8 @@ public class CreateLicenseClassRequest
     public int SortOrder { get; set; }
 }
 
-/// <summary>Anfrage "Führerscheinklasse ändern" – mit Versionsmarke gegen
-/// gegenseitiges Überschreiben (siehe LicenseClassDto.Version).</summary>
+/// <summary>"Update licence class" request - with version marker against
+/// mutual overwrites (see LicenseClassDto.Version).</summary>
 public class UpdateLicenseClassRequest
 {
     [Required(ErrorMessage = "Bitte ein Kürzel für die Klasse eintragen (z. B. B, A1, BE).")]

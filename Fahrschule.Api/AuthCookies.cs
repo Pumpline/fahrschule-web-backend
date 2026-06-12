@@ -3,29 +3,29 @@ using Fahrschule.Application.Auth;
 namespace Fahrschule.Api;
 
 /// <summary>
-/// Schreibt und löscht die beiden Anmelde-Cookies.
+/// Writes and clears the two authentication cookies.
 ///
-/// Warum Cookies statt localStorage? Ein httpOnly-Cookie kann von JavaScript
-/// nicht ausgelesen werden – selbst wenn sich ein Schad-Skript in die Seite
-/// mogelt (XSS), kommt es nicht an die Tokens heran.
+/// Why cookies instead of localStorage? An httpOnly cookie cannot be read by
+/// JavaScript - even if a malicious script sneaks into the page (XSS), it
+/// cannot reach the tokens.
 ///
-/// Schutz vor CSRF (gefälschte Anfragen von fremden Seiten): SameSite=Strict
-/// sorgt dafür, dass der Browser die Cookies NUR mitschickt, wenn die Anfrage
-/// von unserer eigenen Seite kommt.
+/// CSRF protection (forged requests from foreign sites): SameSite=Strict
+/// makes the browser send the cookies ONLY when the request originates from
+/// our own site.
 /// </summary>
 public static class AuthCookies
 {
     public const string AccessTokenName = "fs_access";
     public const string RefreshTokenName = "fs_refresh";
 
-    /// <summary>Der Refresh-Cookie wird nur an die Auth-Endpunkte geschickt –
-    /// je seltener er unterwegs ist, desto kleiner die Angriffsfläche.</summary>
+    /// <summary>The refresh cookie is only sent to the auth endpoints - the
+    /// less it travels, the smaller the attack surface.</summary>
     public const string RefreshTokenPath = "/api/auth";
 
     public static void Write(HttpContext context, AuthResult auth)
     {
-        // "Secure" heißt: nur über HTTPS übertragen. In der lokalen Entwicklung
-        // läuft die API über HTTP, deshalb richten wir uns nach der Verbindung.
+        // "Secure" means: transmit over HTTPS only. Local development runs the
+        // API over HTTP, so we follow the actual connection.
         var secure = context.Request.IsHttps;
 
         context.Response.Cookies.Append(AccessTokenName, auth.AccessToken, new CookieOptions
@@ -49,7 +49,7 @@ public static class AuthCookies
 
     public static void Clear(HttpContext context)
     {
-        // Löschen = gleiches Cookie mit Ablaufdatum in der Vergangenheit setzen.
+        // Deleting = setting the same cookie with an expiry in the past.
         context.Response.Cookies.Delete(AccessTokenName, new CookieOptions { Path = "/" });
         context.Response.Cookies.Delete(RefreshTokenName, new CookieOptions { Path = RefreshTokenPath });
     }

@@ -2,8 +2,8 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Fahrschule.Contracts.Auth;
 
-/// <summary>Anfrage "Passwort ändern" – auch für das erzwungene Ändern
-/// nach der ersten Anmeldung mit temporärem Passwort.</summary>
+/// <summary>"Change password" request - also used for the forced change
+/// after the first sign-in with a temporary password.</summary>
 public class ChangePasswordRequest
 {
     [Required(ErrorMessage = "Bitte das aktuelle Passwort eintragen.")]

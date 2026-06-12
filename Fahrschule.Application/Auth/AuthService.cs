@@ -11,10 +11,10 @@ using Microsoft.Extensions.Options;
 namespace Fahrschule.Application.Auth;
 
 /// <summary>
-/// Ergebnis einer erfolgreichen Anmeldung bzw. Token-Erneuerung.
-/// Die Tokens selbst wandern im Controller in httpOnly-Cookies –
-/// der Service kennt bewusst keine Cookies (Trennung der Schichten:
-/// HTTP-Details gehören in die API-Schicht, Fachlogik hierher).
+/// Result of a successful sign-in or token refresh.
+/// The tokens themselves are placed into httpOnly cookies by the controller -
+/// the service deliberately knows nothing about cookies (layer separation:
+/// HTTP details belong to the API layer, business logic lives here).
 /// </summary>
 public record AuthResult(
     string AccessToken,
@@ -33,11 +33,11 @@ public interface IAuthService
 }
 
 /// <summary>
-/// Die Fachlogik der Anmeldung (siehe KONZEPT "Sicherheit &amp; Anmeldung").
+/// The sign-in business logic (see KONZEPT "Sicherheit &amp; Anmeldung").
 ///
-/// Ablauf Login: E-Mail+Passwort prüfen (mit Konto-Sperre nach Fehlversuchen),
-/// dann kurzlebiges Zugriffstoken (JWT) + langlebiges Refresh-Token ausstellen.
-/// Vom Refresh-Token speichern wir nur den Hash (wie bei Passwörtern).
+/// Login flow: verify e-mail + password (with account lockout after failed
+/// attempts), then issue a short-lived access token (JWT) plus a long-lived
+/// refresh token. Of the refresh token we only store the hash.
 /// </summary>
 public class AuthService(
     UserManager<ApplicationUser> userManager,
@@ -49,8 +49,8 @@ public class AuthService(
 {
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
 
-    // Bewusst EINE gemeinsame Meldung für "E-Mail unbekannt" und "Passwort falsch":
-    // sonst könnte ein Angreifer durchprobieren, welche E-Mail-Adressen ein Konto haben.
+    // Deliberately ONE shared message for "unknown e-mail" and "wrong password":
+    // otherwise an attacker could probe which e-mail addresses have an account.
     private const string LoginFailedMessage = "E-Mail oder Passwort ist falsch. Bitte prüfen Sie beides und versuchen Sie es noch einmal.";
 
     public async Task<AuthResult> LoginAsync(string email, string password, CancellationToken ct = default)
@@ -70,12 +70,12 @@ public class AuthService(
 
         if (!await userManager.CheckPasswordAsync(user, password))
         {
-            // Fehlversuch zählen – nach 5 Versuchen sperrt Identity das Konto automatisch.
+            // Count the failed attempt - after 5, Identity locks the account automatically.
             await userManager.AccessFailedAsync(user);
             throw new AuthenticationFailedException(LoginFailedMessage);
         }
 
-        // Erfolgreich angemeldet → Fehlversuchszähler zurücksetzen.
+        // Successful sign-in → reset the failed-attempts counter.
         await userManager.ResetAccessFailedCountAsync(user);
 
         logger.LogInformation("Benutzer {UserId} hat sich angemeldet.", user.Id);
@@ -91,12 +91,12 @@ public class AuthService(
 
         if (stored is null || stored.User is null || !stored.IsActive(DateTime.UtcNow))
         {
-            // Auch hier eine bewusst knappe Meldung – das Frontend leitet dann zur Anmeldung.
+            // Again a deliberately terse message - the frontend redirects to sign-in.
             throw new AuthenticationFailedException("Die Sitzung ist abgelaufen. Bitte melden Sie sich neu an.");
         }
 
-        // Rotation: Das alte Token wird entwertet und durch ein neues ersetzt.
-        // Ein gestohlenes, bereits eingelöstes Token ist damit wertlos.
+        // Rotation: the old token is invalidated and replaced by a new one.
+        // A stolen, already-redeemed token is therefore worthless.
         var result = await IssueTokensAsync(stored.User, ct);
         stored.RevokedAtUtc = DateTime.UtcNow;
         stored.ReplacedByTokenHash = TokenHasher.Hash(result.RefreshToken);
@@ -114,7 +114,7 @@ public class AuthService(
             stored.RevokedAtUtc = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
         }
-        // Kein Fehler, wenn das Token unbekannt ist – Abmelden soll immer "klappen".
+        // No error for unknown tokens - logging out should always "work".
     }
 
     public async Task<AuthResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct = default)
@@ -125,24 +125,24 @@ public class AuthService(
         var result = await userManager.ChangePasswordAsync(user, currentPassword, newPassword);
         if (!result.Succeeded)
         {
-            // Identity liefert die Gründe (z. B. Passwort zu kurz) – wir geben sie
-            // gesammelt und verständlich zurück.
+            // Identity reports the reasons (e.g. password too short) - we
+            // return them collected and in plain German.
             var reasons = string.Join(" ", result.Errors.Select(TranslateIdentityError));
             throw new AppValidationException(reasons);
         }
 
-        // Temporäres Passwort ist hiermit Geschichte.
+        // The temporary password is history now.
         user.MustChangePassword = false;
         await userManager.UpdateAsync(user);
 
-        // Sicherheit: Passwortwechsel meldet alle anderen Geräte ab
-        // (alle Refresh-Tokens entwerten), danach bekommt DIESES Gerät neue Tokens.
+        // Security: a password change signs out all other devices
+        // (revoke all refresh tokens); THIS device gets fresh tokens below.
         var now = DateTime.UtcNow;
         await db.RefreshTokens
             .Where(t => t.UserId == user.Id && t.RevokedAtUtc == null)
             .ExecuteUpdateAsync(s => s.SetProperty(t => t.RevokedAtUtc, now), ct);
 
-        // Ins Audit-Log – DASS geändert wurde, nie WAS (keine Passwörter ins Log!).
+        // Audit THAT it changed, never WHAT (no passwords in the log!).
         await auditWriter.WriteAsync(
             user.Id, user.DisplayName, "PasswortGeändert", "Benutzer", user.Id.ToString(),
             cancellationToken: ct);
@@ -158,7 +158,7 @@ public class AuthService(
         return await ToDtoAsync(user);
     }
 
-    /// <summary>Stellt ein frisches Token-Paar aus und merkt sich den Refresh-Hash.</summary>
+    /// <summary>Issues a fresh token pair and stores the refresh hash.</summary>
     private async Task<AuthResult> IssueTokensAsync(ApplicationUser user, CancellationToken ct)
     {
         var roles = await userManager.GetRolesAsync(user);
@@ -194,7 +194,7 @@ public class AuthService(
         };
     }
 
-    /// <summary>Übersetzt die englischen Identity-Fehlercodes in einfaches Deutsch.</summary>
+    /// <summary>Translates the English Identity error codes into plain German (user-facing).</summary>
     private static string TranslateIdentityError(IdentityError error) => error.Code switch
     {
         "PasswordTooShort" => "Das neue Passwort muss mindestens 10 Zeichen lang sein.",

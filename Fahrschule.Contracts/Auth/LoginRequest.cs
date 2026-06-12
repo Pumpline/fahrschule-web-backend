@@ -3,15 +3,15 @@ using System.ComponentModel.DataAnnotations;
 namespace Fahrschule.Contracts.Auth;
 
 /// <summary>
-/// Was das Frontend beim Anmelden schickt.
+/// What the frontend sends when signing in.
 ///
-/// Web-typisches Konzept "DTO" (Data Transfer Object): ein reines Datenpaket
-/// für den Transport zwischen Frontend und Backend – ohne Logik. So bleibt die
-/// interne Datenbankstruktur von der API getrennt (Unity-Brücke: wie ein
-/// serialisierbares struct für Netzwerk-Nachrichten).
+/// Common web concept "DTO" (Data Transfer Object): a pure data package for
+/// transport between frontend and backend - no logic. This keeps the internal
+/// database structure separate from the API surface.
 ///
-/// Die [Required]-Attribute prüft ASP.NET Core automatisch, bevor der
-/// Controller überhaupt aufgerufen wird ("Model Validation").
+/// The [Required] attributes are validated by ASP.NET Core automatically
+/// before the controller is even called ("model validation"). Error texts
+/// are German - they are shown to users.
 /// </summary>
 public class LoginRequest
 {

@@ -4,13 +4,13 @@ using Microsoft.AspNetCore.Mvc;
 namespace Fahrschule.Api.Middleware;
 
 /// <summary>
-/// Setzt die Regel "temporäres Passwort → erst eigenes Passwort festlegen"
-/// auch im Backend durch (KONZEPT 3.7a).
+/// Enforces the rule "temporary password → set your own password first"
+/// on the backend side as well (KONZEPT 3.7a).
 ///
-/// Das Frontend leitet solche Benutzer zwar zur Passwort-festlegen-Seite,
-/// aber darauf allein darf man sich nie verlassen: Jeder könnte die API auch
-/// direkt aufrufen. Sicherheitsregeln gehören deshalb IMMER (auch) ins Backend.
-/// Erlaubt bleiben nur die /api/auth-Endpunkte (Passwort ändern, Abmelden …).
+/// The frontend redirects such users to the set-password page, but that
+/// alone must never be relied on: anyone could call the API directly.
+/// Security rules therefore ALWAYS belong (also) in the backend.
+/// Only the /api/auth endpoints stay accessible (change password, logout ...).
 /// </summary>
 public class MustChangePasswordMiddleware(RequestDelegate next)
 {

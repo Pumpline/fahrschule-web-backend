@@ -1,24 +1,22 @@
 namespace Fahrschule.Domain.Entities;
 
 /// <summary>
-/// Ein einzelner Einstellungswert (Schlüssel → Wert).
+/// A single configuration value (key → value).
 ///
-/// Warum: Projektregel 3 – alles fachlich Veränderliche (Fristen, Vorlaufzeiten,
-/// Sperr-Dauern …) wird als Daten gepflegt, nicht im Code festgeschrieben.
-/// Das Adminpanel bearbeitet später genau diese Tabelle.
-///
-/// Unity-Brücke: vergleichbar mit einem ScriptableObject für Konfiguration –
-/// nur dass die Werte in der Datenbank liegen und zur Laufzeit änderbar sind.
+/// Why: Project rule 3 - everything that can change for business reasons
+/// (retention periods, reminder lead times, exam lock durations ...) is
+/// maintained as DATA, not hard-coded. The admin panel will edit exactly
+/// this table.
 /// </summary>
 public class Setting
 {
-    /// <summary>Eindeutiger Schlüssel, z. B. "Erinnerung.VorlaufMinuten".</summary>
+    /// <summary>Unique key, e.g. "Erinnerung.VorlaufMinuten".</summary>
     public string Key { get; set; } = string.Empty;
 
-    /// <summary>Der Wert als Text; die fachliche Logik wandelt ihn passend um.</summary>
+    /// <summary>The value as text; business logic converts it as needed.</summary>
     public string Value { get; set; } = string.Empty;
 
-    /// <summary>Erklärung für das Adminpanel, was dieser Wert bewirkt.</summary>
+    /// <summary>Explanation for the admin panel describing what this value does.</summary>
     public string? Description { get; set; }
 
     public DateTime UpdatedAtUtc { get; set; }

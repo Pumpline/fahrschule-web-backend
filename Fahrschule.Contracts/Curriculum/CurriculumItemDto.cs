@@ -1,17 +1,17 @@
 namespace Fahrschule.Contracts.Curriculum;
 
-/// <summary>Ein Ausbildungsplan-Punkt (aktuell gültige Version), wie die API ihn zeigt.</summary>
+/// <summary>A curriculum item (currently valid version) as the API exposes it.</summary>
 public class CurriculumItemDto
 {
     public Guid Id { get; set; }
 
-    /// <summary>Feste Kennung über alle Versionen hinweg.</summary>
+    /// <summary>Fixed identifier across all versions.</summary>
     public Guid ItemKey { get; set; }
 
-    /// <summary>Versionsnummer dieser Fassung (1, 2, 3 …).</summary>
+    /// <summary>Version number of this revision (1, 2, 3 ...).</summary>
     public int Version { get; set; }
 
-    /// <summary>Ab wann diese Fassung gilt.</summary>
+    /// <summary>Since when this revision applies.</summary>
     public DateTime ValidFromUtc { get; set; }
 
     public string Section { get; set; } = string.Empty;
@@ -20,10 +20,10 @@ public class CurriculumItemDto
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
 
-    /// <summary>Zugeordnete Klassen (leer = gilt für alle Klassen).</summary>
+    /// <summary>Assigned classes (empty = applies to all classes).</summary>
     public Guid[] ClassIds { get; set; } = [];
     public string[] ClassCodes { get; set; } = [];
 
-    /// <summary>Versionsmarke gegen gegenseitiges Überschreiben (siehe LicenseClassDto).</summary>
+    /// <summary>Version marker against mutual overwrites (see LicenseClassDto).</summary>
     public uint RowVersion { get; set; }
 }

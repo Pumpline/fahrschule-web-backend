@@ -5,14 +5,14 @@ using Microsoft.Extensions.Options;
 
 namespace Fahrschule.Tests.Auth;
 
-/// <summary>Tests für die JWT-Erzeugung: stimmen Inhalt (Claims) und Laufzeit?</summary>
+/// <summary>Tests for JWT creation: are content (claims) and lifetime correct?</summary>
 public class JwtTokenServiceTests
 {
     private static readonly JwtOptions Options = new()
     {
         Issuer = "Test.Api",
         Audience = "Test.Frontend",
-        SecretKey = "test-schluessel-mindestens-32-zeichen-lang!",
+        SecretKey = "test-key-with-at-least-32-characters!!",
         AccessTokenMinutes = 15,
     };
 
@@ -29,13 +29,13 @@ public class JwtTokenServiceTests
         var service = new JwtTokenService(Microsoft.Extensions.Options.Options.Create(Options));
         var (token, _) = service.CreateAccessToken(user, roles);
 
-        // Zum Prüfen lesen wir das Token wieder ein (ohne Signaturprüfung –
-        // hier interessiert nur der Inhalt).
+        // Parse the token back to inspect it (without signature validation -
+        // only the content matters here).
         return new JwtSecurityTokenHandler().ReadJwtToken(token);
     }
 
     [Fact]
-    public void Token_enthaelt_Benutzer_und_Rollen()
+    public void Token_contains_user_and_roles()
     {
         var jwt = CreateAndParse(User, [Roles.Admin, Roles.Fahrlehrer]);
 
@@ -51,33 +51,33 @@ public class JwtTokenServiceTests
     }
 
     [Fact]
-    public void Token_traegt_Aussteller_Empfaenger_und_Laufzeit()
+    public void Token_carries_issuer_audience_and_lifetime()
     {
         var jwt = CreateAndParse(User, []);
 
         Assert.Equal("Test.Api", jwt.Issuer);
         Assert.Contains("Test.Frontend", jwt.Audiences);
 
-        // Laufzeit ≈ 15 Minuten (mit etwas Toleranz für die Testausführung).
+        // Lifetime ≈ 15 minutes (with some tolerance for test execution).
         var lifetime = jwt.ValidTo - DateTime.UtcNow;
         Assert.InRange(lifetime, TimeSpan.FromMinutes(14), TimeSpan.FromMinutes(16));
     }
 
     [Fact]
-    public void Temporaeres_Passwort_steht_als_Claim_im_Token()
+    public void Temporary_password_shows_up_as_claim_in_the_token()
     {
         var userWithTempPassword = new ApplicationUser
         {
             Id = Guid.NewGuid(),
-            Email = "neu@fahrschule.local",
+            Email = "new@fahrschule.local",
             DisplayName = "Neuer Benutzer",
             MustChangePassword = true,
         };
 
         var jwt = CreateAndParse(userWithTempPassword, []);
 
-        // Auf diesen Claim stützt sich die MustChangePasswordMiddleware,
-        // die alles außer /api/auth sperrt, bis ein eigenes Passwort gesetzt ist.
+        // The MustChangePasswordMiddleware relies on this claim to block
+        // everything except /api/auth until an own password is set.
         Assert.Contains(jwt.Claims, c =>
             c.Type == JwtTokenService.MustChangePasswordClaim && c.Value == "true");
     }

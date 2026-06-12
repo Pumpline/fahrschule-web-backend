@@ -8,19 +8,19 @@ using Microsoft.AspNetCore.Mvc;
 namespace Fahrschule.Api.Controllers;
 
 /// <summary>
-/// Die Anmelde-Endpunkte der API.
+/// The authentication endpoints of the API.
 ///
-/// Controller sind bei uns bewusst DÜNN (Projektregel 5): Sie nehmen die
-/// Anfrage entgegen, rufen den passenden Service auf und verpacken das
-/// Ergebnis als HTTP-Antwort. Die eigentliche Fachlogik steckt im AuthService.
-/// Cookies sind ein HTTP-Detail – darum kümmert sich der Controller, nicht der Service.
+/// Our controllers are deliberately THIN (project rule 5): they accept the
+/// request, call the matching service and wrap the result as an HTTP
+/// response. The actual business logic lives in the AuthService. Cookies are
+/// an HTTP detail - the controller handles them, not the service.
 /// </summary>
 [ApiController]
 [Route("api/auth")]
 public class AuthController(IAuthService authService) : ControllerBase
 {
-    /// <summary>Anmelden mit E-Mail + Passwort. Setzt bei Erfolg die beiden
-    /// httpOnly-Cookies und liefert die Benutzerdaten fürs Frontend.</summary>
+    /// <summary>Sign in with e-mail + password. On success sets the two
+    /// httpOnly cookies and returns the user details for the frontend.</summary>
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<ActionResult<CurrentUserDto>> Login(LoginRequest request, CancellationToken ct)
@@ -30,8 +30,9 @@ public class AuthController(IAuthService authService) : ControllerBase
         return Ok(result.User);
     }
 
-    /// <summary>Tauscht das Refresh-Token (aus dem Cookie) gegen ein frisches
-    /// Token-Paar. Ruft das Frontend automatisch auf, wenn das Zugriffstoken abläuft.</summary>
+    /// <summary>Exchanges the refresh token (from the cookie) for a fresh
+    /// token pair. The frontend calls this automatically when the access
+    /// token expires.</summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
     public async Task<ActionResult<CurrentUserDto>> Refresh(CancellationToken ct)
@@ -47,8 +48,9 @@ public class AuthController(IAuthService authService) : ControllerBase
         return Ok(result.User);
     }
 
-    /// <summary>Abmelden: Refresh-Token entwerten und beide Cookies löschen.
-    /// Bewusst [AllowAnonymous] – Abmelden soll auch mit abgelaufener Sitzung klappen.</summary>
+    /// <summary>Sign out: revoke the refresh token and clear both cookies.
+    /// Deliberately [AllowAnonymous] - signing out must also work with an
+    /// expired session.</summary>
     [HttpPost("logout")]
     [AllowAnonymous]
     public async Task<IActionResult> Logout(CancellationToken ct)
@@ -63,9 +65,9 @@ public class AuthController(IAuthService authService) : ControllerBase
         return NoContent();
     }
 
-    /// <summary>Passwort ändern – auch das erzwungene Festlegen nach der ersten
-    /// Anmeldung mit temporärem Passwort. Meldet aus Sicherheitsgründen alle
-    /// anderen Geräte ab und stellt für dieses Gerät neue Tokens aus.</summary>
+    /// <summary>Change the password - also the forced set-password step after
+    /// the first sign-in with a temporary password. For security this signs
+    /// out all other devices and issues fresh tokens for this one.</summary>
     [HttpPost("change-password")]
     public async Task<ActionResult<CurrentUserDto>> ChangePassword(ChangePasswordRequest request, CancellationToken ct)
     {
@@ -75,16 +77,16 @@ public class AuthController(IAuthService authService) : ControllerBase
         return Ok(result.User);
     }
 
-    /// <summary>Liefert den aktuell angemeldeten Benutzer ("wer bin ich?").
-    /// Das Frontend ruft das beim Start auf, um eine bestehende Sitzung zu erkennen.</summary>
+    /// <summary>Returns the currently signed-in user ("who am I?").
+    /// The frontend calls this at startup to detect an existing session.</summary>
     [HttpGet("me")]
     public async Task<ActionResult<CurrentUserDto>> Me(CancellationToken ct)
     {
         return Ok(await authService.GetCurrentUserAsync(GetUserId(), ct));
     }
 
-    /// <summary>Liest die Benutzer-ID aus dem geprüften Token (Claim "sub" –
-    /// das Framework benennt ihn beim Einlesen in NameIdentifier um).</summary>
+    /// <summary>Reads the user id from the verified token (claim "sub" -
+    /// the framework renames it to NameIdentifier while parsing).</summary>
     private Guid GetUserId()
     {
         var value = User.FindFirstValue(ClaimTypes.NameIdentifier);

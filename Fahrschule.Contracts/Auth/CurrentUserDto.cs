@@ -1,9 +1,9 @@
 namespace Fahrschule.Contracts.Auth;
 
 /// <summary>
-/// Die Angaben zum angemeldeten Benutzer, die das Frontend kennen darf.
-/// Bewusst sparsam (kein Passwort-Hash, keine internen Felder) – die API
-/// zeigt nur, was die Oberfläche wirklich braucht.
+/// The signed-in user's details the frontend is allowed to know.
+/// Deliberately minimal (no password hash, no internal fields) - the API
+/// only exposes what the UI really needs.
 /// </summary>
 public class CurrentUserDto
 {
@@ -12,7 +12,7 @@ public class CurrentUserDto
     public string DisplayName { get; set; } = string.Empty;
     public string[] Roles { get; set; } = [];
 
-    /// <summary>True = temporäres Passwort; das Frontend leitet sofort zur
-    /// Passwort-festlegen-Seite (Vollbild, erzwungen).</summary>
+    /// <summary>True = temporary password; the frontend immediately redirects
+    /// to the set-password page (full screen, enforced).</summary>
     public bool MustChangePassword { get; set; }
 }

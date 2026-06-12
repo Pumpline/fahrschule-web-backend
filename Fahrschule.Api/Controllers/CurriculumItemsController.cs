@@ -10,16 +10,16 @@ using Microsoft.AspNetCore.Mvc;
 namespace Fahrschule.Api.Controllers;
 
 /// <summary>
-/// API für die Ausbildungsplan-Punkte (Theorie-Themen, später Grundfahraufgaben
-/// und Sonderfahrten). Lesen dürfen alle Angemeldeten (Fahrlehrer braucht den
-/// Plan beim Abhaken), schreiben nur der Admin.
+/// API for the curriculum items (theory topics, later basic driving
+/// exercises and special drives). All signed-in roles may read (instructors
+/// need the curriculum when checking off lessons); only the admin may write.
 /// </summary>
 [ApiController]
 [Route("api/curriculum-items")]
 public class CurriculumItemsController(ICurriculumItemService service) : ControllerBase
 {
-    /// <summary>Aktuell gültige Punkte, optional nach Abschnitt gefiltert
-    /// (z. B. ?section=Theorie-Grundstoff).</summary>
+    /// <summary>Currently valid items, optionally filtered by section
+    /// (e.g. ?section=Theorie-Grundstoff).</summary>
     [HttpGet]
     public async Task<ActionResult<List<CurriculumItemDto>>> GetCurrent([FromQuery] string? section, CancellationToken ct)
         => Ok(await service.GetCurrentAsync(section, ct));
@@ -44,8 +44,8 @@ public class CurriculumItemsController(ICurriculumItemService service) : Control
 
     private Actor GetActor()
     {
-        var idWert = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(idWert, out var userId))
+        var idValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(idValue, out var userId))
         {
             throw new AuthenticationFailedException("Die Sitzung ist abgelaufen. Bitte melden Sie sich neu an.");
         }

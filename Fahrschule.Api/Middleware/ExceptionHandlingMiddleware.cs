@@ -4,16 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 namespace Fahrschule.Api.Middleware;
 
 /// <summary>
-/// Zentrales Fehler-Handling: fängt ALLE Ausnahmen und macht daraus eine
-/// einheitliche, verständliche JSON-Antwort im "ProblemDetails"-Format
-/// (ein Web-Standard, RFC 9457, für Fehlerantworten von APIs).
+/// Central error handling: catches ALL exceptions and turns them into a
+/// consistent, understandable JSON response in the "ProblemDetails" format
+/// (a web standard, RFC 9457, for API error responses).
 ///
-/// Warum zentral? Kein Controller muss try/catch schreiben, alle Fehler sehen
-/// für das Frontend gleich aus, und technische Details bleiben im Server-Log
-/// statt beim Benutzer zu landen (Projektregel 2: verständliche Meldungen).
-///
-/// Web-typisches Konzept "Middleware": eine Station in der Anfrage-Pipeline.
-/// Diese hier legt sich wie ein Schutzmantel um alle folgenden Stationen.
+/// Why central? No controller has to write try/catch, all errors look the
+/// same to the frontend, and technical details stay in the server log instead
+/// of reaching the user (project rule 2: understandable messages - the
+/// user-facing texts are German).
 /// </summary>
 public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
 {
@@ -25,16 +23,15 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
         }
         catch (Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException)
         {
-            // Optimistische Nebenläufigkeit (Projektregel 7): Jemand anderes hat
-            // den Datensatz zwischenzeitlich gespeichert. Nicht überschreiben,
-            // sondern dem Benutzer verständlich sagen, was zu tun ist.
+            // Optimistic concurrency (project rule 7): someone else saved the
+            // record in the meantime. Do not overwrite - tell the user what to do.
             await WriteProblemAsync(context, StatusCodes.Status409Conflict,
                 "Diese Daten wurden zwischenzeitlich von jemand anderem geändert. " +
                 "Bitte laden Sie die Liste neu und tragen Sie Ihre Änderung dann noch einmal ein.");
         }
         catch (AppException ex)
         {
-            // Erwartbarer Fachfehler: die Meldung ist für den Benutzer gedacht.
+            // Expected business error: the message is meant for the user.
             var statusCode = ex switch
             {
                 AppValidationException => StatusCodes.Status400BadRequest,
@@ -48,8 +45,8 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
         }
         catch (Exception ex)
         {
-            // Unerwarteter Fehler: Details NUR ins Log (mit Stacktrace für die
-            // Fehlersuche) – der Benutzer bekommt eine neutrale Meldung.
+            // Unexpected error: details go to the log ONLY (with stack trace
+            // for debugging) - the user receives a neutral message.
             logger.LogError(ex, "Unbehandelter Fehler bei {Method} {Path}",
                 context.Request.Method, context.Request.Path);
 
@@ -62,7 +59,7 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
     {
         if (context.Response.HasStarted)
         {
-            return; // Antwort schon unterwegs – da können wir nichts mehr ändern.
+            return; // The response is already on its way - nothing we can change.
         }
 
         context.Response.Clear();

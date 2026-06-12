@@ -78,7 +78,13 @@ Konzept: siehe [KONZEPT.md](KONZEPT.md).
 - Frontend: Angular Standalone Components, deutschsprachige UI, HttpClient mit JWT-Interceptor.
 - **Responsiv für alle Geräte** (Handy, Tablet, Laptop, Computer): einklappbare Navigation auf kleinen
   Bildschirmen, umbrechende Inhalte, scrollbare Tabellen.
-- Sprache im Code: Englische Bezeichner sind okay; **Oberfläche/Texte für Nutzer auf Deutsch**.
+- **Sprache im Code (verbindlich, festgelegt 12.06.2026): Code UND Kommentare auf ENGLISCH** –
+  Bezeichner, Dateinamen, Klassen, Methoden, Kommentare. So kann später jede/r Entwickler/in
+  das Projekt übernehmen. Ausnahmen, die DEUTSCH bleiben:
+  - **alle Texte für Nutzer** (Oberfläche, API-Fehlermeldungen, Validierungstexte),
+  - **URLs/Routen im Browser** (z. B. /anmelden – nutzersichtbar),
+  - **Audit-Log-Inhalte** (Action/EntityType – der Inhaber liest sie im Adminpanel),
+  - die **Dokumentation** in docs/, README und KONZEPT (Lernbegleitung des Inhabers).
 - Konfiguration/Secrets über appsettings/Umgebungsvariablen, niemals committen.
 
 ## Arbeitsweise

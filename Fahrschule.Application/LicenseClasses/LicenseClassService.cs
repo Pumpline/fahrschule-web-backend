@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Fahrschule.Application.LicenseClasses;
 
-/// <summary>Wer eine Änderung macht – für das Audit-Log (kommt aus dem Token).</summary>
+/// <summary>Who performs a change - for the audit log (taken from the token).</summary>
 public record Actor(Guid UserId, string UserName);
 
 public interface ILicenseClassService
@@ -20,18 +20,17 @@ public interface ILicenseClassService
 }
 
 /// <summary>
-/// Fachlogik für die Pflege der Führerscheinklassen (Adminpanel).
+/// Business logic for maintaining licence classes (admin panel).
 ///
-/// Jede Änderung landet im Audit-Log (wer/wann/vorher/nachher – DSGVO-
-/// Grundsatz, hier zwar keine personenbezogenen Daten, aber einheitliche
-/// Nachvollziehbarkeit aller Stammdaten-Änderungen). Gelöscht wird nur
-/// "weich" (Soft-Delete, Projektregel 7).
+/// Every change is written to the audit log (who/when/before/after - GDPR
+/// principle; no personal data here, but consistent traceability for all
+/// master data changes). Deleting is always "soft" (project rule 7).
 /// </summary>
 public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWriter) : ILicenseClassService
 {
     public async Task<List<LicenseClassDto>> GetAllAsync(CancellationToken ct = default)
     {
-        // Gelöschte Klassen filtert der globale Query-Filter automatisch heraus.
+        // Deleted classes are filtered out automatically by the global query filter.
         return await db.LicenseClasses
             .OrderBy(x => x.SortOrder).ThenBy(x => x.Code)
             .Select(x => new LicenseClassDto
@@ -43,7 +42,7 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
                 Requirements = x.Requirements,
                 IsActive = x.IsActive,
                 SortOrder = x.SortOrder,
-                // xmin = PostgreSQL-Systemspalte als Versionsmarke (siehe DTO).
+                // xmin = PostgreSQL system column used as version marker (see DTO).
                 Version = EF.Property<uint>(x, "xmin"),
             })
             .ToListAsync(ct);
@@ -61,7 +60,7 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
             Code = code,
             Description = request.Description.Trim(),
             MinimumAge = request.MinimumAge,
-            Requirements = NullWennLeer(request.Requirements),
+            Requirements = NullIfEmpty(request.Requirements),
             IsActive = request.IsActive,
             SortOrder = request.SortOrder,
             CreatedAtUtc = now,
@@ -90,15 +89,15 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
         entity.Code = code;
         entity.Description = request.Description.Trim();
         entity.MinimumAge = request.MinimumAge;
-        entity.Requirements = NullWennLeer(request.Requirements);
+        entity.Requirements = NullIfEmpty(request.Requirements);
         entity.IsActive = request.IsActive;
         entity.SortOrder = request.SortOrder;
         entity.UpdatedAtUtc = DateTime.UtcNow;
 
-        // Optimistische Nebenläufigkeit: Wir sagen EF, von welcher Version der
-        // Bearbeiter ausging. Stimmt sie nicht mehr mit der Datenbank überein,
-        // wirft SaveChanges einen Konflikt (→ 409 mit verständlicher Meldung,
-        // siehe ExceptionHandlingMiddleware) statt fremde Änderungen zu überschreiben.
+        // Optimistic concurrency: we tell EF which version the editor started
+        // from. If it no longer matches the database, SaveChanges throws a
+        // conflict (→ 409 with an understandable message, see
+        // ExceptionHandlingMiddleware) instead of overwriting someone else's work.
         db.Entry(entity).Property<uint>("xmin").OriginalValue = request.Version;
 
         await db.SaveChangesAsync(ct);
@@ -114,8 +113,8 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
         var entity = await db.LicenseClasses.FirstOrDefaultAsync(x => x.Id == id, ct)
             ?? throw new NotFoundException("Diese Führerscheinklasse wurde nicht gefunden. Vielleicht wurde sie bereits gelöscht.");
 
-        // Soft-Delete: nur markieren – wiederherstellbar, endgültiges Entfernen
-        // übernimmt später der Aufbewahrungs-Job (Projektregel 7).
+        // Soft delete: flag only - restorable; actual removal is done later
+        // by the retention job (project rule 7).
         entity.IsDeleted = true;
         entity.DeletedAtUtc = DateTime.UtcNow;
         entity.DeletedByUserId = actor.UserId;
@@ -125,7 +124,7 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
             "Führerscheinklasse", entity.Code, oldValuesJson: Snapshot(entity), cancellationToken: ct);
     }
 
-    /// <summary>Form-Regeln + Eindeutigkeit des Kürzels prüfen.</summary>
+    /// <summary>Form rules + uniqueness of the code.</summary>
     private async Task ValidateAsync(string code, int? minimumAge, Guid? existingId, CancellationToken ct)
     {
         var errors = LicenseClassRules.Validate(code, minimumAge);
@@ -134,9 +133,9 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
             throw new AppValidationException(string.Join(" ", errors));
         }
 
-        var doppelt = await db.LicenseClasses
+        var duplicate = await db.LicenseClasses
             .AnyAsync(x => x.Code == code && (existingId == null || x.Id != existingId), ct);
-        if (doppelt)
+        if (duplicate)
         {
             throw new AppValidationException(
                 $"Es gibt bereits eine Führerscheinklasse mit dem Kürzel „{code}“. " +
@@ -153,16 +152,16 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
         Requirements = entity.Requirements,
         IsActive = entity.IsActive,
         SortOrder = entity.SortOrder,
-        // Nach SaveChanges liefert PostgreSQL die neue Versionsmarke zurück.
+        // After SaveChanges PostgreSQL returns the new version marker.
         Version = db.Entry(entity).Property<uint>("xmin").CurrentValue,
     };
 
-    /// <summary>Stand der Klasse als JSON fürs Audit-Log (vorher/nachher).</summary>
+    /// <summary>State of the class as JSON for the audit log (before/after).</summary>
     private static string Snapshot(LicenseClass x) => JsonSerializer.Serialize(new
     {
         x.Code, x.Description, x.MinimumAge, x.Requirements, x.IsActive, x.SortOrder,
     });
 
-    private static string? NullWennLeer(string? wert)
-        => string.IsNullOrWhiteSpace(wert) ? null : wert.Trim();
+    private static string? NullIfEmpty(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

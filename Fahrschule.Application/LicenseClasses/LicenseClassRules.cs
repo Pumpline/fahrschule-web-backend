@@ -1,24 +1,24 @@
 namespace Fahrschule.Application.LicenseClasses;
 
 /// <summary>
-/// Die reinen Fachregeln für Führerscheinklassen – bewusst ohne Datenbank-
-/// oder Web-Abhängigkeiten, damit sie sich einfach per Unit-Test absichern
-/// lassen (siehe Fahrschule.Tests).
+/// The pure business rules for licence classes - deliberately free of
+/// database or web dependencies so they are easy to unit test
+/// (see Fahrschule.Tests).
 /// </summary>
 public static class LicenseClassRules
 {
     public const int MaxCodeLength = 10;
 
-    /// <summary>Bringt ein Kürzel in die Normalform: Leerraum weg, Großbuchstaben
-    /// ("  b96 " → "B96"). So sind "b" und "B" garantiert dieselbe Klasse.</summary>
+    /// <summary>Normalizes a code: trim whitespace, upper-case
+    /// ("  b96 " → "B96"). This guarantees "b" and "B" are the same class.</summary>
     public static string NormalizeCode(string? code)
         => (code ?? string.Empty).Trim().ToUpperInvariant();
 
     /// <summary>
-    /// Prüft die Eingaben und liefert verständliche deutsche Fehlermeldungen
-    /// (leere Liste = alles in Ordnung). Bewusst nur FORM-Prüfungen –
-    /// fachliche Werte wie das Mindestalter selbst sind editierbare Daten,
-    /// keine festen Regeln im Code (Projektregel 3).
+    /// Validates the input and returns understandable German error messages
+    /// (empty list = all good). Deliberately only FORM checks - business
+    /// values like the minimum age itself are editable data, not fixed rules
+    /// in code (project rule 3).
     /// </summary>
     public static List<string> Validate(string normalizedCode, int? minimumAge)
     {
@@ -33,8 +33,8 @@ public static class LicenseClassRules
             errors.Add($"Das Kürzel darf höchstens {MaxCodeLength} Zeichen lang sein.");
         }
 
-        // Plausibilitätsgrenzen gegen Tippfehler (z. B. 180 statt 18) –
-        // keine fachliche Festlegung.
+        // Plausibility bounds against typos (e.g. 180 instead of 18) -
+        // not a business rule.
         if (minimumAge is < 10 or > 99)
         {
             errors.Add("Das Mindestalter muss zwischen 10 und 99 Jahren liegen (oder leer bleiben).");

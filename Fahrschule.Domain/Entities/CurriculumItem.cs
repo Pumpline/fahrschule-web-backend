@@ -3,66 +3,69 @@ using Fahrschule.Domain.Common;
 namespace Fahrschule.Domain.Entities;
 
 /// <summary>
-/// Ein Punkt des Ausbildungsplans – z. B. ein Theorie-Thema, später auch
-/// Grundfahraufgaben und Sonderfahrten (KONZEPT 3.2/4).
+/// One item of the training curriculum - e.g. a theory topic, later also
+/// basic driving exercises and special drives (KONZEPT 3.2/4).
 ///
-/// Versionierung (KONZEPT 3.3a): Jeder Punkt hat eine FESTE Kennung
-/// (<see cref="ItemKey"/>), die über alle Versionen gleich bleibt. Wird der
-/// Inhalt geändert, entsteht eine NEUE Zeile mit Version+1; die alte Zeile
-/// wird als "abgelöst" markiert (<see cref="SupersededAtUtc"/>) und bleibt
-/// erhalten. So zeigt der Ausbildungsnachweis eines Schülers später genau
-/// den Stand, der zu SEINER Zeit galt – Gesetzesänderungen wirken nie rückwirkend.
+/// Versioning (KONZEPT 3.3a): Every item has a FIXED identifier
+/// (<see cref="ItemKey"/>) that stays the same across all versions. When the
+/// content changes, a NEW row with version+1 is created; the old row is
+/// flagged as superseded (<see cref="SupersededAtUtc"/>) and kept. This way
+/// a student's training record always shows exactly the state that applied
+/// at THEIR time - changes in the law never act retroactively.
 /// </summary>
 public class CurriculumItem : ISoftDeletable
 {
     public Guid Id { get; set; }
 
-    /// <summary>Feste Kennung über alle Versionen hinweg (gleicher Punkt = gleicher Key).</summary>
+    /// <summary>Fixed identifier across all versions (same item = same key).</summary>
     public Guid ItemKey { get; set; }
 
-    /// <summary>Laufende Versionsnummer (1, 2, 3 …) je ItemKey.</summary>
+    /// <summary>Running version number (1, 2, 3 ...) per ItemKey.</summary>
     public int Version { get; set; }
 
-    /// <summary>Ab wann gilt diese Version? (= Zeitpunkt der Änderung)</summary>
+    /// <summary>Since when this version applies (= time of the change).</summary>
     public DateTime ValidFromUtc { get; set; }
 
-    /// <summary>Gesetzt, sobald eine neuere Version existiert.
-    /// null = das ist die aktuell gültige Version.</summary>
+    /// <summary>Set as soon as a newer version exists.
+    /// null = this is the currently valid version.</summary>
     public DateTime? SupersededAtUtc { get; set; }
 
-    /// <summary>Abschnitt des Plans, z. B. "Theorie-Grundstoff", "Theorie-Zusatzstoff",
-    /// später "Grundfahraufgaben", "Sonderfahrten". Bewusst Text statt fester
-    /// Aufzählung – Abschnitte sind Daten, kein Code (Projektregel 3).</summary>
+    /// <summary>Curriculum section, e.g. "Theorie-Grundstoff",
+    /// "Theorie-Zusatzstoff", later "Grundfahraufgaben", "Sonderfahrten".
+    /// Deliberately text instead of a fixed enum - sections are data, not
+    /// code (project rule 3). German values: the owner sees them in the UI.</summary>
     public string Section { get; set; } = string.Empty;
 
-    /// <summary>Bezeichnung des Punkts, z. B. "Vorfahrt und Verkehrsregelungen".</summary>
+    /// <summary>Item title, e.g. "Vorfahrt und Verkehrsregelungen" (German -
+    /// shown to users).</summary>
     public string Title { get; set; } = string.Empty;
 
-    /// <summary>Soll-Anzahl für zählbare Punkte (z. B. Überlandfahrt: 5).
-    /// null = einfacher Abhak-Punkt (z. B. Theorie-Thema).</summary>
+    /// <summary>Target count for countable items (e.g. Überlandfahrt: 5).
+    /// null = simple check-off item (e.g. a theory topic).</summary>
     public int? RequiredCount { get; set; }
 
-    /// <summary>Abgeschaltete Punkte gelten für NEUE Anmeldungen nicht mehr
-    /// ("Klasse X braucht kein Rückwärtseinparken mehr" → einfach abschalten).</summary>
+    /// <summary>Disabled items no longer apply to NEW registrations
+    /// ("class X no longer needs reverse parking" → simply switch it off).</summary>
     public bool IsActive { get; set; } = true;
 
     public int SortOrder { get; set; }
 
-    /// <summary>Für welche Klassen gilt der Punkt? LEER = gilt für ALLE Klassen
-    /// (typisch für Grundstoff); sonst nur für die zugeordneten (KONZEPT 3.2:
-    /// kein monolithischer "Grundstoff", Zuordnung je Punkt).</summary>
+    /// <summary>Which classes does this item apply to? EMPTY = applies to ALL
+    /// classes (typical for the shared basic theory material); otherwise only
+    /// the assigned ones (KONZEPT 3.2: no monolithic "Grundstoff" block -
+    /// assignment per item).</summary>
     public List<CurriculumItemClass> Classes { get; set; } = [];
 
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 
-    // Soft-Delete (Projektregel 7)
+    // Soft delete (project rule 7)
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
     public Guid? DeletedByUserId { get; set; }
 }
 
-/// <summary>Verbindung Punkt ↔ Führerscheinklasse (M:N-Zwischentabelle).</summary>
+/// <summary>Link between curriculum item and licence class (M:N join table).</summary>
 public class CurriculumItemClass
 {
     public Guid CurriculumItemId { get; set; }

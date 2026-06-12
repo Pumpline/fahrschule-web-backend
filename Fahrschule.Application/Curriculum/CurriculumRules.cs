@@ -1,8 +1,8 @@
 namespace Fahrschule.Application.Curriculum;
 
 /// <summary>
-/// Reine Fachregeln für Ausbildungsplan-Punkte – ohne Datenbank, damit sie
-/// per Unit-Test absicherbar sind.
+/// Pure business rules for curriculum items - no database dependencies,
+/// so they are easy to cover with unit tests.
 /// </summary>
 public static class CurriculumRules
 {
@@ -32,13 +32,13 @@ public static class CurriculumRules
     }
 
     /// <summary>
-    /// Entscheidet, ob eine Änderung eine NEUE VERSION braucht (KONZEPT 3.3a).
+    /// Decides whether a change requires a NEW VERSION (KONZEPT 3.3a).
     ///
-    /// Neue Version bei inhaltlichen Änderungen (Bezeichnung, Soll-Anzahl,
-    /// Klassen-Zuordnung) – denn davon hängt ab, was ein Schüler lernen muss;
-    /// alte Schüler-Checklisten müssen den alten Stand behalten können.
-    /// KEINE neue Version bei rein organisatorischen Änderungen
-    /// (aktiv/inaktiv, Reihenfolge) – da ändert sich der Inhalt nicht.
+    /// New version for content changes (title, target count, class
+    /// assignment) - these determine what a student has to learn; existing
+    /// student checklists must be able to keep the old state.
+    /// NO new version for purely organisational changes (active/sort order) -
+    /// the content does not change there.
     /// </summary>
     public static bool NeedsNewVersion(
         string oldTitle, string newTitle,
@@ -48,8 +48,8 @@ public static class CurriculumRules
         if (!string.Equals(oldTitle, newTitle, StringComparison.Ordinal)) return true;
         if (oldRequiredCount != newRequiredCount) return true;
 
-        // Klassen-Zuordnung als MENGE vergleichen – die Reihenfolge ist egal.
-        var alt = new HashSet<Guid>(oldClassIds);
-        return !alt.SetEquals(newClassIds);
+        // Compare the class assignment as a SET - order does not matter.
+        var oldSet = new HashSet<Guid>(oldClassIds);
+        return !oldSet.SetEquals(newClassIds);
     }
 }

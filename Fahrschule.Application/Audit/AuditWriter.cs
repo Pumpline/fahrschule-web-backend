@@ -3,11 +3,13 @@ using Fahrschule.Infrastructure.Persistence;
 
 namespace Fahrschule.Application.Audit;
 
-/// <summary>Schreibt Einträge ins Audit-Log ("wer hat wann was geändert").</summary>
+/// <summary>Writes entries to the audit log ("who changed what, when").</summary>
 public interface IAuditWriter
 {
-    /// <summary>Hängt einen Eintrag an das Audit-Log an (append-only).
-    /// Achtung: niemals Passwörter/Geheimnisse in old/new aufnehmen!</summary>
+    /// <summary>Appends an entry to the audit log (append-only).
+    /// Caution: never put passwords/secrets into old/new values!
+    /// Note: action/entityType are passed in GERMAN - the owner reads the
+    /// log in the admin panel.</summary>
     Task WriteAsync(
         Guid? userId, string userName, string action,
         string entityType, string entityId,

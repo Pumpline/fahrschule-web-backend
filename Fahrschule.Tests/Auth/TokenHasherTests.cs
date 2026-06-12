@@ -3,16 +3,16 @@ using Fahrschule.Application.Auth;
 namespace Fahrschule.Tests.Auth;
 
 /// <summary>
-/// Unit-Tests für die Token-Hilfsfunktionen.
+/// Unit tests for the token helper functions.
 ///
-/// Web-typisches Konzept "Unit-Test": prüft eine kleine Einheit Fachlogik
-/// isoliert und automatisch. Läuft mit "dotnet test" – so merkt man sofort,
-/// wenn eine spätere Änderung etwas kaputt macht (Sicherheitsnetz).
+/// Common web concept "unit test": verifies a small unit of business logic
+/// in isolation, automatically. Runs with "dotnet test" - so any later change
+/// that breaks something is noticed immediately (safety net).
 /// </summary>
 public class TokenHasherTests
 {
     [Fact]
-    public void GenerateRefreshToken_erzeugt_jedes_Mal_einen_anderen_Wert()
+    public void GenerateRefreshToken_produces_a_different_value_every_time()
     {
         var first = TokenHasher.GenerateRefreshToken();
         var second = TokenHasher.GenerateRefreshToken();
@@ -21,37 +21,37 @@ public class TokenHasherTests
     }
 
     [Fact]
-    public void GenerateRefreshToken_ist_lang_genug_und_cookie_tauglich()
+    public void GenerateRefreshToken_is_long_enough_and_cookie_safe()
     {
         var token = TokenHasher.GenerateRefreshToken();
 
-        // 64 Zufallsbytes ergeben Base64-kodiert mindestens 86 Zeichen.
-        Assert.True(token.Length >= 86, $"Token zu kurz: {token.Length} Zeichen");
+        // 64 random bytes encode to at least 86 Base64 characters.
+        Assert.True(token.Length >= 86, $"Token too short: {token.Length} characters");
 
-        // Nur URL-/Cookie-sichere Zeichen (kein '+', '/' oder '=').
+        // Only URL/cookie-safe characters (no '+', '/' or '=').
         Assert.Matches("^[A-Za-z0-9_-]+$", token);
     }
 
     [Fact]
-    public void Hash_ist_deterministisch_und_verraet_das_Original_nicht()
+    public void Hash_is_deterministic_and_does_not_reveal_the_original()
     {
-        const string token = "beispiel-token";
+        const string token = "example-token";
 
         var hash1 = TokenHasher.Hash(token);
         var hash2 = TokenHasher.Hash(token);
 
-        // Gleicher Eingabewert → gleicher Hash (sonst fände der Refresh das Token nie wieder).
+        // Same input → same hash (otherwise refresh could never find the token again).
         Assert.Equal(hash1, hash2);
 
-        // SHA-256 = 32 Bytes = 64 Hex-Zeichen.
+        // SHA-256 = 32 bytes = 64 hex characters.
         Assert.Equal(64, hash1.Length);
 
-        // Der Hash darf das Original nicht enthalten.
+        // The hash must not contain the original.
         Assert.DoesNotContain(token, hash1, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Hash_unterscheidet_verschiedene_Tokens()
+    public void Hash_distinguishes_different_tokens()
     {
         Assert.NotEqual(TokenHasher.Hash("token-a"), TokenHasher.Hash("token-b"));
     }

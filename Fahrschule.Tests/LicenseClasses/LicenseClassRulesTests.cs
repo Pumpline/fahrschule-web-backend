@@ -2,7 +2,7 @@ using Fahrschule.Application.LicenseClasses;
 
 namespace Fahrschule.Tests.LicenseClasses;
 
-/// <summary>Tests für die Fachregeln der Führerscheinklassen-Pflege.</summary>
+/// <summary>Tests for the business rules of licence class maintenance.</summary>
 public class LicenseClassRulesTests
 {
     [Theory]
@@ -10,46 +10,46 @@ public class LicenseClassRulesTests
     [InlineData("b96", "B96")]
     [InlineData("A1", "A1")]
     [InlineData(null, "")]
-    public void NormalizeCode_trimmt_und_macht_Grossbuchstaben(string? eingabe, string erwartet)
+    public void NormalizeCode_trims_and_upper_cases(string? input, string expected)
     {
-        Assert.Equal(erwartet, LicenseClassRules.NormalizeCode(eingabe));
+        Assert.Equal(expected, LicenseClassRules.NormalizeCode(input));
     }
 
     [Fact]
-    public void Leeres_Kuerzel_wird_abgelehnt()
+    public void Empty_code_is_rejected()
     {
-        var fehler = LicenseClassRules.Validate("", minimumAge: null);
+        var errors = LicenseClassRules.Validate("", minimumAge: null);
 
-        Assert.Single(fehler);
-        Assert.Contains("Kürzel", fehler[0]);
+        Assert.Single(errors);
+        Assert.Contains("Kürzel", errors[0]); // German user-facing message
     }
 
     [Fact]
-    public void Zu_langes_Kuerzel_wird_abgelehnt()
+    public void Too_long_code_is_rejected()
     {
-        var fehler = LicenseClassRules.Validate(new string('X', LicenseClassRules.MaxCodeLength + 1), null);
+        var errors = LicenseClassRules.Validate(new string('X', LicenseClassRules.MaxCodeLength + 1), null);
 
-        Assert.Single(fehler);
-        Assert.Contains("höchstens", fehler[0]);
+        Assert.Single(errors);
+        Assert.Contains("höchstens", errors[0]);
     }
 
     [Theory]
-    [InlineData(9)]    // unter der Plausibilitätsgrenze (Tippfehler-Schutz)
-    [InlineData(100)]  // darüber
-    public void Unplausibles_Mindestalter_wird_abgelehnt(int alter)
+    [InlineData(9)]    // below the plausibility bound (typo protection)
+    [InlineData(100)]  // above it
+    public void Implausible_minimum_age_is_rejected(int age)
     {
-        var fehler = LicenseClassRules.Validate("B", alter);
+        var errors = LicenseClassRules.Validate("B", age);
 
-        Assert.Single(fehler);
-        Assert.Contains("Mindestalter", fehler[0]);
+        Assert.Single(errors);
+        Assert.Contains("Mindestalter", errors[0]);
     }
 
     [Theory]
-    [InlineData(null)] // kein Mindestalter ist erlaubt
+    [InlineData(null)] // no minimum age is allowed
     [InlineData(15)]
     [InlineData(18)]
-    public void Gueltige_Eingaben_haben_keine_Fehler(int? alter)
+    public void Valid_input_has_no_errors(int? age)
     {
-        Assert.Empty(LicenseClassRules.Validate("B", alter));
+        Assert.Empty(LicenseClassRules.Validate("B", age));
     }
 }

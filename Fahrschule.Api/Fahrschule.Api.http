@@ -1,13 +1,13 @@
-### Diese Datei kann man in Rider/VS Code öffnen und die Anfragen direkt
-### ausprobieren ("Play"-Symbol neben der Anfrage). Cookies verwaltet das
-### Werkzeug automatisch – nach dem Login funktionieren auch /me usw.
+### Open this file in Rider/VS Code and run the requests directly (the "play"
+### icon next to each request). The tool manages cookies automatically -
+### after login, /me etc. work as well.
 
 @host = http://localhost:5080
 
-### Lebenszeichen (ohne Anmeldung)
+### Liveness (no sign-in required)
 GET {{host}}/api/health
 
-### Anmelden (Seed-Admin aus appsettings.Development.json)
+### Sign in (seed admin from appsettings.Development.json)
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
@@ -16,10 +16,10 @@ Content-Type: application/json
   "password": "Fahrschule-Start1"
 }
 
-### Wer bin ich?
+### Who am I?
 GET {{host}}/api/auth/me
 
-### Eigenes Passwort festlegen (nach erster Anmeldung Pflicht)
+### Set an own password (mandatory after the first sign-in)
 POST {{host}}/api/auth/change-password
 Content-Type: application/json
 
@@ -28,8 +28,8 @@ Content-Type: application/json
   "newPassword": "MeinNeuesPasswort1"
 }
 
-### Token-Paar erneuern
+### Refresh the token pair
 POST {{host}}/api/auth/refresh
 
-### Abmelden
+### Sign out
 POST {{host}}/api/auth/logout

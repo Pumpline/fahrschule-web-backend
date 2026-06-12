@@ -11,14 +11,21 @@
 frontend/src/app/
 ├─ core/          Dienste, die es genau EINMAL gibt (Singletons)
 │  ├─ auth/          AuthService, HTTP-Interceptor, Routen-Wächter (Guards)
-│  ├─ einstellungen/ AnzeigeService (Hell/Dunkel, Schriftgröße)
+│  ├─ settings/      DisplaySettingsService (Hell/Dunkel, Schriftgröße)
+│  ├─ api/           ein typisierter API-Service je Backend-Controller
 │  └─ models/        TypeScript-Interfaces (Datenformen der API)
 ├─ layout/        Der Rahmen: Kopfzeile + Seitenleiste (Shell)
 ├─ features/      Je Fachbereich ein Ordner – wächst mit jedem Modul
-│  ├─ auth/          Anmelden, Passwort festlegen, Passwort ändern
+│  ├─ auth/          Anmelden, Passwort festlegen/ändern
+│  ├─ admin/         Adminpanel (Klassen, Theorie-Themen …)
 │  └─ start/         Startseite (Dashboard)
-└─ shared/        Wiederverwendbare Bausteine (z. B. Platzhalter-Seite)
+└─ shared/        Wiederverwendbare Bausteine (Passwort-Feld, Platzhalter …)
 ```
+
+> **Sprach-Standard** (seit 12.06.2026, siehe CLAUDE.md): Code, Dateinamen und
+> Kommentare sind **englisch**; deutsch bleiben Oberflächen-Texte, Browser-URLs
+> (/anmelden …) und die CSS-Klassennamen (sie spiegeln das verbindliche
+> design-mockup.html eins zu eins).
 
 Regeln aus CLAUDE.md, hier umgesetzt:
 - **Standalone Components**: Jede Komponente importiert selbst, was sie
@@ -60,7 +67,7 @@ Benutzer (Name, Rollen) aus den API-Antworten.
 
 ## Anmelde-Ablauf aus Frontend-Sicht
 
-1. App-Start → Guard ruft `sitzungSicherstellen()`: fragt `GET /api/auth/me`,
+1. App-Start → Guard ruft `ensureSessionChecked()`: fragt `GET /api/auth/me`,
    ob noch eine Sitzung (Cookie) besteht – erst dann wird eine Seite gezeigt.
 2. Nicht angemeldet → Vollbild **/anmelden**. Nach Erfolg: normale Benutzer
    zur **/start**, Benutzer mit temporärem Passwort erzwungen zu
@@ -89,7 +96,7 @@ Benutzer (Name, Rollen) aus den API-Antworten.
 - **AdminPage** als EINE Seite mit gestapelten Karten je Bereich (wie im
   Mockup – keine Reiter); nur die Rolle `Admin` sieht den Menüpunkt und kommt
   durch den `adminGuard` – verbindlich prüft zusätzlich das Backend.
-- **KlassenVerwaltung**: Karte mit Tabelle, pro Zeile nur ein schlanker
+- **LicenseClassManagement**: Karte mit Tabelle, pro Zeile nur ein schlanker
   „Bearbeiten"-Knopf. Im Dialog: alle Felder, ein Aktiv-Häkchen und der
   Löschen-Knopf; **Löschen immer mit Bestätigungs-Dialog und Folgen-Hinweis**
   (Projektregel 2).

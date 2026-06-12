@@ -1,41 +1,42 @@
 namespace Fahrschule.Infrastructure.Identity;
 
 /// <summary>
-/// Ein Refresh-Token: der "Schlüssel zum Nachschlüssel".
+/// A refresh token: the "key to get a new key".
 ///
-/// Hintergrund (web-typisches Konzept): Das eigentliche Zugriffstoken (JWT)
-/// ist nur kurz gültig (z. B. 15 Minuten) – wird es gestohlen, ist der Schaden
-/// begrenzt. Damit sich niemand alle 15 Minuten neu anmelden muss, gibt es
-/// dieses langlebige Refresh-Token. Der Browser schickt es (als httpOnly-Cookie)
-/// an /api/auth/refresh und bekommt ein frisches Zugriffstoken.
+/// Background (common web concept): The actual access token (JWT) is only
+/// valid for a short time (e.g. 15 minutes) - if it gets stolen, the damage
+/// is limited. So that nobody has to sign in again every 15 minutes, this
+/// long-lived refresh token exists. The browser sends it (as an httpOnly
+/// cookie) to /api/auth/refresh and receives a fresh access token.
 ///
-/// Sicherheit:
-/// - Wir speichern nur den SHA-256-HASH des Tokens, nie den Klartext
-///   (gleiches Prinzip wie bei Passwörtern: ein Datenbank-Leck verrät nichts).
-/// - Bei jeder Verwendung wird das Token "rotiert": das alte wird ungültig,
-///   ein neues wird ausgestellt. Ein gestohlenes, bereits benutztes Token
-///   ist damit wertlos.
+/// Security:
+/// - We only store the SHA-256 HASH of the token, never the plain value
+///   (same principle as passwords: a database leak reveals nothing).
+/// - On every use the token is "rotated": the old one becomes invalid and
+///   a new one is issued. A stolen, already-used token is therefore worthless.
 /// </summary>
 public class RefreshToken
 {
     public Guid Id { get; set; }
 
-    /// <summary>Zu welchem Benutzer gehört das Token?</summary>
+    /// <summary>Which user does this token belong to?</summary>
     public Guid UserId { get; set; }
     public ApplicationUser? User { get; set; }
 
-    /// <summary>SHA-256-Hash des Token-Werts (hex). Der Klartext existiert nur im Cookie des Benutzers.</summary>
+    /// <summary>SHA-256 hash of the token value (hex). The plain value only
+    /// exists in the user's cookie.</summary>
     public string TokenHash { get; set; } = string.Empty;
 
     public DateTime CreatedAtUtc { get; set; }
     public DateTime ExpiresAtUtc { get; set; }
 
-    /// <summary>Gesetzt, sobald das Token zurückgezogen wurde (Abmelden, Rotation, Passwortwechsel).</summary>
+    /// <summary>Set once the token has been revoked (logout, rotation,
+    /// password change).</summary>
     public DateTime? RevokedAtUtc { get; set; }
 
-    /// <summary>Bei Rotation: Hash des Nachfolger-Tokens (hilft, Diebstahl zu erkennen).</summary>
+    /// <summary>On rotation: hash of the successor token (helps detect theft).</summary>
     public string? ReplacedByTokenHash { get; set; }
 
-    /// <summary>Ist das Token zum Zeitpunkt <paramref name="nowUtc"/> noch verwendbar?</summary>
+    /// <summary>Is the token still usable at <paramref name="nowUtc"/>?</summary>
     public bool IsActive(DateTime nowUtc) => RevokedAtUtc is null && nowUtc < ExpiresAtUtc;
 }

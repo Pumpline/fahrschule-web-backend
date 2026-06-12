@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Fahrschule.Contracts.Curriculum;
 
-/// <summary>Anfrage "neuen Ausbildungsplan-Punkt anlegen".</summary>
+/// <summary>"Create new curriculum item" request.</summary>
 public class CreateCurriculumItemRequest
 {
     [Required(ErrorMessage = "Bitte den Abschnitt angeben (z. B. Theorie-Grundstoff).")]
@@ -15,13 +15,13 @@ public class CreateCurriculumItemRequest
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
 
-    /// <summary>Leer = gilt für alle Klassen.</summary>
+    /// <summary>Empty = applies to all classes.</summary>
     public Guid[] ClassIds { get; set; } = [];
 }
 
 /// <summary>
-/// Anfrage "Punkt ändern". Inhaltliche Änderungen (Bezeichnung, Soll-Anzahl,
-/// Klassen) erzeugen automatisch eine NEUE VERSION – die alte bleibt erhalten.
+/// "Update item" request. Content changes (title, target count, classes)
+/// automatically create a NEW VERSION - the old one is preserved.
 /// </summary>
 public class UpdateCurriculumItemRequest
 {
@@ -33,6 +33,6 @@ public class UpdateCurriculumItemRequest
     public int SortOrder { get; set; }
     public Guid[] ClassIds { get; set; } = [];
 
-    /// <summary>Versionsmarke gegen gegenseitiges Überschreiben.</summary>
+    /// <summary>Version marker against mutual overwrites.</summary>
     public uint RowVersion { get; set; }
 }

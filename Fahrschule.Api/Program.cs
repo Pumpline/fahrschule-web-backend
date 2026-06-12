@@ -9,28 +9,28 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 
-// Program.cs ist der Startpunkt der API – vergleichbar mit der Hauptszene in
-// Unity: Hier wird alles zusammengesteckt (Dienste registrieren) und dann die
-// "Pipeline" definiert (welche Stationen jede HTTP-Anfrage durchläuft).
+// Program.cs is the entry point of the API: services are wired up here
+// (dependency injection) and the request "pipeline" is defined (which
+// stations every HTTP request passes through).
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Lokale Überschreibungen (z. B. echte Datenbank-Zugangsdaten dieses Rechners).
-// Die Datei ist per .gitignore vom Repository ausgeschlossen – so landen
-// niemals echte Passwörter im Code (Projektregel 1: keine Secrets im Repo).
+// Local overrides (e.g. the real database credentials of this machine).
+// The file is excluded via .gitignore - real passwords never end up in the
+// repository (project rule 1: no secrets in the repo).
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // ----------------------------------------------------------------------------
-// 1. Dienste registrieren (Dependency Injection)
+// 1. Register services (dependency injection)
 // ----------------------------------------------------------------------------
 
-builder.Services.AddInfrastructure(builder.Configuration); // Datenbank + Identity
-builder.Services.AddApplication(builder.Configuration);    // Fachlogik (Services)
+builder.Services.AddInfrastructure(builder.Configuration); // database + Identity
+builder.Services.AddApplication(builder.Configuration);    // business logic (services)
 
 builder.Services.AddControllers();
-builder.Services.AddOpenApi(); // API-Beschreibung unter /openapi/v1.json (nur Entwicklung)
+builder.Services.AddOpenApi(); // API description at /openapi/v1.json (development only)
 
-// Automatische Eingabe-Prüfung ([Required] usw.) soll deutsch antworten.
+// Automatic input validation ([Required] etc.) must answer in German (user-facing).
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {
     var defaultFactory = options.InvalidModelStateResponseFactory;
@@ -45,7 +45,7 @@ builder.Services.Configure<ApiBehaviorOptions>(options =>
     };
 });
 
-// --- Anmeldung: JWT aus dem httpOnly-Cookie lesen und prüfen ----------------
+// --- Authentication: read and verify the JWT from the httpOnly cookie -------
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()
     ?? throw new InvalidOperationException("Konfigurationsabschnitt 'Jwt' fehlt.");
 
@@ -58,7 +58,7 @@ if (string.IsNullOrWhiteSpace(jwtOptions.SecretKey) || jwtOptions.SecretKey.Leng
 
 if (!builder.Environment.IsDevelopment() && jwtOptions.SecretKey.Contains("NUR-FUER-ENTWICKLUNG"))
 {
-    // Sicherheitsnetz: der eingecheckte Entwicklungs-Schlüssel darf nie produktiv laufen.
+    // Safety net: the checked-in development key must never run in production.
     throw new InvalidOperationException(
         "Der Entwicklungs-JWT-Schlüssel darf in Produktion nicht verwendet werden. " +
         "Bitte Jwt:SecretKey als Umgebungsvariable setzen.");
@@ -68,8 +68,8 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        // Diese Regeln prüft das Framework bei JEDER Anfrage automatisch:
-        // Ist die Signatur echt? Ist das Token noch gültig? Passt Aussteller/Empfänger?
+        // The framework checks these rules on EVERY request automatically:
+        // Is the signature genuine? Is the token still valid? Issuer/audience ok?
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
@@ -79,14 +79,14 @@ builder.Services
             ValidateIssuerSigningKey = true,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey)),
             ValidateLifetime = true,
-            // Standardmäßig erlaubt das Framework 5 Minuten "Uhren-Toleranz" –
-            // wir bleiben streng, damit 15 Minuten wirklich 15 Minuten sind.
+            // By default the framework allows 5 minutes of "clock tolerance" -
+            // we stay strict so 15 minutes really mean 15 minutes.
             ClockSkew = TimeSpan.FromSeconds(30),
         };
 
-        // Üblich ist das JWT im "Authorization"-Header. Wir legen es stattdessen
-        // in ein httpOnly-Cookie (für Schad-Skripte unlesbar → XSS-Schutz) und
-        // bringen dem Framework hier bei, es dort zu suchen.
+        // The usual place for a JWT is the "Authorization" header. We put it
+        // into an httpOnly cookie instead (unreadable for malicious scripts →
+        // XSS protection) and teach the framework to look for it there.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -100,8 +100,8 @@ builder.Services
         };
     });
 
-// "Sicher per Voreinstellung": JEDER Endpunkt verlangt Anmeldung, außer er ist
-// ausdrücklich mit [AllowAnonymous] freigegeben (z. B. /api/auth/login).
+// "Secure by default": EVERY endpoint requires authentication unless it is
+// explicitly opened up with [AllowAnonymous] (e.g. /api/auth/login).
 builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
@@ -109,7 +109,8 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
-// CORS nur nötig, wenn das Frontend NICHT über den Dev-Proxy/gleichen Host läuft.
+// CORS is only needed when the frontend does NOT run behind the dev proxy /
+// the same host.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 if (allowedOrigins.Length > 0)
 {
@@ -117,24 +118,24 @@ if (allowedOrigins.Length > 0)
         .WithOrigins(allowedOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
-        .AllowCredentials())); // nötig, damit Cookies mitgeschickt werden dürfen
+        .AllowCredentials())); // required so cookies may be sent along
 }
 
 var app = builder.Build();
 
 // ----------------------------------------------------------------------------
-// 2. Die Anfrage-Pipeline – jede HTTP-Anfrage durchläuft diese Stationen
-//    in genau dieser Reihenfolge (Middleware-Konzept).
+// 2. The request pipeline - every HTTP request passes these stations
+//    in exactly this order (middleware concept).
 // ----------------------------------------------------------------------------
 
-// Ganz außen: fängt alle Fehler und macht daraus verständliche JSON-Antworten.
+// Outermost: catches all errors and turns them into understandable JSON responses.
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-// Sichere HTTP-Header (Projektregel 1: Sicherheit).
+// Secure HTTP headers (project rule 1: security).
 app.Use(async (context, next) =>
 {
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff"; // kein Inhalts-Raten
-    context.Response.Headers["X-Frame-Options"] = "DENY";           // nicht in fremde Seiten einbettbar
+    context.Response.Headers["X-Content-Type-Options"] = "nosniff"; // no content sniffing
+    context.Response.Headers["X-Frame-Options"] = "DENY";           // not embeddable in foreign pages
     context.Response.Headers["Referrer-Policy"] = "no-referrer";
     await next();
 });
@@ -145,8 +146,8 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    app.UseHsts();             // Browser anweisen: nur noch HTTPS für diese Domain
-    app.UseHttpsRedirection(); // HTTP → HTTPS umleiten (HTTPS-Pflicht)
+    app.UseHsts();             // tell browsers: HTTPS only for this domain
+    app.UseHttpsRedirection(); // redirect HTTP → HTTPS (HTTPS is mandatory)
 }
 
 if (allowedOrigins.Length > 0)
@@ -154,19 +155,19 @@ if (allowedOrigins.Length > 0)
     app.UseCors();
 }
 
-app.UseAuthentication(); // Wer bist du? (Cookie/JWT prüfen)
-app.UseAuthorization();  // Darfst du das? (Rollen/Policies prüfen)
+app.UseAuthentication(); // Who are you? (verify cookie/JWT)
+app.UseAuthorization();  // Are you allowed? (verify roles/policies)
 
-// Hat der Benutzer noch ein temporäres Passwort, ist alles außer /api/auth gesperrt.
+// While the user still has a temporary password, everything except /api/auth is blocked.
 app.UseMiddleware<MustChangePasswordMiddleware>();
 
 app.MapControllers();
 
-// Einfacher Lebenszeichen-Endpunkt (z. B. für Docker-Healthchecks).
+// Simple liveness endpoint (e.g. for Docker health checks).
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymous();
 
 // ----------------------------------------------------------------------------
-// 3. Datenbank vorbereiten (Migrationen + Rollen + erster Admin)
+// 3. Prepare the database (migrations + roles + seed data + first admin)
 // ----------------------------------------------------------------------------
 if (app.Configuration.GetValue("Database:InitializeOnStartup", true))
 {

@@ -8,15 +8,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Fahrschule.Infrastructure;
 
 /// <summary>
-/// Registriert alle Infrastruktur-Dienste im Dependency-Injection-Container.
+/// Registers all infrastructure services in the dependency injection container.
 ///
-/// Web-typisches Konzept "Dependency Injection" (DI): Klassen erzeugen ihre
-/// Abhängigkeiten nicht selbst (kein "new DbContext()"), sondern bekommen sie
-/// vom Framework in den Konstruktor gereicht. Hier sagen wir dem Container,
-/// WIE er die Dienste bauen soll. Vorteil: austauschbar und gut testbar.
-///
-/// Unity-Brücke: statt FindObjectOfType/Singleton-Managern gibt es einen
-/// zentralen Container, der alle "Manager" kennt und verteilt.
+/// Common web concept "Dependency Injection" (DI): classes do not create their
+/// dependencies themselves (no "new DbContext()") - the framework hands them
+/// into the constructor. Here we tell the container HOW to build the services.
+/// Benefit: replaceable and easy to test.
 /// </summary>
 public static class DependencyInjection
 {
@@ -29,22 +26,24 @@ public static class DependencyInjection
         services.AddDbContext<FahrschuleDbContext>(options =>
             options.UseNpgsql(connectionString));
 
-        // Identity = fertiges Benutzer-/Passwort-System von ASP.NET Core.
-        // AddIdentityCore statt AddIdentity, weil wir KEINE Identity-Cookies/-Seiten
-        // wollen – unsere Anmeldung läuft über die JSON-API mit eigenem JWT-Cookie.
+        // Identity = the ready-made user/password system of ASP.NET Core.
+        // AddIdentityCore instead of AddIdentity because we do NOT want the
+        // Identity cookies/pages - our sign-in runs through the JSON API with
+        // our own JWT cookie.
         services
             .AddIdentityCore<ApplicationUser>(options =>
             {
-                // Starke Passwörter erzwingen (Projektregel 7) – Länge zählt mehr
-                // als Sonderzeichen-Pflicht (bedienerfreundlich für ältere Nutzer).
+                // Enforce strong passwords (project rule 7) - length matters
+                // more than mandatory special characters (friendlier for the
+                // older users of this app).
                 options.Password.RequiredLength = 10;
                 options.Password.RequireDigit = true;
                 options.Password.RequireUppercase = true;
                 options.Password.RequireLowercase = true;
                 options.Password.RequireNonAlphanumeric = false;
 
-                // Konto-Sperre gegen Passwort-Raten (Brute-Force-Schutz):
-                // nach 5 Fehlversuchen 15 Minuten gesperrt.
+                // Account lockout against password guessing (brute force):
+                // locked for 15 minutes after 5 failed attempts.
                 options.Lockout.AllowedForNewUsers = true;
                 options.Lockout.MaxFailedAccessAttempts = 5;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);

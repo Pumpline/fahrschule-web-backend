@@ -3,25 +3,25 @@ using Microsoft.AspNetCore.Identity;
 namespace Fahrschule.Infrastructure.Identity;
 
 /// <summary>
-/// Unser Benutzerkonto (Fahrlehrer, Verwaltung, Admin).
+/// Our user account (driving instructor, office staff, admin).
 ///
-/// Erbt von IdentityUser&lt;Guid&gt; – das ist die fertige Benutzerklasse von
-/// ASP.NET Core Identity. Sie bringt E-Mail, gehashtes Passwort (nie Klartext!),
-/// Konto-Sperre nach Fehlversuchen usw. bereits mit. Wir ergänzen nur die
-/// Felder, die unsere Fahrschule zusätzlich braucht.
+/// Inherits from IdentityUser&lt;Guid&gt; - the ready-made user class of
+/// ASP.NET Core Identity. It already provides e-mail, hashed password
+/// (never plain text!), account lockout after failed attempts, etc.
+/// We only add the fields our driving school needs on top.
 ///
-/// Warum Guid als Schlüssel: zufällige IDs lassen sich nicht erraten/durchzählen
-/// (besser als 1, 2, 3 …) und bleiben auch beim Zusammenführen von Daten eindeutig.
+/// Why Guid as the key: random IDs cannot be guessed/enumerated
+/// (better than 1, 2, 3 ...) and stay unique when merging data.
 /// </summary>
 public class ApplicationUser : IdentityUser<Guid>
 {
-    /// <summary>Anzeigename in der Oberfläche, z. B. "Helga Muster".</summary>
+    /// <summary>Display name shown in the UI, e.g. "Helga Muster".</summary>
     public string DisplayName { get; set; } = string.Empty;
 
     /// <summary>
-    /// True = das Konto hat ein temporäres Passwort (vom Admin vergeben).
-    /// Der Benutzer wird nach dem Anmelden gezwungen, ein eigenes Passwort
-    /// zu setzen, bevor er die Anwendung benutzen darf (siehe KONZEPT 3.7a).
+    /// True = the account has a temporary password (issued by the admin).
+    /// After signing in, the user is forced to set their own password
+    /// before they may use the application (see KONZEPT 3.7a).
     /// </summary>
     public bool MustChangePassword { get; set; }
 

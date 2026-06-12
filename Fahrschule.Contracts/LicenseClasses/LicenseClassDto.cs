@@ -1,6 +1,6 @@
 namespace Fahrschule.Contracts.LicenseClasses;
 
-/// <summary>Eine Führerscheinklasse, wie die API sie nach außen zeigt.</summary>
+/// <summary>A licence class as the API exposes it.</summary>
 public class LicenseClassDto
 {
     public Guid Id { get; set; }
@@ -12,11 +12,11 @@ public class LicenseClassDto
     public int SortOrder { get; set; }
 
     /// <summary>
-    /// Versionsmarke für die optimistische Nebenläufigkeit (Projektregel 7):
-    /// Beim Speichern schickt das Frontend diese Zahl mit. Hat zwischenzeitlich
-    /// jemand anderes gespeichert, passt sie nicht mehr und die API antwortet
-    /// mit einem verständlichen Konflikt statt Änderungen zu überschreiben.
-    /// (Technisch: die xmin-Systemspalte von PostgreSQL.)
+    /// Version marker for optimistic concurrency (project rule 7):
+    /// the frontend sends this number back when saving. If someone else
+    /// saved in the meantime, it no longer matches and the API responds
+    /// with an understandable conflict instead of overwriting changes.
+    /// (Technically: PostgreSQL's xmin system column.)
     /// </summary>
     public uint Version { get; set; }
 }

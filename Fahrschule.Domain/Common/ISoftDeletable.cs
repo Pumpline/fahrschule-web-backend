@@ -1,24 +1,21 @@
 namespace Fahrschule.Domain.Common;
 
 /// <summary>
-/// Kennzeichnet Entitäten, die "weich" gelöscht werden (Soft-Delete).
+/// Marks entities that are deleted "softly" (soft delete).
 ///
-/// Warum: Löschen darf Daten nie sofort entfernen (Projektregel + DSGVO/AO §147).
-/// Stattdessen wird nur markiert, dass der Datensatz gelöscht ist. Das echte
-/// Entfernen übernimmt später ein Aufbewahrungs-Job nach Ablauf der gesetzlichen
-/// Frist. Bis dahin kann ein Admin die Löschung rückgängig machen.
-///
-/// Unity-Brücke: vergleichbar mit "GameObject.SetActive(false)" statt "Destroy()" –
-/// das Objekt ist unsichtbar, aber noch da.
+/// Why: Deleting must never remove data immediately (project rule + GDPR /
+/// German tax law AO §147). Instead, the record is only flagged as deleted.
+/// Actual removal is done later by a retention job once the legal retention
+/// period has expired. Until then an admin can undo the deletion.
 /// </summary>
 public interface ISoftDeletable
 {
-    /// <summary>Wurde der Datensatz als gelöscht markiert?</summary>
+    /// <summary>Has the record been flagged as deleted?</summary>
     bool IsDeleted { get; set; }
 
-    /// <summary>Zeitpunkt der Lösch-Markierung (UTC).</summary>
+    /// <summary>When the record was flagged as deleted (UTC).</summary>
     DateTime? DeletedAtUtc { get; set; }
 
-    /// <summary>Wer hat gelöscht? (für das Audit-Log)</summary>
+    /// <summary>Who deleted it? (for the audit log)</summary>
     Guid? DeletedByUserId { get; set; }
 }
