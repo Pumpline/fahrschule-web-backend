@@ -86,12 +86,13 @@ Benutzer (Name, Rollen) aus den API-Antworten.
 
 `features/admin/` zeigt das Muster für alle kommenden Adminpanel-Bereiche:
 
-- **AdminPage** mit Bereichs-Reitern (`.tabs` aus dem Mockup); nur die Rolle
-  `Admin` sieht den Menüpunkt und kommt durch den `adminGuard` – verbindlich
-  prüft zusätzlich das Backend.
-- **KlassenVerwaltung**: Tabelle + Dialog (Overlay) zum Anlegen/Bearbeiten,
-  Aktiv/Inaktiv-Umschalter, **Löschen immer mit Bestätigungs-Dialog und
-  Folgen-Hinweis** (Projektregel 2).
+- **AdminPage** als EINE Seite mit gestapelten Karten je Bereich (wie im
+  Mockup – keine Reiter); nur die Rolle `Admin` sieht den Menüpunkt und kommt
+  durch den `adminGuard` – verbindlich prüft zusätzlich das Backend.
+- **KlassenVerwaltung**: Karte mit Tabelle, pro Zeile nur ein schlanker
+  „Bearbeiten"-Knopf. Im Dialog: alle Felder, ein Aktiv-Häkchen und der
+  Löschen-Knopf; **Löschen immer mit Bestätigungs-Dialog und Folgen-Hinweis**
+  (Projektregel 2).
 - **API-Service** `LicenseClassesApi` (core/api/) – ein Service pro
   Backend-Controller. Beim Speichern wandert die **Versionsmarke** mit:
   meldet die API 409 (jemand anderes hat gespeichert), zeigt die Oberfläche
