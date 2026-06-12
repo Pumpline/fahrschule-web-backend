@@ -124,6 +124,22 @@ Konfigurationsdaten:
 - **Seed**: Beim ersten Start entstehen gängige Klassen als **Startwerte**
   (im Adminpanel änderbar – der Code legt nichts fest).
 
+## Ausbildungsplan-Punkte: Versionierung (KONZEPT 3.3a)
+
+`CurriculumItem` trägt die Theorie-Themen (später auch Grundfahraufgaben und
+Sonderfahrten). Das Besondere ist die **Versionierung**: Jeder Punkt hat eine
+feste Kennung (`ItemKey`), die über alle Versionen gleich bleibt. Ändert der
+Admin den INHALT (Bezeichnung, Soll-Anzahl, Klassen-Zuordnung), legt der
+Service automatisch eine **neue Zeile mit Version+1** an und markiert die alte
+als abgelöst (`SupersededAtUtc`) – gelöscht wird nie. Schüler-Checklisten
+(Schritt 4) verweisen später auf die Version, die zu ihrer Anmeldung galt:
+Gesetzesänderungen wirken nie rückwirkend. Rein organisatorische Änderungen
+(aktiv/Reihenfolge) ändern die Version dagegen NICHT – die Entscheidung trifft
+`CurriculumRules.NeedsNewVersion` (per Unit-Test abgesichert).
+
+Die Klassen-Zuordnung läuft über die M:N-Tabelle `CurriculumItemClass`;
+**keine Zuordnung bedeutet "gilt für alle Klassen"** (typisch Grundstoff).
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,

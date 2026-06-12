@@ -19,6 +19,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<ILicenseClassService, LicenseClassService>();
+        services.AddScoped<Curriculum.ICurriculumItemService, Curriculum.CurriculumItemService>();
 
         // "Singleton" = eine Instanz für die gesamte Laufzeit (zustandslos, nur Konfiguration).
         services.AddSingleton<IJwtTokenService, JwtTokenService>();

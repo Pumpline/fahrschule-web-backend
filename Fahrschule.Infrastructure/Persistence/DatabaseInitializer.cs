@@ -74,7 +74,55 @@ public static class DatabaseInitializer
             logger.LogInformation("Beispiel-Führerscheinklassen angelegt (Startwerte, im Adminpanel änderbar).");
         }
 
-        // 4. Ersten Admin anlegen – nur, wenn es noch gar keine Benutzer gibt.
+        // 4. Beispiel-Theoriethemen anlegen – nur, wenn die Tabelle leer ist.
+        //    STARTWERTE nach den üblichen 12 Grundstoff-Lektionen + Zusatzstoff
+        //    Klasse B (bitte fachlich prüfen!) – alles im Adminpanel änderbar,
+        //    Änderungen erzeugen dort automatisch neue Versionen.
+        if (!await db.CurriculumItems.AnyAsync())
+        {
+            var now = DateTime.UtcNow;
+            var reihenfolge = 0;
+            CurriculumItem Thema(string abschnitt, string titel, params LicenseClass[] klassen) => new()
+            {
+                Id = Guid.NewGuid(), ItemKey = Guid.NewGuid(), Version = 1,
+                ValidFromUtc = now, Section = abschnitt, Title = titel,
+                IsActive = true, SortOrder = (reihenfolge += 10),
+                CreatedAtUtc = now, UpdatedAtUtc = now,
+                Classes = [.. klassen.Select(k => new CurriculumItemClass { LicenseClassId = k.Id })],
+            };
+
+            // Grundstoff: KEINE Klassen-Zuordnung = gilt für alle Klassen.
+            string[] grundstoff =
+            [
+                "Persönliche Voraussetzungen",
+                "Risikofaktor Mensch",
+                "Rechtliche Rahmenbedingungen",
+                "Straßenverkehrssystem und seine Nutzung",
+                "Vorfahrt und Verkehrsregelungen",
+                "Verkehrszeichen und Verkehrseinrichtungen",
+                "Andere Teilnehmer im Straßenverkehr",
+                "Geschwindigkeit, Abstand und umweltschonende Fahrweise",
+                "Verkehrsverhalten bei Fahrmanövern, Verkehrsbeobachtung",
+                "Ruhender Verkehr",
+                "Verhalten in besonderen Situationen, Folgen von Verstößen",
+                "Lebenslanges Lernen / Folgen für die Fahrerlaubnis",
+            ];
+            db.CurriculumItems.AddRange(grundstoff.Select(t => Thema("Theorie-Grundstoff", t)));
+
+            // Zusatzstoff Klasse B: gilt nur für B (Klassen-Zuordnung gesetzt).
+            var klasseB = await db.LicenseClasses.FirstOrDefaultAsync(k => k.Code == "B");
+            if (klasseB is not null)
+            {
+                db.CurriculumItems.AddRange(
+                    Thema("Theorie-Zusatzstoff", "Technische Bedingungen, umweltbewusster Umgang (Pkw)", klasseB),
+                    Thema("Theorie-Zusatzstoff", "Fahren mit Solo-Kraftfahrzeugen und Zügen (Pkw)", klasseB));
+            }
+
+            await db.SaveChangesAsync();
+            logger.LogInformation("Beispiel-Theoriethemen angelegt (Startwerte, im Adminpanel änderbar).");
+        }
+
+        // 5. Ersten Admin anlegen – nur, wenn es noch gar keine Benutzer gibt.
         var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
         if (await userManager.Users.AnyAsync())
         {

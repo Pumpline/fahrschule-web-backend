@@ -27,6 +27,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<Setting> Settings => Set<Setting>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<LicenseClass> LicenseClasses => Set<LicenseClass>();
+    public DbSet<CurriculumItem> CurriculumItems => Set<CurriculumItem>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -70,6 +71,42 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
             // Systemspalte "xmin" (ändert sich bei jedem Schreiben). EF nutzt
             // sie als Versionsmarke gegen gegenseitiges Überschreiben.
             klasse.Property<uint>("xmin").IsRowVersion();
+        });
+
+        builder.Entity<CurriculumItem>(punkt =>
+        {
+            punkt.Property(x => x.Section).HasMaxLength(100);
+            punkt.Property(x => x.Title).HasMaxLength(300);
+
+            // Häufigste Abfrage: "aktuelle Version je Kennung" → passender Index.
+            punkt.HasIndex(x => new { x.ItemKey, x.Version }).IsUnique();
+            punkt.HasIndex(x => x.Section);
+
+            punkt.HasQueryFilter(x => !x.IsDeleted);
+            punkt.Property<uint>("xmin").IsRowVersion();
+        });
+
+        builder.Entity<CurriculumItemClass>(zuordnung =>
+        {
+            // Zusammengesetzter Schlüssel: jede Kombination Punkt+Klasse nur einmal.
+            zuordnung.HasKey(x => new { x.CurriculumItemId, x.LicenseClassId });
+
+            zuordnung.HasOne(x => x.CurriculumItem)
+                .WithMany(x => x.Classes)
+                .HasForeignKey(x => x.CurriculumItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Klassen werden nur soft-gelöscht – ein hartes Löschen soll
+            // niemals still Zuordnungen mitreißen (Restrict = Datenbank wehrt sich).
+            zuordnung.HasOne(x => x.LicenseClass)
+                .WithMany()
+                .HasForeignKey(x => x.LicenseClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Wichtig: CurriculumItem filtert gelöschte Zeilen global aus –
+            // EF verlangt, dass abhängige Tabellen denselben Filter spiegeln
+            // (sonst gäbe es Zuordnungen zu "unsichtbaren" Punkten).
+            zuordnung.HasQueryFilter(x => !x.CurriculumItem!.IsDeleted);
         });
 
         builder.Entity<RefreshToken>(token =>
