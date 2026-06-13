@@ -30,6 +30,10 @@ builder.Services.AddApplication(builder.Configuration);    // business logic (se
 builder.Services.AddControllers();
 builder.Services.AddOpenApi(); // API description at /openapi/v1.json (development only)
 
+// The retention job: a daily background task that permanently removes students
+// whose retention period has elapsed (KONZEPT rule 7).
+builder.Services.AddHostedService<Fahrschule.Api.BackgroundJobs.RetentionBackgroundService>();
+
 // Automatic input validation ([Required] etc.) must answer in German (user-facing).
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {

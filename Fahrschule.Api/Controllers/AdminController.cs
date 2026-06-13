@@ -3,6 +3,7 @@ using Fahrschule.Application.Admin;
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
+using Fahrschule.Application.Retention;
 using Fahrschule.Application.Students;
 using Fahrschule.Contracts.Admin;
 using Fahrschule.Infrastructure.Identity;
@@ -22,7 +23,8 @@ namespace Fahrschule.Api.Controllers;
 public class AdminController(
     IAuditQueryService auditQuery,
     IStudentService students,
-    IStudentExportService export) : ControllerBase
+    IStudentExportService export,
+    IRetentionService retention) : ControllerBase
 {
     /// <summary>Audit log, filterable + paginated (newest first).</summary>
     [HttpGet("audit")]
@@ -42,6 +44,18 @@ public class AdminController(
         await students.RestoreAsync(id, GetActor(), ct);
         return NoContent();
     }
+
+    /// <summary>Retention overview: the configured period plus every student
+    /// marked for deletion with its permanent-deletion deadline (KONZEPT 3.7).</summary>
+    [HttpGet("retention")]
+    public async Task<ActionResult<RetentionStatusDto>> Retention(CancellationToken ct)
+        => Ok(await retention.GetStatusAsync(ct));
+
+    /// <summary>Run the retention job now: permanently removes every student
+    /// whose deadline has passed. The daily background job does the same.</summary>
+    [HttpPost("retention/run")]
+    public async Task<ActionResult<RetentionRunResultDto>> RunRetention(CancellationToken ct)
+        => Ok(await retention.RunAsync(GetActor(), ct));
 
     /// <summary>Export all data of a student (GDPR access/portability).</summary>
     [HttpGet("students/{id:guid}/export")]

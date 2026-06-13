@@ -39,6 +39,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string ExamLockNormalWeeks = "ExamLock.NormalWeeks";
     public const string ExamLockShortenedWeeks = "ExamLock.ShortenedWeeks";
     public const string ExamLockPracticeLessonsForShortening = "ExamLock.PracticeLessonsForShortening";
+    public const string RetentionStudentDays = "Retention.StudentDays";
 
     private static readonly SettingDefinition[] Definitions =
     [
@@ -47,6 +48,9 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(ExamLockNormalWeeks, 2, 1, 12, "Normale Wiederholungssperre nach Fehlversuch (Wochen)"),
         new(ExamLockShortenedWeeks, 1, 0, 12, "Verkürzte Sperre mit Zusatzstunden (Wochen)"),
         new(ExamLockPracticeLessonsForShortening, 2, 0, 20, "Zusatzstunden für die verkürzte Sperre"),
+        // Min 7 days guarantees a recovery window; max 3650 days (10 years)
+        // covers the longest realistic legal retention period.
+        new(RetentionStudentDays, 90, 7, 3650, "Aufbewahrungsfrist für gelöschte Schüler bis zur endgültigen Entfernung (Tage)"),
     ];
 
     // Driving-school master data (free text, KONZEPT 1b) - shown on the
@@ -82,6 +86,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             ExamLockNormalWeeks = Read(ExamLockNormalWeeks),
             ExamLockShortenedWeeks = Read(ExamLockShortenedWeeks),
             ExamLockPracticeLessonsForShortening = Read(ExamLockPracticeLessonsForShortening),
+            RetentionStudentDays = Read(RetentionStudentDays),
             SchoolName = ReadText(SchoolName),
             SchoolStreet = ReadText(SchoolStreet),
             SchoolPostalCode = ReadText(SchoolPostalCode),
@@ -99,6 +104,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             [ExamLockNormalWeeks] = request.ExamLockNormalWeeks,
             [ExamLockShortenedWeeks] = request.ExamLockShortenedWeeks,
             [ExamLockPracticeLessonsForShortening] = request.ExamLockPracticeLessonsForShortening,
+            [RetentionStudentDays] = request.RetentionStudentDays,
         };
 
         // Validate every value against its allowed range first (all-or-nothing).

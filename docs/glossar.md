@@ -36,6 +36,7 @@ ausblenden, aber die echte Rechteprüfung passiert im Backend – sonst wäre es
 | **Lazy Loading** | Szene/Asset-Bundle erst bei Bedarf laden | Ein Feature-Bereich wird erst heruntergeladen, wenn man ihn öffnet → schnellerer Start. |
 | **Signals / State** (Angular) | beobachtbare Felder (Events bei Änderung) | Zustand, bei dessen Änderung die UI automatisch neu rendert – ohne manuelles `UpdateUI()`. |
 | **JWT / Token** | Session-Ticket nach dem Login | Beweisstück „ich bin eingeloggt", das bei jeder Anfrage mitgeschickt wird. Bei uns: im httpOnly-Cookie (für Skripte unlesbar). |
+| **BackgroundService / IHostedService** (ASP.NET) | Dauer-Coroutine / `Update`-Schleife des Servers | Hintergrund-Dauerläufer, den der Server beim Start hochfährt und beim Beenden stoppt – für wiederkehrende Aufgaben ohne Nutzeranfrage (bei uns: der tägliche Aufbewahrungs-Job, der abgelaufene Daten endgültig löscht). |
 | **Service Worker / PWA** | „Installierter Client" für eine Web-App | Skript im Browser, das die App offline-fähig macht und Push-Nachrichten anzeigen kann; PWA = Website, die sich wie eine App installieren lässt. |
 | **localStorage** | `PlayerPrefs` | Kleiner Schlüssel-Wert-Speicher im Browser, pro Gerät (bei uns: Theme, Schriftgröße). |
 | **CSS-Variablen / Theme** | ScriptableObject mit Farbpalette | Zentrale Design-Werte (`--primary`, …), die alle Components nutzen – einmal ändern, überall wirksam. |
