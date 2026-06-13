@@ -2,6 +2,7 @@ using System.Text.Json;
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
+using Fahrschule.Contracts.Admin;
 using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
 using Fahrschule.Infrastructure.Persistence;
@@ -27,6 +28,12 @@ public interface IStudentService
     Task<StudentDetailDto> AddLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
     Task<StudentDetailDto> RemoveLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
     Task<StudentDetailDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default);
+
+    /// <summary>Students marked for deletion ("Zur Löschung vorgemerkt", KONZEPT 3.7).</summary>
+    Task<List<DeletedStudentDto>> GetDeletedAsync(CancellationToken ct = default);
+
+    /// <summary>Undo a soft delete (admin, logged - KONZEPT 3.7 / rule 7).</summary>
+    Task RestoreAsync(Guid id, Actor actor, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -247,6 +254,41 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             newValuesJson: $"{{\"Phase\":\"{phase}\"}}", cancellationToken: ct);
 
         return ToDetailDto(student);
+    }
+
+    public async Task<List<DeletedStudentDto>> GetDeletedAsync(CancellationToken ct = default)
+    {
+        // Bypass the soft-delete filter to see the ones marked for deletion.
+        var students = await db.Students.IgnoreQueryFilters()
+            .Where(s => s.IsDeleted)
+            .Include(s => s.LicenseClasses).ThenInclude(lc => lc.LicenseClass)
+            .OrderByDescending(s => s.DeletedAtUtc)
+            .ToListAsync(ct);
+
+        return students.Select(s => new DeletedStudentDto
+        {
+            Id = s.Id,
+            FullName = $"{s.FirstName} {s.LastName}".Trim(),
+            DeletedAtUtc = s.DeletedAtUtc,
+            ClassCodes = [.. s.LicenseClasses.Where(lc => lc.LicenseClass != null)
+                .Select(lc => lc.LicenseClass!.Code).OrderBy(c => c)],
+        }).ToList();
+    }
+
+    public async Task RestoreAsync(Guid id, Actor actor, CancellationToken ct = default)
+    {
+        var student = await db.Students.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.Id == id && s.IsDeleted, ct)
+            ?? throw new NotFoundException("Dieser zur Löschung vorgemerkte Schüler wurde nicht gefunden. Bitte die Liste neu laden.");
+
+        student.IsDeleted = false;
+        student.DeletedAtUtc = null;
+        student.DeletedByUserId = null;
+        student.UpdatedAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Wiederhergestellt",
+            "Schüler", student.Id.ToString(), cancellationToken: ct);
     }
 
     private async Task<Student> LoadAsync(Guid id, CancellationToken ct)

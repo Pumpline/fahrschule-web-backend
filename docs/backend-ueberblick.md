@@ -296,6 +296,27 @@ werden auditiert.
 - Noch offen (später): Fahrschul-Stammdaten (Name/Anschrift) im Kopf, Vertrag/
   Quittung als weitere Vorlagen.
 
+## DSGVO im Adminpanel (KONZEPT 3.7) – Schritt 8
+
+Kein separates DSGVO-Center – alles liegt im Adminpanel (eine Karte), **admin-only**
+(`[Authorize(Roles = Roles.Admin)]` am `AdminController`, Route `api/admin`).
+
+- **Audit-Log-Ansicht** (`AuditQueryService`): filterbar (Freitext über Nutzer/
+  Aktion/EntityType/EntityId via `ILike`) und paginiert, neueste zuerst. Das Log
+  bleibt append-only (nur `AuditWriter` schreibt).
+- **„Zur Löschung vorgemerkt" + Wiederherstellen** (`StudentService.GetDeletedAsync`
+  / `RestoreAsync`): zeigt die soft-gelöschten Schüler (`IgnoreQueryFilters`) und
+  macht die Löschung rückgängig (protokolliert). Das echte Entfernen bleibt dem
+  späteren Aufbewahrungs-Job vorbehalten (Projektregel 7).
+- **Datenexport** (`StudentExportService`, Art. 15/20 DSGVO): sammelt alle Daten
+  eines Schülers (Stammdaten, Fortschritt, Unterlagen, Prüfungen, Stunden, Termine)
+  in **eine JSON-Datei** und protokolliert den Export. Endpunkt
+  `GET /api/admin/students/{id}/export`.
+- Frontend: `DsgvoManagement`-Karte im Adminpanel (Schüler wählen → Export/Löschen,
+  Vorgemerkt-Liste, Audit-Log mit Suche + Blättern).
+- Noch offen (später): automatischer Aufbewahrungs-Job (fristengeprüfte echte
+  Löschung), Legal-Texte (Impressum/Datenschutz).
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,
