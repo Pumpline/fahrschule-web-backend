@@ -26,6 +26,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<LicenseClass> LicenseClasses => Set<LicenseClass>();
     public DbSet<CurriculumItem> CurriculumItems => Set<CurriculumItem>();
     public DbSet<DocumentCatalogItem> DocumentCatalogItems => Set<DocumentCatalogItem>();
+    public DbSet<Student> Students => Set<Student>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -136,6 +137,44 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
 
             // Mirror the parent's soft-delete filter (EF requires this).
             link.HasQueryFilter(x => !x.DocumentCatalogItem!.IsDeleted);
+        });
+
+        builder.Entity<Student>(student =>
+        {
+            student.Property(x => x.FirstName).HasMaxLength(100);
+            student.Property(x => x.LastName).HasMaxLength(100);
+            student.Property(x => x.Email).HasMaxLength(256);
+            student.Property(x => x.Phone).HasMaxLength(50);
+            student.Property(x => x.Street).HasMaxLength(200);
+            student.Property(x => x.PostalCode).HasMaxLength(20);
+            student.Property(x => x.City).HasMaxLength(100);
+            student.Property(x => x.Notes).HasMaxLength(2000);
+
+            student.HasIndex(x => x.LastName);
+            student.HasQueryFilter(x => !x.IsDeleted);
+            student.Property<uint>("xmin").IsRowVersion();
+        });
+
+        builder.Entity<StudentLicenseClass>(link =>
+        {
+            // Composite key: a student has each class at most once.
+            link.HasKey(x => new { x.StudentId, x.LicenseClassId });
+            link.Property(x => x.Phase).HasConversion<string>(); // store the enum name, readable in the DB
+
+            link.HasOne(x => x.Student)
+                .WithMany(x => x.LicenseClasses)
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Licence classes are only ever soft-deleted - never let a hard
+            // delete drag a student's registrations along (Restrict).
+            link.HasOne(x => x.LicenseClass)
+                .WithMany()
+                .HasForeignKey(x => x.LicenseClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Mirror the student's soft-delete filter (EF requires this).
+            link.HasQueryFilter(x => !x.Student!.IsDeleted);
         });
 
         builder.Entity<RefreshToken>(token =>

@@ -172,6 +172,13 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok" })).AllowAnonymou
 if (app.Configuration.GetValue("Database:InitializeOnStartup", true))
 {
     await DatabaseInitializer.InitializeAsync(app.Services);
+
+    // Seed the operational settings with their defaults (the settings service
+    // lives in the Application layer, which the Infrastructure initializer
+    // cannot reach - so we trigger it here from the API layer).
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<Fahrschule.Application.Settings.ISettingsService>()
+        .SeedDefaultsAsync();
 }
 
 app.Run();

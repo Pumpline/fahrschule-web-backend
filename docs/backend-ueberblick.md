@@ -165,6 +165,30 @@ admin-only; jede Änderung wird auditiert (nie Passwörter). Der Reset entfernt
 das alte Passwort und setzt direkt ein neues (`RemovePasswordAsync` +
 `AddPasswordAsync`) – bewusst ohne E-Mail-Token-Provider.
 
+## Betriebs-Einstellungen (Settings)
+
+`SettingsService` liest/schreibt die betrieblichen Werte (Erinnerungs-Vorläufe,
+Prüfungs-Sperre) aus der generischen `Setting`-Tabelle. Jeder Wert hat einen
+**Default** und einen **erlaubten Bereich** (Validierung + Seed). Ergänzt um
+eine fachliche Regel: die verkürzte Sperre darf nie länger als die normale
+sein. Lesen dürfen alle Angemeldeten, Schreiben nur der Admin; Änderungen
+werden auditiert.
+
+## Schülerverwaltung (KONZEPT 3.1) – das erste große Fachmodul
+
+- **Student** (Stammdaten, Soft-Delete, xmin) + **StudentLicenseClass**:
+  die Phase liegt **pro Klasse** (Theory → TheoryExam → Practice →
+  PracticeExam → Completed), nicht pro Schüler.
+- **Datensparsamkeit**: nur Vertragsdaten (Name, Geburtsdatum, Kontakt,
+  Adresse, Notiz) – keine besonderen Kategorien.
+- `StudentService`: Liste mit **Suche + Klassen-/Phasen-Filter + Paging**,
+  CRUD, Klasse hinzufügen/entfernen, Phase setzen. Beim Hinzufügen einer
+  Klasse prüft `StudentRules.CheckMinimumAge` das Mindestalter gegen die
+  Klasse (Ausbildung darf bis zu 1 Jahr vor dem Mindestalter beginnen).
+- **Fortschritt %**: vorerst aus der Phase abgeleitet (`StudentRules`),
+  bis die echte Stunden-/Prüfungserfassung kommt (Schritt 4).
+- Gleiches Muster wie überall: Audit-Log, Soft-Delete, xmin-Konfliktschutz.
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,

@@ -107,6 +107,22 @@ Benutzer (Name, Rollen) aus den API-Antworten.
 - Nach jedem Speichern wird die Liste **vom Server neu geladen** – so zeigt
   die Tabelle nie einen erfundenen Zwischenstand.
 
+## Schülerverwaltung (features/students/)
+
+Das erste große Fachmodul mit eigener Liste und Detailseite:
+
+- **StudentsListPage**: Namenssuche, Klassen-Filter (ein Chip) und Stand-Filter
+  (mehrere Phase-Chips), Fortschrittsbalken je Zeile, Paging, „Neuer Schüler"-
+  Dialog. Datensparsamkeit: die Liste zeigt nur den aggregierten Fortschritt.
+- **StudentDetailPage** (die „Akte"): Stammdaten mit **Augen-Enthüllung pro Feld**
+  (Name sichtbar, Rest verschwommen; 👁 deckt auf und macht das Feld
+  bearbeitbar; leere Felder als „leer" markiert – KONZEPT 3.1). Darunter die
+  Führerscheinklassen mit **Status pro Klasse** (Phasen-Auswahl), Klasse
+  hinzufügen (mit Mindestalter-Prüfung) / entfernen, und Löschen (Soft-Delete).
+- Route mit Parameter: `/schueler/:id`; der Wert kommt über
+  `withComponentInputBinding` in das `id`-Input. Wichtig: Laden erst in
+  `ngOnInit`, nicht im Konstruktor (das required-Input ist dort noch nicht gesetzt).
+
 ## Entwicklungsserver & Proxy
 
 `npm start` startet den Dev-Server auf `http://localhost:4200` und leitet
