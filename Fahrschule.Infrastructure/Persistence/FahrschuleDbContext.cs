@@ -30,6 +30,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<DocumentChecklistItem> DocumentChecklistItems => Set<DocumentChecklistItem>();
     public DbSet<StudentProgressItem> StudentProgressItems => Set<StudentProgressItem>();
     public DbSet<Lesson> Lessons => Set<Lesson>();
+    public DbSet<Exam> Exams => Set<Exam>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -294,6 +295,30 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
 
             // Mirror the soft-delete filter of the owning lesson's student.
             link.HasQueryFilter(x => !x.Lesson!.Student!.IsDeleted);
+        });
+
+        builder.Entity<Exam>(exam =>
+        {
+            exam.Property(x => x.Kind).HasConversion<string>();   // readable in the DB
+            exam.Property(x => x.Result).HasConversion<string>();
+            exam.Property(x => x.Note).HasMaxLength(1000);
+
+            exam.HasIndex(x => x.StudentId);
+
+            exam.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // The class is only ever soft-deleted - never let a hard delete drag
+            // exams along (Restrict).
+            exam.HasOne(x => x.LicenseClass)
+                .WithMany()
+                .HasForeignKey(x => x.LicenseClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Mirror the student's soft-delete filter (EF requires this).
+            exam.HasQueryFilter(x => !x.Student!.IsDeleted);
         });
 
         builder.Entity<RefreshToken>(token =>

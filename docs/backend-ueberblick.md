@@ -246,6 +246,27 @@ werden auditiert.
   Inhalte. Frontend: zweistufiger „Klasse hinzufügen"-Dialog (wählen → Vorschau in
   box gut/warn/neu → bestätigen).
 
+## Prüfungen & Wiederholungs-Sperre (KONZEPT 3.4) – Schritt 5
+
+- **`Exam`** (Kind Theorie/Praxis, `IsPreliminary`, Datum, Result geplant/bestanden/
+  nicht bestanden): Migration „Pruefungen". Echte Prüfungen zählen als Versuche,
+  Vorprüfungen werden nur **vermerkt** (kein Versuch, keine Sperre).
+- **Abgeleitet, nicht gespeichert** (bleibt konsistent bei Änderungen):
+  - **Versuchsnummer** = laufende Nummer der echten Prüfungen je Art+Klasse.
+  - **Wiederholungs-Sperre** (`ExamRules`): aus der letzten nicht bestandenen,
+    noch nicht durch eine bestandene aufgelösten Prüfung; Sperr-Ende = Datum +
+    normale Wochen, **verkürzt** sobald genug **Übungsstunden** (gleiche Art+Klasse,
+    nach dem Fehlversuch) im Ausbildungsfortschritt stehen. Werte aus den Settings
+    (`ExamLockNormalWeeks/ShortenedWeeks/PracticeLessonsForShortening`). So sind
+    Stunden nur an EINER Stelle eingetragen und die Sperre rechnet selbst.
+- **`ExamService`**: GetForStudent (Prüfungen + Sperr-Infos), Create mit Regeln:
+  Praxisprüfung erst nach bestandener Theorieprüfung; eine echte Wiederholung darf
+  nicht vor dem Sperr-Ende geplant werden; Audit „Prüfung eingetragen".
+- Endpunkte `/api/students/{id}/exams`. Frontend: dritter Tab „Prüfungen" mit
+  Tabelle, „Prüfung eintragen"-Modal und Sperr-Karte(n).
+- Noch offen (später): Prüfungstermine bei TÜV/DEKRA (`ExamBooking`), volle
+  Zulassungs-Verwaltung.
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,
