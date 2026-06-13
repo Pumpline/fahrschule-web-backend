@@ -11,6 +11,7 @@ namespace Fahrschule.Application.Students;
 public interface IStudentProgressService
 {
     Task<StudentProgressDto> GetForStudentAsync(Guid studentId, CancellationToken ct = default);
+    Task<CreditPreviewDto> GetCreditPreviewAsync(Guid studentId, Guid licenseClassId, CancellationToken ct = default);
     Task<StudentProgressDto> SetItemAsync(Guid studentId, Guid itemId, SetProgressItemRequest request, Actor actor, CancellationToken ct = default);
     Task<StudentProgressDto> AddEntryAsync(Guid studentId, Guid itemId, AddProgressEntryRequest request, Actor actor, CancellationToken ct = default);
     Task<StudentProgressDto> RemoveEntryAsync(Guid studentId, Guid itemId, Guid entryId, Actor actor, CancellationToken ct = default);
@@ -113,6 +114,56 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             newValuesJson: $"{{\"Anzahl\":{item.Entries.Count}}}", cancellationToken: ct);
 
         return await GetForStudentAsync(studentId, ct);
+    }
+
+    public async Task<CreditPreviewDto> GetCreditPreviewAsync(
+        Guid studentId, Guid licenseClassId, CancellationToken ct = default)
+    {
+        var student = await LoadStudentAsync(studentId, ct);
+        if (student.LicenseClasses.Any(lc => lc.LicenseClassId == licenseClassId))
+        {
+            throw new AppValidationException("Diese Klasse ist bei dem Schüler bereits eingetragen.");
+        }
+
+        var licenseClass = await db.LicenseClasses.FirstOrDefaultAsync(c => c.Id == licenseClassId, ct)
+            ?? throw new NotFoundException("Diese Führerscheinklasse existiert nicht (mehr).");
+
+        // The points that today's plan requires for the candidate class.
+        var current = await db.CurriculumItems
+            .Where(x => x.SupersededAtUtc == null && x.IsActive)
+            .Include(x => x.Classes)
+            .ToListAsync(ct);
+        var applicable = current
+            .Where(x => x.Classes.Count == 0 || x.Classes.Any(c => c.LicenseClassId == licenseClassId))
+            .OrderBy(x => x.SortOrder).ThenBy(x => x.Title)
+            .ToList();
+
+        // What the student already has (by stable item key).
+        var existing = (await db.StudentProgressItems
+                .Include(p => p.Entries)
+                .Where(p => p.StudentId == studentId)
+                .ToListAsync(ct))
+            .ToDictionary(p => p.CurriculumItemKey);
+
+        var result = new CreditPreviewDto { LicenseClassId = licenseClassId, Code = licenseClass.Code };
+
+        foreach (var src in applicable)
+        {
+            var dto = new CreditPreviewItemDto { Section = src.Section, Title = src.Title };
+            if (existing.TryGetValue(src.ItemKey, out var done) && StudentProgressRules.IsDone(done))
+            {
+                // Done already - unchanged version is credited, a newer version
+                // means the content changed and should be checked (KONZEPT 3.3a).
+                if (done.CurriculumItemVersion == src.Version) result.AlreadyCredited.Add(dto);
+                else result.NeedsReview.Add(dto);
+            }
+            else
+            {
+                result.NewPoints.Add(dto);
+            }
+        }
+
+        return result;
     }
 
     // --- snapshot ---

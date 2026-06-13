@@ -217,8 +217,6 @@ werden auditiert.
 - **Anzeige pro Klasse**: der Service liefert den Fortschritt je Klasse, nach
   Abschnitten gruppiert, inklusive Prozent (`StudentProgressRules` – reine,
   getestete Logik). Endpunkte unter `/api/students/{id}/progress`.
-- Noch offen (spätere Teilschritte): die **Anrechnung** beim Klasse-Hinzufügen (4c).
-
 ## Stunde eintragen (KONZEPT 3.3) – Schritt 4b
 
 - **`Lesson`** (+ `LessonType` Theorie/Praxis, + `LessonItem`): eine eingetragene
@@ -232,7 +230,21 @@ werden auditiert.
   Validierung: gültiger Typ, Dauer > 0, gewählte Klasse gehört zum Schüler,
   behandelte Punkte gehören zum Schüler. Audit „Stunde eingetragen".
 - Das ist die **einzige** Eingabestelle für Stunden (KONZEPT 3.3). Endpunkte
-  unter `/api/students/{id}/lessons`.
+  unter `/api/students/{id}/lessons`. Frontend: Modal im Tab „Ausbildungsfortschritt".
+
+## Anrechnung beim Klasse-Hinzufügen (KONZEPT 3.3a) – Schritt 4c
+
+- **`StudentProgressService.GetCreditPreviewAsync`**: vergleicht den heutigen Plan
+  der neuen Klasse mit dem schon Erledigten und teilt in drei Töpfe: **angerechnet**
+  (geteilter Punkt erledigt, Version unverändert), **bitte prüfen** (erledigt, aber
+  der Plan-Punkt hat seither eine neue Version) und **neu** (klassenspezifisch oder
+  noch offen). Endpunkt `GET /api/students/{id}/progress/credit-preview/{classId}`.
+- **Modell-Hinweis**: Die Anrechnung passiert **automatisch** – geteilte Punkte
+  (leere Klassenzuordnung) sind **eine** Snapshot-Zeile, die für alle Klassen des
+  Schülers zählt; ist sie erledigt, gilt sie sofort auch für die neue Klasse. Die
+  Vorschau macht das nur **transparent** (Mockup-Dialog) und kennzeichnet geänderte
+  Inhalte. Frontend: zweistufiger „Klasse hinzufügen"-Dialog (wählen → Vorschau in
+  box gut/warn/neu → bestätigen).
 
 ## Fehlerbehandlung – eine Stelle für alles
 

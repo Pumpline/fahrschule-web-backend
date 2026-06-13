@@ -20,6 +20,11 @@ public class StudentProgressController(IStudentProgressService service) : Contro
     public async Task<ActionResult<StudentProgressDto>> Get(Guid studentId, CancellationToken ct)
         => Ok(await service.GetForStudentAsync(studentId, ct));
 
+    /// <summary>Preview what adding a class would credit/require (KONZEPT 3.3a).</summary>
+    [HttpGet("credit-preview/{licenseClassId:guid}")]
+    public async Task<ActionResult<CreditPreviewDto>> CreditPreview(Guid studentId, Guid licenseClassId, CancellationToken ct)
+        => Ok(await service.GetCreditPreviewAsync(studentId, licenseClassId, ct));
+
     /// <summary>Tick / untick a simple point (KONZEPT 3.3).</summary>
     [HttpPut("{itemId:guid}")]
     public async Task<ActionResult<StudentProgressDto>> SetItem(
