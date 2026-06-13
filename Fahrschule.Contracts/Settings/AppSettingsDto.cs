@@ -24,4 +24,19 @@ public class AppSettingsDto
     /// <summary>Number of extra practice lessons needed to earn the shortened
     /// lock (default 2).</summary>
     public int ExamLockPracticeLessonsForShortening { get; set; }
+
+    // --- Driving-school master data (KONZEPT 1b) - shown on the printed
+    //     Ausbildungsnachweis. Free text, editable in the admin panel. ---
+
+    /// <summary>Name of the driving school, e.g. "Fahrschule Muster".</summary>
+    public string SchoolName { get; set; } = string.Empty;
+
+    /// <summary>Street and house number.</summary>
+    public string SchoolStreet { get; set; } = string.Empty;
+
+    public string SchoolPostalCode { get; set; } = string.Empty;
+    public string SchoolCity { get; set; } = string.Empty;
+
+    /// <summary>Official permit number (Erlaubnisnummer).</summary>
+    public string SchoolPermitNumber { get; set; } = string.Empty;
 }

@@ -62,6 +62,34 @@ public class SettingsServiceTests
     }
 
     [Fact]
+    public async Task School_master_data_round_trips()
+    {
+        await using var db = NewDb();
+        var service = NewService(db);
+
+        await service.UpdateAsync(new AppSettingsDto
+        {
+            DocumentExpiryReminderDays = 21,
+            AppointmentReminderLeadMinutes = 30,
+            ExamLockNormalWeeks = 2,
+            ExamLockShortenedWeeks = 1,
+            ExamLockPracticeLessonsForShortening = 2,
+            SchoolName = "Fahrschule Muster",
+            SchoolStreet = "Hauptstr. 1",
+            SchoolPostalCode = "04109",
+            SchoolCity = "Leipzig",
+            SchoolPermitNumber = "AB-123",
+        }, TestActor);
+
+        var reloaded = await service.GetAsync();
+        Assert.Equal("Fahrschule Muster", reloaded.SchoolName);
+        Assert.Equal("Hauptstr. 1", reloaded.SchoolStreet);
+        Assert.Equal("04109", reloaded.SchoolPostalCode);
+        Assert.Equal("Leipzig", reloaded.SchoolCity);
+        Assert.Equal("AB-123", reloaded.SchoolPermitNumber);
+    }
+
+    [Fact]
     public async Task Update_rejects_out_of_range_value()
     {
         await using var db = NewDb();

@@ -41,7 +41,8 @@ public class TrainingRecordPdfServiceTests
         var service = new TrainingRecordPdfService(
             new StudentService(db, audit),
             new StudentProgressService(db, audit),
-            new ExamService(db, new SettingsService(db, audit), audit));
+            new ExamService(db, new SettingsService(db, audit), audit),
+            new SettingsService(db, audit));
 
         var (content, fileName) = await service.GenerateAsync(studentId);
 

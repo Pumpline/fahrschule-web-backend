@@ -293,8 +293,9 @@ werden auditiert.
 - Endpunkt `GET /api/students/{id}/ausbildungsnachweis` → liefert die PDF-Datei.
   Frontend: Button „🖨 Ausbildungsnachweis (PDF)" im Stammdaten-Tab lädt sie über
   HttpClient (damit der Auth-Interceptor das Token erneuern kann).
-- Noch offen (später): Fahrschul-Stammdaten (Name/Anschrift) im Kopf, Vertrag/
-  Quittung als weitere Vorlagen.
+- Der Kopf zeigt die **Fahrschul-Stammdaten** (Name/Anschrift/Erlaubnisnummer)
+  aus den Einstellungen, sobald gepflegt (`SettingsService`, String-Settings
+  `School.*`). Noch offen (später): Vertrag/Quittung als weitere Vorlagen.
 
 ## DSGVO im Adminpanel (KONZEPT 3.7) – Schritt 8
 

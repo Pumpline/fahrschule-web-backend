@@ -14,6 +14,9 @@ namespace Fahrschule.Application.Settings;
 /// </summary>
 public record SettingDefinition(string Key, int Default, int Min, int Max, string Description);
 
+/// <summary>A free-text setting (e.g. the driving-school master data).</summary>
+public record StringSettingDefinition(string Key, int MaxLength, string Description);
+
 public interface ISettingsService
 {
     Task<AppSettingsDto> GetAsync(CancellationToken ct = default);
@@ -46,6 +49,23 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(ExamLockPracticeLessonsForShortening, 2, 0, 20, "Zusatzstunden für die verkürzte Sperre"),
     ];
 
+    // Driving-school master data (free text, KONZEPT 1b) - shown on the
+    // Ausbildungsnachweis. Empty by default (the owner fills these in).
+    public const string SchoolName = "School.Name";
+    public const string SchoolStreet = "School.Street";
+    public const string SchoolPostalCode = "School.PostalCode";
+    public const string SchoolCity = "School.City";
+    public const string SchoolPermitNumber = "School.PermitNumber";
+
+    private static readonly StringSettingDefinition[] StringDefinitions =
+    [
+        new(SchoolName, 200, "Name der Fahrschule"),
+        new(SchoolStreet, 200, "Straße und Hausnummer"),
+        new(SchoolPostalCode, 20, "Postleitzahl"),
+        new(SchoolCity, 100, "Ort"),
+        new(SchoolPermitNumber, 100, "Erlaubnisnummer"),
+    ];
+
     public async Task<AppSettingsDto> GetAsync(CancellationToken ct = default)
     {
         var values = await db.Settings.ToDictionaryAsync(s => s.Key, s => s.Value, ct);
@@ -53,6 +73,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         int Read(string key) => values.TryGetValue(key, out var raw) && int.TryParse(raw, out var v)
             ? v
             : Definitions.First(d => d.Key == key).Default;
+        string ReadText(string key) => values.GetValueOrDefault(key) ?? string.Empty;
 
         return new AppSettingsDto
         {
@@ -61,6 +82,11 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             ExamLockNormalWeeks = Read(ExamLockNormalWeeks),
             ExamLockShortenedWeeks = Read(ExamLockShortenedWeeks),
             ExamLockPracticeLessonsForShortening = Read(ExamLockPracticeLessonsForShortening),
+            SchoolName = ReadText(SchoolName),
+            SchoolStreet = ReadText(SchoolStreet),
+            SchoolPostalCode = ReadText(SchoolPostalCode),
+            SchoolCity = ReadText(SchoolCity),
+            SchoolPermitNumber = ReadText(SchoolPermitNumber),
         };
     }
 
@@ -90,6 +116,17 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         {
             errors.Add("Die verkürzte Sperre darf nicht länger als die normale Sperre sein.");
         }
+
+        // Free-text school data: only a length check (empty is allowed).
+        var incomingText = StringValues(request);
+        foreach (var def in StringDefinitions)
+        {
+            if ((incomingText[def.Key]?.Length ?? 0) > def.MaxLength)
+            {
+                errors.Add($"„{def.Description}“ darf höchstens {def.MaxLength} Zeichen lang sein.");
+            }
+        }
+
         if (errors.Count > 0)
         {
             throw new AppValidationException(string.Join(" ", errors));
@@ -98,17 +135,11 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         var now = DateTime.UtcNow;
         foreach (var def in Definitions)
         {
-            var newValue = incoming[def.Key].ToString();
-            var existing = await db.Settings.FirstOrDefaultAsync(s => s.Key == def.Key, ct);
-            if (existing is null)
-            {
-                db.Settings.Add(new Setting { Key = def.Key, Value = newValue, Description = def.Description, UpdatedAtUtc = now });
-            }
-            else
-            {
-                existing.Value = newValue;
-                existing.UpdatedAtUtc = now;
-            }
+            await UpsertAsync(def.Key, incoming[def.Key].ToString(), def.Description, now, ct);
+        }
+        foreach (var def in StringDefinitions)
+        {
+            await UpsertAsync(def.Key, incomingText[def.Key]?.Trim() ?? string.Empty, def.Description, now, ct);
         }
         await db.SaveChangesAsync(ct);
 
@@ -116,6 +147,29 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             "Einstellungen", "Betrieb", cancellationToken: ct);
 
         return await GetAsync(ct);
+    }
+
+    private static Dictionary<string, string?> StringValues(AppSettingsDto r) => new()
+    {
+        [SchoolName] = r.SchoolName,
+        [SchoolStreet] = r.SchoolStreet,
+        [SchoolPostalCode] = r.SchoolPostalCode,
+        [SchoolCity] = r.SchoolCity,
+        [SchoolPermitNumber] = r.SchoolPermitNumber,
+    };
+
+    private async Task UpsertAsync(string key, string value, string description, DateTime now, CancellationToken ct)
+    {
+        var existing = await db.Settings.FirstOrDefaultAsync(s => s.Key == key, ct);
+        if (existing is null)
+        {
+            db.Settings.Add(new Setting { Key = key, Value = value, Description = description, UpdatedAtUtc = now });
+        }
+        else
+        {
+            existing.Value = value;
+            existing.UpdatedAtUtc = now;
+        }
     }
 
     public async Task SeedDefaultsAsync(CancellationToken ct = default)

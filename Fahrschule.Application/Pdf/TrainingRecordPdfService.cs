@@ -1,4 +1,6 @@
+using Fahrschule.Application.Settings;
 using Fahrschule.Application.Students;
+using Fahrschule.Contracts.Settings;
 using Fahrschule.Contracts.Students;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -22,7 +24,8 @@ public interface ITrainingRecordPdfService
 public class TrainingRecordPdfService(
     IStudentService students,
     IStudentProgressService progress,
-    IExamService exams) : ITrainingRecordPdfService
+    IExamService exams,
+    ISettingsService settings) : ITrainingRecordPdfService
 {
     static TrainingRecordPdfService()
     {
@@ -35,9 +38,10 @@ public class TrainingRecordPdfService(
         var student = await students.GetByIdAsync(studentId, ct);
         var prog = await progress.GetForStudentAsync(studentId, ct);
         var examList = await exams.GetForStudentAsync(studentId, ct);
+        var appSettings = await settings.GetAsync(ct);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var bytes = new TrainingRecordDocument(student, prog, examList, today).GeneratePdf();
+        var bytes = new TrainingRecordDocument(student, prog, examList, appSettings, today).GeneratePdf();
         var fileName = $"Ausbildungsnachweis_{Sanitize(student.LastName)}_{Sanitize(student.FirstName)}.pdf";
         return (bytes, fileName);
     }
@@ -54,6 +58,7 @@ public class TrainingRecordDocument(
     StudentDetailDto student,
     StudentProgressDto progress,
     ExamListDto exams,
+    AppSettingsDto settings,
     DateOnly generatedOn) : IDocument
 {
     public void Compose(IDocumentContainer container)
@@ -66,6 +71,22 @@ public class TrainingRecordDocument(
 
             page.Header().Column(col =>
             {
+                // Driving-school master data (if filled in) - the document's letterhead.
+                if (!string.IsNullOrWhiteSpace(settings.SchoolName))
+                {
+                    col.Item().Text(settings.SchoolName).FontSize(12).SemiBold().FontColor(Colors.Grey.Darken3);
+                    var address = string.Join(", ", new[]
+                    {
+                        settings.SchoolStreet,
+                        string.Join(" ", new[] { settings.SchoolPostalCode, settings.SchoolCity }.Where(s => !string.IsNullOrWhiteSpace(s))),
+                    }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                    if (!string.IsNullOrWhiteSpace(address))
+                        col.Item().Text(address).FontSize(9).FontColor(Colors.Grey.Darken1);
+                    if (!string.IsNullOrWhiteSpace(settings.SchoolPermitNumber))
+                        col.Item().Text($"Erlaubnisnummer: {settings.SchoolPermitNumber}").FontSize(9).FontColor(Colors.Grey.Darken1);
+                    col.Item().PaddingBottom(6);
+                }
+
                 col.Item().Text("Ausbildungsnachweis").FontSize(18).Bold();
                 col.Item().Text($"{student.FirstName} {student.LastName}").FontSize(12).SemiBold();
                 var dob = student.DateOfBirth is { } d ? d.ToString("dd.MM.yyyy") : "—";
