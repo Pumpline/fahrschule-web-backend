@@ -217,8 +217,22 @@ werden auditiert.
 - **Anzeige pro Klasse**: der Service liefert den Fortschritt je Klasse, nach
   Abschnitten gruppiert, inklusive Prozent (`StudentProgressRules` – reine,
   getestete Logik). Endpunkte unter `/api/students/{id}/progress`.
-- Noch offen (spätere Teilschritte): vollwertiger „Stunde eintragen"-Datensatz
-  mit Typ/Dauer (4b) und die **Anrechnung** beim Klasse-Hinzufügen (4c).
+- Noch offen (spätere Teilschritte): die **Anrechnung** beim Klasse-Hinzufügen (4c).
+
+## Stunde eintragen (KONZEPT 3.3) – Schritt 4b
+
+- **`Lesson`** (+ `LessonType` Theorie/Praxis, + `LessonItem`): eine eingetragene
+  Unterrichtseinheit – Typ, Klasse (oder `null` = „Grundstoff", zählt für alle),
+  Datum, Dauer, optionale Notiz und die **behandelten Punkte**. Migration
+  „Unterrichtsstunden".
+- **`LessonService.CreateAsync`**: legt die Stunde an und **wirkt auf den
+  Fortschritt** – einfache Punkte werden auf das Stundendatum abgehakt, zählbare
+  bekommen je einen Eintrag (`StudentProgressEntry`); die Punkte werden über
+  `LessonItem` mit der Stunde verknüpft (für den späteren Ausbildungsnachweis).
+  Validierung: gültiger Typ, Dauer > 0, gewählte Klasse gehört zum Schüler,
+  behandelte Punkte gehören zum Schüler. Audit „Stunde eingetragen".
+- Das ist die **einzige** Eingabestelle für Stunden (KONZEPT 3.3). Endpunkte
+  unter `/api/students/{id}/lessons`.
 
 ## Fehlerbehandlung – eine Stelle für alles
 

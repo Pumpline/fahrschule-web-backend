@@ -1,0 +1,164 @@
+using Fahrschule.Application.Audit;
+using Fahrschule.Application.Common;
+using Fahrschule.Application.LicenseClasses;
+using Fahrschule.Application.Students;
+using Fahrschule.Contracts.Students;
+using Fahrschule.Domain.Entities;
+using Fahrschule.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+
+namespace Fahrschule.Tests.Students;
+
+/// <summary>
+/// Tests for entering lessons. Uses the EF Core in-memory provider (a fresh
+/// context per call, same database) so creating a lesson and its effect on the
+/// progress is exercised end to end without a real PostgreSQL.
+/// </summary>
+public class LessonServiceTests
+{
+    private static readonly Actor TestActor = new(Guid.NewGuid(), "Test");
+
+    private readonly DbContextOptions<FahrschuleDbContext> _options =
+        new DbContextOptionsBuilder<FahrschuleDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+    private FahrschuleDbContext NewDb() => new(_options);
+    private LessonService NewService(FahrschuleDbContext db) => new(db, new NullAuditWriter());
+
+    private readonly Guid _classB = Guid.NewGuid();
+    private readonly Guid _student = Guid.NewGuid();
+
+    /// <summary>Seeds a class B, a student in B, and the curriculum (a shared
+    /// theory topic + a countable special drive for B), then returns the
+    /// created snapshot via the progress service.</summary>
+    private async Task<StudentProgressDto> SeedAndSnapshotAsync()
+    {
+        await using (var db = NewDb())
+        {
+            db.LicenseClasses.Add(new LicenseClass { Id = _classB, Code = "B", SortOrder = 1, IsActive = true });
+            db.Students.Add(new Student
+            {
+                Id = _student, FirstName = "Max", LastName = "Muster",
+                LicenseClasses = { new StudentLicenseClass { LicenseClassId = _classB, Phase = StudentPhase.Theory } },
+            });
+            var now = DateTime.UtcNow;
+            db.CurriculumItems.Add(new CurriculumItem
+            {
+                Id = Guid.NewGuid(), ItemKey = Guid.NewGuid(), Version = 1, ValidFromUtc = now,
+                Section = "Theorie-Grundstoff", Title = "Grundstoff-Thema", SortOrder = 1, IsActive = true,
+            });
+            db.CurriculumItems.Add(new CurriculumItem
+            {
+                Id = Guid.NewGuid(), ItemKey = Guid.NewGuid(), Version = 1, ValidFromUtc = now,
+                Section = "Sonderfahrten", Title = "Ueberlandfahrt", RequiredCount = 5, SortOrder = 2, IsActive = true,
+                Classes = [new CurriculumItemClass { LicenseClassId = _classB }],
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var snap = NewDb();
+        return await new StudentProgressService(snap, new NullAuditWriter()).GetForStudentAsync(_student);
+    }
+
+    private static ProgressItemDto Item(StudentProgressDto dto, string title)
+        => dto.Classes.SelectMany(c => c.Sections).SelectMany(s => s.Items).First(i => i.Title == title);
+
+    [Fact]
+    public async Task Create_ticks_simple_point_and_counts_countable_point()
+    {
+        var progress = await SeedAndSnapshotAsync();
+        var topicId = Item(progress, "Grundstoff-Thema").Id;
+        var driveId = Item(progress, "Ueberlandfahrt").Id;
+        var date = new DateOnly(2026, 6, 13);
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).CreateAsync(_student, new CreateLessonRequest
+            {
+                Type = "Practice", LicenseClassId = _classB, DateOn = date, DurationMinutes = 90,
+                CoveredItemIds = [topicId, driveId],
+            }, TestActor);
+        }
+
+        // The lesson was stored with both covered points linked.
+        await using (var check = NewDb())
+        {
+            var lesson = await check.Lessons.Include(l => l.Items).FirstAsync();
+            Assert.Equal(LessonType.Practice, lesson.Type);
+            Assert.Equal(90, lesson.DurationMinutes);
+            Assert.Equal(2, lesson.Items.Count);
+        }
+
+        // The effect reached the progress: simple ticked, countable at 1/5.
+        await using var after = NewDb();
+        var refreshed = await new StudentProgressService(after, new NullAuditWriter()).GetForStudentAsync(_student);
+        var topic = Item(refreshed, "Grundstoff-Thema");
+        var drive = Item(refreshed, "Ueberlandfahrt");
+        Assert.True(topic.IsDone);
+        Assert.Equal(date, topic.CompletedOn);
+        Assert.Equal(1, drive.CurrentCount);
+    }
+
+    [Fact]
+    public async Task Create_rejects_an_unknown_type()
+    {
+        var progress = await SeedAndSnapshotAsync();
+        var topicId = Item(progress, "Grundstoff-Thema").Id;
+
+        await using var db = NewDb();
+        await Assert.ThrowsAsync<AppValidationException>(() => NewService(db).CreateAsync(_student,
+            new CreateLessonRequest { Type = "Quatsch", DateOn = new DateOnly(2026, 6, 13), DurationMinutes = 90, CoveredItemIds = [topicId] },
+            TestActor));
+    }
+
+    [Fact]
+    public async Task Create_rejects_zero_duration()
+    {
+        await SeedAndSnapshotAsync();
+        await using var db = NewDb();
+        await Assert.ThrowsAsync<AppValidationException>(() => NewService(db).CreateAsync(_student,
+            new CreateLessonRequest { Type = "Theory", DateOn = new DateOnly(2026, 6, 13), DurationMinutes = 0, CoveredItemIds = [] },
+            TestActor));
+    }
+
+    [Fact]
+    public async Task Create_rejects_a_class_the_student_does_not_have()
+    {
+        await SeedAndSnapshotAsync();
+        await using var db = NewDb();
+        await Assert.ThrowsAsync<AppValidationException>(() => NewService(db).CreateAsync(_student,
+            new CreateLessonRequest { Type = "Theory", LicenseClassId = Guid.NewGuid(), DateOn = new DateOnly(2026, 6, 13), DurationMinutes = 90, CoveredItemIds = [] },
+            TestActor));
+    }
+
+    [Fact]
+    public async Task GetForStudent_returns_entered_lessons()
+    {
+        var progress = await SeedAndSnapshotAsync();
+        var topicId = Item(progress, "Grundstoff-Thema").Id;
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).CreateAsync(_student, new CreateLessonRequest
+            {
+                Type = "Theory", LicenseClassId = null, DateOn = new DateOnly(2026, 6, 10), DurationMinutes = 90,
+                CoveredItemIds = [topicId],
+            }, TestActor);
+        }
+
+        await using var read = NewDb();
+        var lessons = await NewService(read).GetForStudentAsync(_student);
+        Assert.Single(lessons);
+        Assert.Equal("Grundstoff", lessons[0].ClassLabel);
+        Assert.Contains("Grundstoff-Thema", lessons[0].CoveredTitles);
+    }
+
+    /// <summary>Audit writer that does nothing - keeps these tests focused.</summary>
+    private sealed class NullAuditWriter : IAuditWriter
+    {
+        public Task WriteAsync(Guid? userId, string userName, string action, string entityType,
+            string entityId, string? oldValuesJson = null, string? newValuesJson = null,
+            CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+}
