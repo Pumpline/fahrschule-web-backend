@@ -267,6 +267,20 @@ werden auditiert.
 - Noch offen (später): Prüfungstermine bei TÜV/DEKRA (`ExamBooking`), volle
   Zulassungs-Verwaltung.
 
+## Terminkalender (KONZEPT 3.5) – Schritt 6
+
+- **`CalendarEvent`** (Datum, Von/Bis-Zeit, Kind Praxis/Theorie/Prüfung/Sonstiges,
+  optionaler Schüler, Notiz, `Reminded` für späteren Push): Migration „Kalender".
+  Ein Fahrlehrer → globaler Kalender; ein späteres `InstructorUserId` kann Termine
+  einem Fahrlehrer zuordnen.
+- **`CalendarService`**: Monatsabruf, Anlegen/Ändern/Löschen mit **Doppelbuchungs-
+  Prüfung** (`CalendarRules.Overlaps` – Überlappung nur, wenn beide eine Endzeit
+  haben), Validierung (Endzeit > Startzeit, eigene Bezeichnung bei „Sonstiges",
+  Schüler existiert), Audit. Endpunkte `/api/calendar?year=&month=`.
+- Frontend: Seite `kalender` (`CalendarPage`) mit Monatsgitter, Tages-Terminliste
+  und Termin-Dialog (anlegen/bearbeiten/löschen, optionaler Schüler).
+- Noch offen (später): Termin → Unterrichtsnachweis verknüpfen, Push-Erinnerung.
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,

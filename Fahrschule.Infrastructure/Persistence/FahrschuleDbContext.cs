@@ -31,6 +31,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<StudentProgressItem> StudentProgressItems => Set<StudentProgressItem>();
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<Exam> Exams => Set<Exam>();
+    public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -319,6 +320,23 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
 
             // Mirror the student's soft-delete filter (EF requires this).
             exam.HasQueryFilter(x => !x.Student!.IsDeleted);
+        });
+
+        builder.Entity<CalendarEvent>(ev =>
+        {
+            ev.Property(x => x.Kind).HasConversion<string>();   // readable in the DB
+            ev.Property(x => x.CustomTitle).HasMaxLength(200);
+            ev.Property(x => x.Note).HasMaxLength(1000);
+
+            // The calendar is browsed by month → index by date.
+            ev.HasIndex(x => x.DateOn);
+
+            // Optional student link; a student is only ever soft-deleted, so the
+            // FK never fires - Restrict keeps the relationship explicit.
+            ev.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<RefreshToken>(token =>
