@@ -137,9 +137,35 @@ Adresse – die httpOnly-Cookies funktionieren ohne CORS-Sonderlocken.
 älteres Node installiert ist, liegt ein passendes Node 22 projektlokal unter
 `.tools/node` – Start am einfachsten über `scripts\start-frontend.cmd`.
 
+## PWA: installierbare App (KONZEPT „Plattform: PWA")
+
+Die App ist eine **Progressive Web App** – ein Codebestand, der im Browser läuft
+**und** sich wie eine echte App auf Handy/Tablet/Desktop **installieren** lässt
+(kein App Store). Web-Begriff *Service Worker*: ein kleines Skript, das der
+Browser im Hintergrund hält; es legt die App-Dateien in einen Cache, sodass die
+App schnell startet und auch offline öffnet.
+
+- **Manifest** (`public/manifest.webmanifest`): Name, Farben, Icons, Vollbild-Start
+  (`display: standalone`). Im `index.html` verlinkt (plus `theme-color` und die
+  iPhone-spezifischen `apple-touch-icon`/`apple-mobile-web-app-*`-Angaben).
+- **Icons** unter `public/icons` (weißes Auto auf Markenblau, normal + „maskable").
+  Reproduzierbar über `scripts/generate-pwa-icons.mjs` (`npm i -D sharp` nötig) –
+  so liegt kein Binär-Designtool im Repo; Icons jederzeit ersetzbar.
+- **Service Worker**: `@angular/service-worker` mit `ngsw-config.json` (cacht die
+  App-Hülle). In `app.config.ts` via `provideServiceWorker(..., { enabled:
+  !isDevMode() })` registriert – **nur im Produktions-Build aktiv**, nicht beim
+  `ng serve`. `/api`-Aufrufe sind vom Caching ausgenommen (immer frisch vom Server).
+- **„Installieren"-Button** im Kopf (`layout/install-prompt.ts` + `core/pwa/
+  pwa-install.service.ts`): Android/Desktop-Chromium installieren direkt über das
+  `beforeinstallprompt`-Ereignis; auf dem **iPhone** (Safari verbietet das
+  programmatisch) öffnet der Button eine kurze, bebilderte Anleitung („Teilen →
+  Zum Home-Bildschirm"). Der Button verschwindet, sobald die App installiert ist.
+- **Datensparsamkeit/DSGVO**: alles läuft lokal/auf demselben Server – keine
+  fremden CDNs, keine US-Dienste. (Push-Benachrichtigungen sind ein **eigener**,
+  noch offener Konzept-Punkt und hier bewusst nicht enthalten.)
+
 ## Was bewusst noch fehlt
 
-- **PWA** (Service Worker, Installieren-Button) – kommt in einem späteren
-  Schritt, sobald die ersten Module stehen.
-- Die Bereiche **Schüler / Kalender / Adminpanel** sind navigierbare
-  Platzhalter – sie folgen der Reihenfolge aus KONZEPT.md Abschnitt 6.
+- **Offline-Datenerfassung** (Stunden offline zwischenspeichern + später hochladen)
+  und **Push-Benachrichtigungen** – eigene Konzept-Punkte für später.
+- Die noch nicht gebauten Module folgen der Reihenfolge aus KONZEPT.md Abschnitt 6.
