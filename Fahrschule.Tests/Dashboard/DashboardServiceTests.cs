@@ -52,30 +52,6 @@ public class DashboardServiceTests
         Assert.Equal(10, doc.DaysUntilExpiry);
     }
 
-    [Fact]
-    public async Task Open_reminders_due_soon_show_but_done_or_far_ones_do_not()
-    {
-        var options = new DbContextOptionsBuilder<FahrschuleDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
-            .Options;
-        await using var db = new FahrschuleDbContext(options);
-
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        db.Reminders.Add(new Reminder { Id = Guid.NewGuid(), Title = "Antrag nachreichen", DueOn = today.AddDays(2), CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow });
-        db.Reminders.Add(new Reminder { Id = Guid.NewGuid(), Title = "Schon erledigt", DueOn = today, IsDone = true, CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow });
-        db.Reminders.Add(new Reminder { Id = Guid.NewGuid(), Title = "Weit in der Zukunft", DueOn = today.AddDays(60), CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow });
-        await db.SaveChangesAsync();
-
-        var audit = new NullAuditWriter();
-        var service = new DashboardService(db, new SettingsService(db, audit), new AuditQueryService(db));
-
-        var dashboard = await service.GetAsync();
-
-        var reminder = Assert.Single(dashboard.OpenReminders);
-        Assert.Equal("Antrag nachreichen", reminder.Title);
-        Assert.Equal(2, reminder.DaysUntilDue);
-    }
-
     private sealed class NullAuditWriter : IAuditWriter
     {
         public Task WriteAsync(Guid? userId, string userName, string action, string entityType,

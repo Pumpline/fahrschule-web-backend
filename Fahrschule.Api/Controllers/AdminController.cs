@@ -1,6 +1,5 @@
 using System.Security.Claims;
 using Fahrschule.Application.Admin;
-using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
 using Fahrschule.Application.Retention;
@@ -21,17 +20,10 @@ namespace Fahrschule.Api.Controllers;
 [Authorize(Roles = Roles.Admin)]
 [Route("api/admin")]
 public class AdminController(
-    IAuditQueryService auditQuery,
     IStudentService students,
     IStudentExportService export,
     IRetentionService retention) : ControllerBase
 {
-    /// <summary>Audit log, filterable + paginated (newest first).</summary>
-    [HttpGet("audit")]
-    public async Task<ActionResult<AuditListResultDto>> Audit(
-        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
-        => Ok(await auditQuery.GetListAsync(search, page, pageSize, ct));
-
     /// <summary>Students marked for deletion ("Zur Löschung vorgemerkt").</summary>
     [HttpGet("students/deleted")]
     public async Task<ActionResult<List<DeletedStudentDto>>> DeletedStudents(CancellationToken ct)

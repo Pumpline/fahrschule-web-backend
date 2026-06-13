@@ -26,9 +26,6 @@ public class DashboardService(
 {
     private const int MaxUpcoming = 50;
     private const int RecentChanges = 8;
-    // Open follow-ups show on the dashboard once they are due within this many
-    // days (or already overdue); the full list lives on the Wiedervorlagen page.
-    private const int ReminderLookaheadDays = 7;
 
     public async Task<DashboardDto> GetAsync(CancellationToken ct = default)
     {
@@ -58,34 +55,8 @@ public class DashboardService(
             })
             .ToList();
 
-        // Open follow-ups due within the lookahead window (or already overdue).
-        var reminderThreshold = today.AddDays(ReminderLookaheadDays);
-        var reminderRows = await db.Reminders
-            .Where(r => !r.IsDone && r.DueOn <= reminderThreshold)
-            .Include(r => r.Student)
-            .OrderBy(r => r.DueOn)
-            .Take(MaxUpcoming)
-            .ToListAsync(ct);
-
-        var openReminders = reminderRows
-            .Select(r => new DashboardReminderDto
-            {
-                Id = r.Id,
-                Title = r.Title,
-                StudentId = r.StudentId,
-                StudentName = r.Student is null ? null : $"{r.Student.FirstName} {r.Student.LastName}".Trim(),
-                DueOn = r.DueOn,
-                DaysUntilDue = r.DueOn.DayNumber - today.DayNumber,
-            })
-            .ToList();
-
         var recent = (await auditQuery.GetListAsync(search: null, page: 1, pageSize: RecentChanges, ct)).Items;
 
-        return new DashboardDto
-        {
-            UpcomingDocuments = upcoming,
-            OpenReminders = openReminders,
-            RecentChanges = recent,
-        };
+        return new DashboardDto { UpcomingDocuments = upcoming, RecentChanges = recent };
     }
 }

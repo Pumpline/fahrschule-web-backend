@@ -32,7 +32,6 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<Exam> Exams => Set<Exam>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
-    public DbSet<Reminder> Reminders => Set<Reminder>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -335,23 +334,6 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
             // Optional student link; a student is only ever soft-deleted, so the
             // FK never fires - Restrict keeps the relationship explicit.
             ev.HasOne(x => x.Student)
-                .WithMany()
-                .HasForeignKey(x => x.StudentId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
-
-        builder.Entity<Reminder>(reminder =>
-        {
-            reminder.Property(x => x.Title).HasMaxLength(200);
-            reminder.Property(x => x.Note).HasMaxLength(1000);
-
-            // The list is browsed by due date; the dashboard filters open ones.
-            reminder.HasIndex(x => x.DueOn);
-            reminder.HasIndex(x => x.IsDone);
-
-            // Optional student link; a student is only ever soft-deleted, so the
-            // FK never fires - the retention job removes reminders explicitly.
-            reminder.HasOne(x => x.Student)
                 .WithMany()
                 .HasForeignKey(x => x.StudentId)
                 .OnDelete(DeleteBehavior.Restrict);

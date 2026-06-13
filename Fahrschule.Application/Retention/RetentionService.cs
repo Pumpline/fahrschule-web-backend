@@ -113,10 +113,6 @@ public class RetentionService(
             var events = await db.CalendarEvents.Where(e => e.StudentId == id).ToListAsync(ct);
             db.CalendarEvents.RemoveRange(events);
 
-            // Reminders linked to the student also use Restrict - remove them too.
-            var reminders = await db.Reminders.Where(r => r.StudentId == id).ToListAsync(ct);
-            db.Reminders.RemoveRange(reminders);
-
             db.Students.Remove(student);
             await db.SaveChangesAsync(ct);
 
