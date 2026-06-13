@@ -307,41 +307,53 @@ Kein separates DSGVO-Center – alles liegt im Adminpanel (eine Karte), **admin-
   Aktion/EntityType/EntityId via `ILike`) und paginiert, neueste zuerst. Das Log
   bleibt append-only (nur `AuditWriter` schreibt).
 - **„Zur Löschung vorgemerkt" + Wiederherstellen** (`StudentService.GetDeletedAsync`
-  / `RestoreAsync`): zeigt die soft-gelöschten Schüler (`IgnoreQueryFilters`) und
-  macht die Löschung rückgängig (protokolliert). Jeder Eintrag zeigt jetzt auch das
-  **endgültige Lösch-Datum** (über `RetentionService`); das echte Entfernen
-  übernimmt der Aufbewahrungs-Job nach Fristende (Projektregel 7, eigener Abschnitt).
+  / `RestoreAsync`): zeigt die soft-gelöschten (ausgeblendeten) Schüler
+  (`IgnoreQueryFilters`) und macht das rückgängig (protokolliert). Das echte
+  Entfernen übernimmt der Aufbewahrungs-Job nach Ablauf der gesetzlichen Frist –
+  unabhängig vom Vormerken (Projektregel 7, eigener Abschnitt).
 - **Datenexport** (`StudentExportService`, Art. 15/20 DSGVO): sammelt alle Daten
   eines Schülers (Stammdaten, Fortschritt, Unterlagen, Prüfungen, Stunden, Termine)
   in **eine JSON-Datei** und protokolliert den Export. Endpunkt
   `GET /api/admin/students/{id}/export`.
 - Frontend: `DsgvoManagement`-Karte im Adminpanel (Schüler wählen → Export/Löschen,
-  Vorgemerkt-Liste mit Lösch-Datum, „fällige jetzt löschen", Audit-Log mit Suche).
+  Vorgemerkt-Liste, Aufbewahrungs-Übersicht mit Lösch-Datum + „fällige jetzt
+  löschen", Audit-Log mit Suche).
 - Noch offen (später): Legal-Texte (Impressum/Datenschutz).
 
-## Aufbewahrungs-Job: endgültiges Löschen nach Fristende (KONZEPT 3.7 / Regel 7)
+## Aufbewahrungs-Job: endgültiges Löschen nach Fristende (KONZEPT 3.7 / § 31 FahrlG)
 
-Projektregel 7 sagt: Löschen markiert nur (Soft-Delete); **wirklich entfernt
-wird ausschließlich durch den Aufbewahrungs-Job nach Fristende**, und bis dahin
-ist alles wiederherstellbar. Genau das macht dieser Baustein.
+**Rechtsgrundlage**: § 31 Abs. 3 Fahrlehrergesetz – die Ausbildungs-Aufzeichnungen
+sind **nach Ablauf des Jahres, in dem der Unterricht abgeschlossen wurde, fünf
+Jahre** aufzubewahren und danach **unverzüglich zu löschen**. Über-Aufbewahrung
+ist also genauso ein DSGVO-Verstoß wie zu frühes Löschen. (Rechnungen/steuerlich
+relevante Daten = 10 Jahre nach AO/HGB – betrifft die noch nicht gebaute
+Rechnungsfunktion, nicht die reinen Ausbildungsdaten.)
 
-- **Die Frist ist eine Einstellung, kein fester Wert** (Regel 3): das Setting
-  `Retention.StudentDays` (Standard 90, Bereich 7–3650 Tage) wird im Adminpanel
-  unter „Einstellungen" gepflegt. So passt der Inhaber sie an die gesetzlich
-  vorgeschriebene Aufbewahrungsfrist an, ohne dass programmiert werden muss.
+- **Die Frist ist eine Einstellung in JAHREN, kein fester Wert** (Regel 3): das
+  Setting `Retention.StudentYears` (Standard 5, Bereich 1–30) wird im Adminpanel
+  unter „Einstellungen" gepflegt – falls sich das Gesetz ändert, ohne neue
+  Programmierung.
+- **`StudentRetentionRules`** (reine, getestete Logik): bestimmt das
+  **Ausbildungsende** als spätestes Datum aus letzter Stunde, letzter Prüfung und
+  Anmeldedatum (das deckt auch **Abbrecher** ab, die nie „abgeschlossen" sind) und
+  daraus das **Lösch-Datum** = 1. Januar des Jahres (Ausbildungsende-Jahr + Frist + 1).
 - **`RetentionService`** (`Fahrschule.Application/Retention`) ist die einzige
   Stelle, die personenbezogene Daten endgültig entfernt:
-  - `GetStatusAsync` zeigt für jeden „zur Löschung vorgemerkten" Schüler das
-    **Lösch-Datum** (vorgemerkt am + Frist) und ob es bereits fällig ist.
-  - `RunAsync` löscht jeden Schüler, dessen Frist abgelaufen ist, **endgültig
-    samt abhängiger Daten**. Termine (`CalendarEvent`) zeigen mit
+  - `GetStatusAsync` listet die Schüler, deren Lösch-Datum erreicht ist, mit
+    Ausbildungsende + Lösch-Datum.
+  - `RunAsync` prüft **alle** Schüler (Löschung richtet sich nach dem gesetzlichen
+    Datum, nicht nach dem Vormerken) und entfernt die fälligen **endgültig samt
+    abhängiger Daten**. Termine (`CalendarEvent`) zeigen mit
     `DeleteBehavior.Restrict` auf den Schüler – die Datenbank würde das Löschen
     sonst verweigern –, deshalb werden sie zuerst entfernt; der Rest
     (Anmeldungen, Fortschritt, Stunden, Prüfungen) ist als **Cascade**
-    konfiguriert und verschwindet automatisch mit dem Schüler.
+    konfiguriert und verschwindet automatisch mit dem Schüler. Wichtig: die
+    Aktivitäts-Abfragen nutzen `IgnoreQueryFilters`, sonst würden bei einem
+    ausgeblendeten Schüler die Stunden „verschwinden" und das Lösch-Datum fiele
+    fälschlich auf das Anmeldedatum zurück.
   - Jede endgültige Löschung wird **auditiert** (Aktion „Endgültig gelöscht",
     Benutzer „System (Aufbewahrung)" beim automatischen Lauf) – aber sparsam:
-    nur Name + ursprüngliches Lösch-Datum als Nachweis, dass die Frist gewahrt
+    nur Name + Ausbildungsende + Frist als Nachweis, dass die Frist gewahrt
     wurde, ohne die gerade gelöschten Daten erneut zu speichern.
 - **Automatik via `RetentionBackgroundService`** (`Fahrschule.Api/BackgroundJobs`):
   ein **`BackgroundService` / `IHostedService`** – ein Dauerläufer, den der

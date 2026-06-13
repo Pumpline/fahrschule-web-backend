@@ -37,7 +37,7 @@ public class SettingsServiceTests
         Assert.Equal(2, settings.ExamLockNormalWeeks);
         Assert.Equal(1, settings.ExamLockShortenedWeeks);
         Assert.Equal(2, settings.ExamLockPracticeLessonsForShortening);
-        Assert.Equal(90, settings.RetentionStudentDays);
+        Assert.Equal(5, settings.RetentionStudentYears);
     }
 
     [Fact]
@@ -53,7 +53,7 @@ public class SettingsServiceTests
             ExamLockNormalWeeks = 3,
             ExamLockShortenedWeeks = 1,
             ExamLockPracticeLessonsForShortening = 4,
-            RetentionStudentDays = 120,
+            RetentionStudentYears = 6,
         }, TestActor);
 
         var reloaded = await service.GetAsync();
@@ -61,7 +61,7 @@ public class SettingsServiceTests
         Assert.Equal(60, reloaded.AppointmentReminderLeadMinutes);
         Assert.Equal(3, reloaded.ExamLockNormalWeeks);
         Assert.Equal(4, reloaded.ExamLockPracticeLessonsForShortening);
-        Assert.Equal(120, reloaded.RetentionStudentDays);
+        Assert.Equal(6, reloaded.RetentionStudentYears);
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class SettingsServiceTests
             ExamLockNormalWeeks = 2,
             ExamLockShortenedWeeks = 1,
             ExamLockPracticeLessonsForShortening = 2,
-            RetentionStudentDays = 90,
+            RetentionStudentYears = 5,
             SchoolName = "Fahrschule Muster",
             SchoolStreet = "Hauptstr. 1",
             SchoolPostalCode = "04109",
@@ -124,7 +124,7 @@ public class SettingsServiceTests
         public int ExamLockNormalWeeks { get; init; } = 2;
         public int ExamLockShortenedWeeks { get; init; } = 1;
         public int ExamLockPracticeLessonsForShortening { get; init; } = 2;
-        public int RetentionStudentDays { get; init; } = 90;
+        public int RetentionStudentYears { get; init; } = 5;
 
         public static implicit operator AppSettingsDto(AppSettingsRecord r) => new()
         {
@@ -133,7 +133,7 @@ public class SettingsServiceTests
             ExamLockNormalWeeks = r.ExamLockNormalWeeks,
             ExamLockShortenedWeeks = r.ExamLockShortenedWeeks,
             ExamLockPracticeLessonsForShortening = r.ExamLockPracticeLessonsForShortening,
-            RetentionStudentDays = r.RetentionStudentDays,
+            RetentionStudentYears = r.RetentionStudentYears,
         };
     }
 

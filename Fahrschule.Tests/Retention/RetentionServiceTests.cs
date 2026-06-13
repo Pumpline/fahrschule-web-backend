@@ -2,7 +2,6 @@ using Fahrschule.Application.Audit;
 using Fahrschule.Application.LicenseClasses;
 using Fahrschule.Application.Retention;
 using Fahrschule.Application.Settings;
-using Fahrschule.Application.Students;
 using Fahrschule.Contracts.Settings;
 using Fahrschule.Domain.Entities;
 using Fahrschule.Infrastructure.Persistence;
@@ -11,14 +10,15 @@ using Microsoft.EntityFrameworkCore;
 namespace Fahrschule.Tests.Retention;
 
 /// <summary>
-/// Tests for the retention job (KONZEPT rule 7): soft-deleted students are
-/// removed permanently only after the configured retention period, never before,
-/// and active students are never touched. In-memory provider, fresh context per
-/// step (same database) - the same pattern as the other service tests.
+/// Tests for the retention job (KONZEPT rule 7 / § 31 Abs. 3 FahrlG): student
+/// records are removed five years after the end of the training year, computed
+/// from the last instruction activity - never sooner, and active students are
+/// never touched. In-memory provider, fresh context per step (same database).
 /// </summary>
 public class RetentionServiceTests
 {
     private static readonly Actor TestActor = new(Guid.NewGuid(), "Admin Test");
+    private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
 
     private readonly DbContextOptions<FahrschuleDbContext> _options =
         new DbContextOptionsBuilder<FahrschuleDbContext>()
@@ -30,26 +30,42 @@ public class RetentionServiceTests
     private RetentionService NewService(FahrschuleDbContext db)
     {
         var audit = new AuditWriter(db);
-        return new RetentionService(db, new SettingsService(db, audit), new StudentService(db, audit), audit);
+        return new RetentionService(db, new SettingsService(db, audit), audit);
     }
 
-    private async Task<Guid> SeedStudentAsync(bool deleted, DateTime? deletedAtUtc = null)
+    private async Task SeedAsync(Guid id, int createdYearsAgo, bool deleted = false,
+        DateOnly? lesson = null, DateOnly? exam = null)
     {
-        var id = Guid.NewGuid();
         await using var db = NewDb();
         db.Students.Add(new Student
         {
             Id = id,
             FirstName = "Max",
             LastName = "Mustermann",
-            DateOfBirth = new DateOnly(2006, 5, 1),
+            DateOfBirth = new DateOnly(2000, 1, 1),
             IsDeleted = deleted,
-            DeletedAtUtc = deletedAtUtc,
-            CreatedAtUtc = DateTime.UtcNow,
+            DeletedAtUtc = deleted ? DateTime.UtcNow : null,
+            CreatedAtUtc = DateTime.UtcNow.AddYears(-createdYearsAgo),
             UpdatedAtUtc = DateTime.UtcNow,
         });
+        if (lesson is { } lessonDate)
+        {
+            db.Lessons.Add(new Lesson
+            {
+                Id = Guid.NewGuid(), StudentId = id, Type = LessonType.Practice,
+                DateOn = lessonDate, DurationMinutes = 90, CreatedAtUtc = DateTime.UtcNow,
+            });
+        }
+        if (exam is { } examDate)
+        {
+            db.Exams.Add(new Exam
+            {
+                Id = Guid.NewGuid(), StudentId = id, LicenseClassId = Guid.NewGuid(),
+                Kind = ExamKind.Practice, DateOn = examDate, Result = ExamResult.Passed,
+                CreatedAtUtc = DateTime.UtcNow,
+            });
+        }
         await db.SaveChangesAsync();
-        return id;
     }
 
     private async Task<bool> StillExistsAsync(Guid id)
@@ -58,110 +74,123 @@ public class RetentionServiceTests
         return await db.Students.IgnoreQueryFilters().AnyAsync(s => s.Id == id);
     }
 
-    [Fact]
-    public async Task Student_past_the_deadline_is_removed_permanently_and_audited()
+    private async Task<int> RunAsync(Actor? actor = null)
     {
-        // Marked for deletion 100 days ago - past the 90-day default.
-        var id = await SeedStudentAsync(deleted: true, deletedAtUtc: DateTime.UtcNow.AddDays(-100));
-
-        int deleted;
-        await using (var db = NewDb()) deleted = (await NewService(db).RunAsync(TestActor)).DeletedCount;
-
-        Assert.Equal(1, deleted);
-        Assert.False(await StillExistsAsync(id));
-
-        // The permanent deletion is recorded in the audit log (rule 1).
-        await using (var db = NewDb())
-        {
-            var entry = await db.AuditLogs.SingleAsync(a => a.Action == "Endgültig gelöscht");
-            Assert.Equal("Schüler", entry.EntityType);
-            Assert.Equal(id.ToString(), entry.EntityId);
-        }
+        await using var db = NewDb();
+        return (await NewService(db).RunAsync(actor)).DeletedCount;
     }
 
     [Fact]
-    public async Task Recently_deleted_student_is_kept()
+    public async Task Student_whose_last_lesson_is_long_past_is_removed_and_audited()
     {
-        // Marked just now - well within the retention window.
-        var id = await SeedStudentAsync(deleted: true, deletedAtUtc: DateTime.UtcNow);
+        var id = Guid.NewGuid();
+        await SeedAsync(id, createdYearsAgo: 6, lesson: Today.AddYears(-6));
 
-        await using (var db = NewDb())
-        {
-            var result = await NewService(db).RunAsync(TestActor);
-            Assert.Equal(0, result.DeletedCount);
-        }
+        Assert.Equal(1, await RunAsync(TestActor));
+        Assert.False(await StillExistsAsync(id));
 
+        await using var db = NewDb();
+        var entry = await db.AuditLogs.SingleAsync(a => a.Action == "Endgültig gelöscht");
+        Assert.Equal("Schüler", entry.EntityType);
+        Assert.Equal(id.ToString(), entry.EntityId);
+    }
+
+    [Fact]
+    public async Task Student_with_recent_activity_is_kept()
+    {
+        var id = Guid.NewGuid();
+        await SeedAsync(id, createdYearsAgo: 6, lesson: Today.AddDays(-1));
+
+        Assert.Equal(0, await RunAsync());
         Assert.True(await StillExistsAsync(id));
     }
 
     [Fact]
-    public async Task Active_student_is_never_touched()
+    public async Task Drop_out_with_only_an_old_registration_is_removed()
     {
-        var id = await SeedStudentAsync(deleted: false);
+        // No lesson, no exam → the deadline counts from the registration date.
+        var id = Guid.NewGuid();
+        await SeedAsync(id, createdYearsAgo: 6);
 
-        await using (var db = NewDb())
-        {
-            Assert.Equal(0, (await NewService(db).RunAsync()).DeletedCount);
-        }
+        Assert.Equal(1, await RunAsync());
+        Assert.False(await StillExistsAsync(id));
+    }
 
+    [Fact]
+    public async Task Recently_registered_student_is_kept()
+    {
+        var id = Guid.NewGuid();
+        await SeedAsync(id, createdYearsAgo: 0);
+
+        Assert.Equal(0, await RunAsync());
+        Assert.True(await StillExistsAsync(id));
+    }
+
+    [Fact]
+    public async Task Soft_deleted_student_with_recent_lesson_is_still_kept()
+    {
+        // Registered long ago but a lesson happened this year. The lesson is
+        // visible only via IgnoreQueryFilters; if it were missed, the deadline
+        // would wrongly fall back to the old registration date and delete too early.
+        var id = Guid.NewGuid();
+        await SeedAsync(id, createdYearsAgo: 6, deleted: true, lesson: Today.AddDays(-1));
+
+        Assert.Equal(0, await RunAsync());
         Assert.True(await StillExistsAsync(id));
     }
 
     [Fact]
     public async Task Calendar_events_are_removed_with_the_student()
     {
-        var id = await SeedStudentAsync(deleted: true, deletedAtUtc: DateTime.UtcNow.AddDays(-100));
+        var id = Guid.NewGuid();
+        await SeedAsync(id, createdYearsAgo: 6, lesson: Today.AddYears(-6));
 
         await using (var db = NewDb())
         {
             db.CalendarEvents.Add(new CalendarEvent
             {
-                Id = Guid.NewGuid(),
-                StudentId = id,
-                DateOn = new DateOnly(2026, 6, 1),
-                StartTime = new TimeOnly(10, 0),
-                EndTime = new TimeOnly(10, 45),
+                Id = Guid.NewGuid(), StudentId = id, DateOn = new DateOnly(2026, 6, 1),
+                StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(10, 45),
                 Kind = CalendarEventKind.Practice,
             });
             await db.SaveChangesAsync();
         }
 
-        await using (var db = NewDb()) await NewService(db).RunAsync();
+        await RunAsync();
 
-        await using (var read = NewDb())
-        {
-            Assert.False(await read.Students.IgnoreQueryFilters().AnyAsync(s => s.Id == id));
-            Assert.False(await read.CalendarEvents.AnyAsync(e => e.StudentId == id));
-        }
+        await using var read = NewDb();
+        Assert.False(await read.Students.IgnoreQueryFilters().AnyAsync(s => s.Id == id));
+        Assert.False(await read.CalendarEvents.AnyAsync(e => e.StudentId == id));
     }
 
     [Fact]
-    public async Task Status_reports_the_period_and_each_deadline()
+    public async Task Status_reports_the_period_and_due_students()
     {
-        var recent = await SeedStudentAsync(deleted: true, deletedAtUtc: DateTime.UtcNow);
-        var overdue = await SeedStudentAsync(deleted: true, deletedAtUtc: DateTime.UtcNow.AddDays(-100));
+        var due = Guid.NewGuid();
+        var kept = Guid.NewGuid();
+        await SeedAsync(due, createdYearsAgo: 7, exam: Today.AddYears(-6));
+        await SeedAsync(kept, createdYearsAgo: 0, lesson: Today.AddDays(-1));
 
         await using var db = NewDb();
         var status = await NewService(db).GetStatusAsync();
 
-        Assert.Equal(90, status.RetentionDays);
-        Assert.Equal(2, status.Marked.Count);
+        Assert.Equal(5, status.RetentionYears);
         Assert.Equal(1, status.DueCount);
-
-        var overdueEntry = status.Marked.Single(s => s.Id == overdue);
-        Assert.True(overdueEntry.IsDue);
-        Assert.Equal(overdueEntry.DeletedAtUtc!.Value.AddDays(90), overdueEntry.DueAtUtc);
-
-        Assert.False(status.Marked.Single(s => s.Id == recent).IsDue);
+        var entry = Assert.Single(status.Due);
+        Assert.Equal(due, entry.Id);
+        Assert.Equal(Today.AddYears(-6).Year, entry.TrainingEndDate.Year);
+        Assert.Equal(Today.AddYears(-6).Year + 6, entry.DueDate.Year);
     }
 
     [Fact]
     public async Task A_shorter_configured_period_makes_more_students_due()
     {
-        // Marked 10 days ago - not due under the 90-day default...
-        var id = await SeedStudentAsync(deleted: true, deletedAtUtc: DateTime.UtcNow.AddDays(-10));
+        // Last lesson two years ago: not due under 5 years...
+        var id = Guid.NewGuid();
+        await SeedAsync(id, createdYearsAgo: 2, lesson: Today.AddYears(-2));
+        Assert.Equal(0, await RunAsync());
 
-        // ...but the owner shortens the period to 7 days.
+        // ...but the owner shortens the retention period to 1 year.
         await using (var db = NewDb())
         {
             await new SettingsService(db, new AuditWriter(db)).UpdateAsync(new AppSettingsDto
@@ -171,15 +200,11 @@ public class RetentionServiceTests
                 ExamLockNormalWeeks = 2,
                 ExamLockShortenedWeeks = 1,
                 ExamLockPracticeLessonsForShortening = 2,
-                RetentionStudentDays = 7,
+                RetentionStudentYears = 1,
             }, TestActor);
         }
 
-        await using (var db = NewDb())
-        {
-            Assert.Equal(1, (await NewService(db).RunAsync()).DeletedCount);
-        }
-
+        Assert.Equal(1, await RunAsync());
         Assert.False(await StillExistsAsync(id));
     }
 }

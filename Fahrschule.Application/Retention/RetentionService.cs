@@ -2,7 +2,6 @@ using System.Text.Json;
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.LicenseClasses;
 using Fahrschule.Application.Settings;
-using Fahrschule.Application.Students;
 using Fahrschule.Contracts.Admin;
 using Fahrschule.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -12,105 +11,118 @@ namespace Fahrschule.Application.Retention;
 public interface IRetentionService
 {
     /// <summary>
-    /// Lists every student marked for deletion together with the date the data
-    /// will be removed permanently, and how many are already due.
+    /// Lists the students whose legal retention deadline has been reached (and
+    /// the configured period), so the admin panel can show what will be removed.
     /// </summary>
     Task<RetentionStatusDto> GetStatusAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Permanently removes every soft-deleted student whose retention deadline
-    /// has passed (KONZEPT 3.7 / rule 7). Pass <paramref name="actor"/> = null
-    /// for the automatic background run; a non-null actor records who triggered
-    /// a manual run. Returns how many students were removed.
+    /// Permanently removes every student whose retention deadline has passed
+    /// (§ 31 Abs. 3 FahrlG: delete without delay after the frist). Pass
+    /// <paramref name="actor"/> = null for the automatic background run; a
+    /// non-null actor records who triggered a manual run. Returns how many
+    /// students were removed.
     /// </summary>
     Task<RetentionRunResultDto> RunAsync(Actor? actor = null, CancellationToken ct = default);
 }
 
 /// <summary>
-/// The retention job (KONZEPT rule 7: "echtes Entfernen ausschließlich durch
-/// den Aufbewahrungs-Job nach Fristende"). Soft delete only flags a student;
-/// this service is the single place that actually erases the data once the
-/// configured retention period has elapsed.
-///
-/// The period is a setting, not a constant (rule 3), so the owner can match it
-/// to the legally required retention without new code. The run is idempotent
-/// and safe to call repeatedly (the background service calls it daily, and the
-/// admin can trigger it manually).
+/// The retention job (KONZEPT rule 7 / § 31 Abs. 3 FahrlG). Student training
+/// records must be kept for a number of years after the end of the training
+/// year, then deleted without delay. This service is the single place that
+/// actually erases the data; the deadline is computed per student from the last
+/// instruction activity (see <see cref="StudentRetentionRules"/>) and the
+/// editable retention period (rule 3). It runs over ALL students - deletion is
+/// driven by the legal deadline, not by a manual "marked for deletion" flag.
+/// The run is idempotent and safe to call repeatedly (daily background job +
+/// manual trigger).
 /// </summary>
 public class RetentionService(
     FahrschuleDbContext db,
     ISettingsService settings,
-    IStudentService students,
     IAuditWriter auditWriter) : IRetentionService
 {
     public async Task<RetentionStatusDto> GetStatusAsync(CancellationToken ct = default)
     {
-        var days = (await settings.GetAsync(ct)).RetentionStudentDays;
-        var now = DateTime.UtcNow;
+        var years = (await settings.GetAsync(ct)).RetentionStudentYears;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var (lastLesson, lastExam) = await LoadActivityAsync(ct);
 
-        // Reuse the existing "marked for deletion" list and enrich each entry
-        // with its deadline so the admin panel can show when data disappears.
-        var marked = await students.GetDeletedAsync(ct);
+        // Include classes for display; bypass the soft-delete filter so hidden
+        // (soft-deleted) students are considered for the legal deadline too.
+        var students = await db.Students.IgnoreQueryFilters()
+            .Include(s => s.LicenseClasses).ThenInclude(lc => lc.LicenseClass)
+            .ToListAsync(ct);
 
-        var enriched = marked.Select(s =>
-        {
-            var dueAt = s.DeletedAtUtc?.AddDays(days);
-            return new RetentionMarkedStudentDto
+        var due = students
+            .Select(s =>
             {
-                Id = s.Id,
-                FullName = s.FullName,
-                ClassCodes = s.ClassCodes,
-                DeletedAtUtc = s.DeletedAtUtc,
-                DueAtUtc = dueAt,
-                IsDue = dueAt is { } due && due <= now,
-            };
-        }).ToList();
+                var end = StudentRetentionRules.TrainingEndDate(
+                    DateOnly.FromDateTime(s.CreatedAtUtc), Lookup(lastLesson, s.Id), Lookup(lastExam, s.Id));
+                return (Student: s, TrainingEnd: end);
+            })
+            .Where(x => StudentRetentionRules.IsDue(today, x.TrainingEnd, years))
+            .Select(x => new RetentionDueStudentDto
+            {
+                Id = x.Student.Id,
+                FullName = $"{x.Student.FirstName} {x.Student.LastName}".Trim(),
+                ClassCodes = [.. x.Student.LicenseClasses.Where(lc => lc.LicenseClass != null)
+                    .Select(lc => lc.LicenseClass!.Code).OrderBy(c => c)],
+                TrainingEndDate = x.TrainingEnd,
+                DueDate = StudentRetentionRules.DeletionDueDate(x.TrainingEnd, years),
+            })
+            .OrderBy(d => d.DueDate).ThenBy(d => d.FullName)
+            .ToList();
 
         return new RetentionStatusDto
         {
-            RetentionDays = days,
-            DueCount = enriched.Count(s => s.IsDue),
-            Marked = enriched,
+            RetentionYears = years,
+            DueCount = due.Count,
+            Due = due,
         };
     }
 
     public async Task<RetentionRunResultDto> RunAsync(Actor? actor = null, CancellationToken ct = default)
     {
-        var days = (await settings.GetAsync(ct)).RetentionStudentDays;
-        // Everything marked on or before this moment is past its deadline.
-        var cutoff = DateTime.UtcNow.AddDays(-days);
+        var years = (await settings.GetAsync(ct)).RetentionStudentYears;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var (lastLesson, lastExam) = await LoadActivityAsync(ct);
 
-        // Bypass the soft-delete filter to reach the flagged rows.
-        var due = await db.Students.IgnoreQueryFilters()
-            .Where(s => s.IsDeleted && s.DeletedAtUtc != null && s.DeletedAtUtc <= cutoff)
-            .ToListAsync(ct);
+        // Tracked entities so we can delete them; bypass the soft-delete filter.
+        var students = await db.Students.IgnoreQueryFilters().ToListAsync(ct);
 
         var deletedCount = 0;
-        foreach (var student in due)
+        foreach (var student in students)
         {
-            // Capture for the audit entry before the row is gone.
+            var trainingEnd = StudentRetentionRules.TrainingEndDate(
+                DateOnly.FromDateTime(student.CreatedAtUtc),
+                Lookup(lastLesson, student.Id), Lookup(lastExam, student.Id));
+
+            if (!StudentRetentionRules.IsDue(today, trainingEnd, years))
+            {
+                continue;
+            }
+
             var id = student.Id;
             var name = $"{student.FirstName} {student.LastName}".Trim();
 
-            // Calendar events reference the student with DeleteBehavior.Restrict
-            // (a soft-deleted student normally keeps them), so the database would
-            // refuse the delete. Remove the personal appointments first; the
-            // remaining dependents (registrations, progress, lessons, exams) are
-            // configured as cascade and go automatically.
+            // Calendar events reference the student with DeleteBehavior.Restrict,
+            // so the database would refuse the delete. Remove the personal
+            // appointments first; the remaining dependents (registrations,
+            // progress, lessons, exams) are cascade and go automatically.
             var events = await db.CalendarEvents.Where(e => e.StudentId == id).ToListAsync(ct);
             db.CalendarEvents.RemoveRange(events);
 
             db.Students.Remove(student);
             await db.SaveChangesAsync(ct);
 
-            // Audit (rule 1): record the permanent erasure. We keep only the name
-            // and the original deletion date - enough to prove the frist was kept,
-            // without re-storing the full personal record we just erased.
+            // Audit (rule 1): record the erasure - but sparingly, only name +
+            // the dates that prove the frist was kept, not the data we just erased.
             var snapshot = JsonSerializer.Serialize(new
             {
                 Name = name,
-                VorgemerktAm = student.DeletedAtUtc,
-                Aufbewahrungsfrist = $"{days} Tage",
+                Ausbildungsende = trainingEnd,
+                Aufbewahrungsfrist = $"{years} Jahre",
             });
             await auditWriter.WriteAsync(
                 actor?.UserId, actor?.UserName ?? "System (Aufbewahrung)",
@@ -122,4 +134,27 @@ public class RetentionService(
 
         return new RetentionRunResultDto { DeletedCount = deletedCount };
     }
+
+    /// <summary>
+    /// Last lesson and last exam date per student. Both queries bypass the
+    /// soft-delete filter, otherwise a hidden student's activity would be missed
+    /// and the deadline would wrongly fall back to the registration date.
+    /// </summary>
+    private async Task<(Dictionary<Guid, DateOnly> Lessons, Dictionary<Guid, DateOnly> Exams)> LoadActivityAsync(CancellationToken ct)
+    {
+        var lessons = await db.Lessons.IgnoreQueryFilters()
+            .GroupBy(l => l.StudentId)
+            .Select(g => new { Id = g.Key, Last = g.Max(x => x.DateOn) })
+            .ToDictionaryAsync(x => x.Id, x => x.Last, ct);
+
+        var exams = await db.Exams.IgnoreQueryFilters()
+            .GroupBy(e => e.StudentId)
+            .Select(g => new { Id = g.Key, Last = g.Max(x => x.DateOn) })
+            .ToDictionaryAsync(x => x.Id, x => x.Last, ct);
+
+        return (lessons, exams);
+    }
+
+    private static DateOnly? Lookup(Dictionary<Guid, DateOnly> dates, Guid id)
+        => dates.TryGetValue(id, out var value) ? value : null;
 }

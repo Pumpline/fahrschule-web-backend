@@ -26,13 +26,12 @@ public class AppSettingsDto
     public int ExamLockPracticeLessonsForShortening { get; set; }
 
     /// <summary>
-    /// Retention period (in days) for a soft-deleted student before the
-    /// retention job removes the data permanently (KONZEPT 3.7 / rule 7).
-    /// During this window a deletion can still be undone. This is data, not
-    /// code (rule 3): the owner sets it to the legally required period.
-    /// Default 90.
+    /// Retention period (in YEARS) for a student's records after the end of the
+    /// year in which the training finished. After this the retention job removes
+    /// the data permanently (§ 31 Abs. 3 FahrlG / KONZEPT rule 7). Data, not code
+    /// (rule 3): the owner adjusts it if the law changes. Default 5.
     /// </summary>
-    public int RetentionStudentDays { get; set; }
+    public int RetentionStudentYears { get; set; }
 
     // --- Driving-school master data (KONZEPT 1b) - shown on the printed
     //     Ausbildungsnachweis. Free text, editable in the admin panel. ---
