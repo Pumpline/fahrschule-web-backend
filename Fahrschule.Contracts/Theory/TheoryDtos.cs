@@ -1,6 +1,6 @@
 namespace Fahrschule.Contracts.Theory;
 
-/// <summary>A theory topic to choose for a session (current catalogue version).</summary>
+/// <summary>A theory topic to choose (current catalogue version, simple check-off).</summary>
 public class TheoryTopicDto
 {
     public Guid Id { get; set; }
@@ -9,51 +9,27 @@ public class TheoryTopicDto
     public string Title { get; set; } = string.Empty;
 }
 
-/// <summary>A theory session in the list (newest first).</summary>
-public class TheorySessionListItemDto
-{
-    public Guid Id { get; set; }
-    public DateOnly DateOn { get; set; }
-    public string TopicTitle { get; set; } = string.Empty;
-    public string TopicSection { get; set; } = string.Empty;
-    public int AttendeeCount { get; set; }
-}
-
-/// <summary>A theory session with its attendees.</summary>
-public class TheorySessionDetailDto
-{
-    public Guid Id { get; set; }
-    public DateOnly DateOn { get; set; }
-    public int DurationMinutes { get; set; }
-    public Guid CurriculumItemKey { get; set; }
-    public string TopicTitle { get; set; } = string.Empty;
-    public string TopicSection { get; set; } = string.Empty;
-    public string? Note { get; set; }
-    public List<TheoryAttendeeDto> Attendees { get; set; } = [];
-}
-
-/// <summary>One attendee of a theory session.</summary>
-public class TheoryAttendeeDto
-{
-    public Guid StudentId { get; set; }
-    public string FullName { get; set; } = string.Empty;
-    /// <summary>True if this attendance ticked the topic in the student's progress.</summary>
-    public bool CountedProgress { get; set; }
-}
-
-/// <summary>Create a theory session (with an optional initial set of attendees).</summary>
-public class CreateTheorySessionRequest
+/// <summary>
+/// Quick "tick a theory topic for several students at once" request (KONZEPT
+/// Stufe 2). This is just a shortcut for manual work - nothing is stored as an
+/// attendance list; the only lasting effect is the topic being ticked in each
+/// student's theory progress.
+/// </summary>
+public class TickTheoryRequest
 {
     public DateOnly DateOn { get; set; }
-    public int DurationMinutes { get; set; }
     /// <summary>The chosen theory topic (a current catalogue item).</summary>
     public Guid CurriculumItemId { get; set; }
-    public string? Note { get; set; }
     public List<Guid> StudentIds { get; set; } = [];
 }
 
-/// <summary>Add one or more attendees to an existing session.</summary>
-public class AddAttendeesRequest
+/// <summary>What the quick tick did, so the UI can give clear feedback.</summary>
+public class TheoryTickResultDto
 {
-    public List<Guid> StudentIds { get; set; } = [];
+    /// <summary>Newly ticked off for this many students.</summary>
+    public int Ticked { get; set; }
+    /// <summary>Already had this topic done (left unchanged).</summary>
+    public int AlreadyDone { get; set; }
+    /// <summary>Topic is not part of the student's plan (skipped).</summary>
+    public int NotApplicable { get; set; }
 }

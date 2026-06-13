@@ -396,33 +396,27 @@ Rechnungsfunktion, nicht die reinen Ausbildungsdaten.)
 - Endpunkt `GET /api/dashboard` (alle angemeldeten Rollen). Frontend: `start-page`
   zeigt beide Listen; eine „Bald fällig"-Zeile öffnet die Schüler-Akte.
 
-## Theorie-Anwesenheitslisten (KONZEPT Stufe 2)
+## Theorie-Anwesenheit: Schnell-Abhaken (KONZEPT Stufe 2)
 
-Eine Theorie-Doppelstunde haben **viele** Schüler gleichzeitig – darum ist das
-hier ein **Gruppen-Eintrag** (das Gegenstück zum Stunden-Eintrag pro Schüler):
-ein Datum + ein **Thema** aus dem Theorie-Katalog + die **anwesenden Schüler**.
-Migration „TheorieAnwesenheit".
+Eine Theorie-Doppelstunde haben **viele** Schüler gleichzeitig. Statt jeden
+Schüler einzeln zu öffnen, wählt das Büro **Datum + Thema + die anwesenden
+Schüler** und hakt das Thema bei allen **in einem Schritt** im Theorie-Fortschritt
+ab. **Bewusst kein gespeicherter Anwesenheits-Listenspeicher** (Inhaber-Entscheidung
+14.06.): Es ist nur eine Arbeitserleichterung – der **dauerhafte** Eintrag ist der
+**Ausbildungsfortschritt** (das abgehakte Thema), nicht eine Anwesenheitsliste.
+Es gibt darum **keine eigenen Tabellen**.
 
-- **`TheorySession`** (Datum, Dauer, Thema als versionsstabiler `CurriculumItemKey`
-  + Titel/Abschnitt als Snapshot, Notiz) + **`TheoryAttendance`** (Session ↔ Schüler).
-- **Integriert** (Inhaber-Entscheidung): Wer als anwesend markiert wird, bei dem
-  wird das **Thema automatisch im Theorie-Fortschritt abgehakt** (auf das Stunden-
-  datum) – keine zweite Eingabe. Der `TheorySessionService` nutzt dafür den
-  vorhandenen `StudentProgressService` (Snapshot sicherstellen), dann wird der
-  passende `StudentProgressItem` gesetzt.
-- **Sauberes Zurücknehmen**: jede Anwesenheit merkt sich, **welchen** Fortschritts-
-  Punkt sie abgehakt hat (`TickedProgressItemId`). Entfernen/Löschen nimmt **genau
-  das** zurück – und nur, wenn der Punkt noch am Stundendatum als erledigt steht
-  (so wird nie eine Erledigung zerstört, die woanders/an anderem Datum gesetzt wurde).
-  War das Thema schon erledigt, wird nichts erneut gesetzt und beim Entfernen nichts
-  zurückgenommen.
-- Nur **einfache** Theorie-Themen (Häkchen) sind wählbar; jede Änderung an einem
-  Schüler-Fortschritt wird auditiert (DSGVO, „Theorie besucht").
-- Endpunkte `/api/theory-sessions` (Liste, Detail, `topics`, POST, `…/attendees`
-  hinzufügen/entfernen, DELETE). Frontend: Seite `theorie-anwesenheit`
-  (Liste + „Neue Theorie-Stunde"-Dialog mit Schüler-Mehrfachauswahl + Detail zum
-  Verwalten der Anwesenheit), Menüpunkt unter „Fahrlehrer". Der Aufbewahrungs-Job
-  löscht die Anwesenheiten eines Schülers mit (Restrict-FK).
+- **`TheoryAttendanceService`**: `GetTopicsAsync` (aktuelle, einfache Theorie-Themen
+  aus dem Katalog) und `TickAsync(Datum, Thema, Schüler-IDs)`. Letzteres stellt je
+  Schüler den Snapshot sicher (vorhandener `StudentProgressService`) und setzt den
+  passenden `StudentProgressItem` auf erledigt (am gewählten Datum). Rückgabe:
+  wie viele **neu abgehakt** / **schon erledigt** / **ohne dieses Thema** (nicht im
+  Plan). Jede Änderung wird auditiert (DSGVO, „Theorie abgehakt").
+- **Versehentlich abgehakt?** Rücknahme über den normalen Weg in der Schüler-Akte
+  (Tab „Ausbildungsfortschritt", Austragen mit Bestätigung) – kein extra Speicher nötig.
+- Endpunkte `/api/theory-attendance/topics` und `/api/theory-attendance/tick`.
+  Frontend: Seite `theorie-anwesenheit` (Datum, Thema, Schüler-Mehrfachauswahl mit
+  Suche, „Als anwesend abhaken" + Ergebnis-Meldung), Menüpunkt unter „Fahrlehrer".
 
 ## Fehlerbehandlung – eine Stelle für alles
 
