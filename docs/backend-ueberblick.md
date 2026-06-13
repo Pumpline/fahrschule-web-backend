@@ -151,6 +151,20 @@ bevor eine Unterlage als „liegt vor" abgehakt werden darf. **Datensparsamkeit
 Gleiches Muster wie die übrigen Konfigurationsdaten (Audit, Soft-Delete,
 xmin-Konfliktschutz, Admin-only beim Schreiben).
 
+## Benutzerverwaltung (KONZEPT 3.7a)
+
+`UserService` (über ASP.NET Core Identity) verwaltet die Konten im Adminpanel:
+anlegen mit **generiertem temporärem Passwort** (`TemporaryPasswordGenerator`,
+policy-konform und gut vorlesbar), Rolle/Name ändern, Passwort zurücksetzen,
+löschen. Neue Benutzer und Resets setzen `MustChangePassword` → beim ersten
+Anmelden wird ein eigenes Passwort erzwungen (kein E-Mail-Versand nötig).
+
+Schutzregeln: man kann das eigene Konto nicht löschen, und der **letzte
+verbleibende Admin** kann weder gelöscht noch herabgestuft werden. Alles
+admin-only; jede Änderung wird auditiert (nie Passwörter). Der Reset entfernt
+das alte Passwort und setzt direkt ein neues (`RemovePasswordAsync` +
+`AddPasswordAsync`) – bewusst ohne E-Mail-Token-Provider.
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,
