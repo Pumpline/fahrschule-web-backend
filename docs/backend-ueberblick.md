@@ -315,7 +315,22 @@ Stunde** übernehmen – ohne die Stunde getrennt neu einzutippen:
   HttpClient (damit der Auth-Interceptor das Token erneuern kann).
 - Der Kopf zeigt die **Fahrschul-Stammdaten** (Name/Anschrift/Erlaubnisnummer)
   aus den Einstellungen, sobald gepflegt (`SettingsService`, String-Settings
-  `School.*`). Noch offen (später): Vertrag/Quittung als weitere Vorlagen.
+  `School.*`).
+
+### Ausbildungsvertrag als PDF (KONZEPT 1a/3a)
+
+- **`TrainingContractPdfService`** erzeugt den druckbaren Ausbildungsvertrag
+  (gleiches QuestPDF-Muster, Layout in `TrainingContractDocument`): Briefkopf
+  (Fahrschul-Stammdaten), Vertragsparteien (Fahrschule + Schüler mit Anschrift/
+  Kontakt), beantragte Klassen, die **Vertragsbedingungen** und Unterschriftsfelder.
+- **Bedingungstext ist editierbar** (Inhaber-Entscheidung): das String-Setting
+  `Contract.Terms` (im Adminpanel als Textfeld pflegbar) wird unverändert ins PDF
+  übernommen – wir **erfinden keine Rechtstexte**. Ist es leer, weist das PDF
+  darauf hin, die Bedingungen zu hinterlegen.
+- Kein neues Datenmodell/keine Migration – nur eine Setting-Zeile. Endpunkt
+  `GET /api/students/{id}/ausbildungsvertrag`. Frontend: Button „📄 Ausbildungs-
+  vertrag (PDF)" im Stammdaten-Tab. Preise sind nicht enthalten (Preis-/Leistungs-
+  modul noch nicht gebaut).
 
 ## DSGVO im Adminpanel (KONZEPT 3.7) – Schritt 8
 

@@ -83,6 +83,7 @@ public class SettingsServiceTests
             SchoolPostalCode = "04109",
             SchoolCity = "Leipzig",
             SchoolPermitNumber = "AB-123",
+            ContractTerms = "§1 Die Ausbildung erfolgt nach …",
         }, TestActor);
 
         var reloaded = await service.GetAsync();
@@ -91,6 +92,7 @@ public class SettingsServiceTests
         Assert.Equal("04109", reloaded.SchoolPostalCode);
         Assert.Equal("Leipzig", reloaded.SchoolCity);
         Assert.Equal("AB-123", reloaded.SchoolPermitNumber);
+        Assert.Equal("§1 Die Ausbildung erfolgt nach …", reloaded.ContractTerms);
     }
 
     [Fact]

@@ -61,6 +61,9 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string SchoolCity = "School.City";
     public const string SchoolPermitNumber = "School.PermitNumber";
 
+    // Document templates (KONZEPT 1b) - free text, shown on generated PDFs.
+    public const string ContractTerms = "Contract.Terms";
+
     private static readonly StringSettingDefinition[] StringDefinitions =
     [
         new(SchoolName, 200, "Name der Fahrschule"),
@@ -68,6 +71,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(SchoolPostalCode, 20, "Postleitzahl"),
         new(SchoolCity, 100, "Ort"),
         new(SchoolPermitNumber, 100, "Erlaubnisnummer"),
+        new(ContractTerms, 20000, "Vertragsbedingungen für den Ausbildungsvertrag"),
     ];
 
     public async Task<AppSettingsDto> GetAsync(CancellationToken ct = default)
@@ -92,6 +96,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             SchoolPostalCode = ReadText(SchoolPostalCode),
             SchoolCity = ReadText(SchoolCity),
             SchoolPermitNumber = ReadText(SchoolPermitNumber),
+            ContractTerms = ReadText(ContractTerms),
         };
     }
 
@@ -162,6 +167,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         [SchoolPostalCode] = r.SchoolPostalCode,
         [SchoolCity] = r.SchoolCity,
         [SchoolPermitNumber] = r.SchoolPermitNumber,
+        [ContractTerms] = r.ContractTerms,
     };
 
     private async Task UpsertAsync(string key, string value, string description, DateTime now, CancellationToken ct)

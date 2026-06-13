@@ -47,4 +47,9 @@ public class AppSettingsDto
 
     /// <summary>Official permit number (Erlaubnisnummer).</summary>
     public string SchoolPermitNumber { get; set; } = string.Empty;
+
+    /// <summary>The training-contract terms text (KONZEPT 1b "Dokumentvorlagen").
+    /// Free text the owner maintains - printed on the Ausbildungsvertrag PDF, so
+    /// their real conditions appear (we never invent legal text). Empty = none yet.</summary>
+    public string ContractTerms { get; set; } = string.Empty;
 }
