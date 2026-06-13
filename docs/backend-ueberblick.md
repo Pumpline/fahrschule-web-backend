@@ -195,6 +195,31 @@ werden auditiert.
   nie Dokumente. „Ablaufdatum Pflicht" wird erzwungen; „bald fällig" nutzt die
   konfigurierbare Vorlaufzeit aus den Einstellungen.
 
+## Ausbildungsfortschritt (KONZEPT 3.3 / 3.3a) – Schritt 4a
+
+- **Persönliche Checkliste als Snapshot**: `StudentProgressItem` ist eine
+  **Kopie** der Ausbildungsplan-Punkte, die zum Zeitpunkt der Anmeldung galten
+  (Titel, Abschnitt, Soll-Anzahl und die kopierte Version). Spätere Änderungen
+  am Master-Plan wirken so **nicht rückwirkend** – wichtig für den späteren
+  Ausbildungsnachweis. Geteilte „Grundstoff"-Punkte werden **einmal** geführt
+  und für alle passenden Klassen gewertet (`StudentProgressItemClass`; leere
+  Klassenliste = gilt für alle Klassen des Schülers).
+- **Snapshot „bei Bedarf"**: `StudentProgressService.EnsureSnapshotAsync` legt
+  beim Laden fehlende Punkte an und ergänzt Klassen-Zuordnungen, wenn später
+  eine Klasse dazukommt – nie wird etwas entfernt (eine entfernte Klasse darf
+  erfassten Fortschritt nicht zerstören). So werden auch Altschüler nachgezogen.
+- **Abhaken & Zählen**: einfache Punkte werden direkt erledigt gesetzt
+  (mit „Erledigt am" + Notiz); zählbare Punkte (z. B. Sonderfahrten) haben
+  einen **Zähler** – jede Stunde ist eine eigene Zeile mit Datum + Notiz
+  (`StudentProgressEntry`), und beim Erreichen des Solls gilt der Punkt
+  automatisch als erledigt. Das Austragen eines erledigten Punkts wird
+  protokolliert (Bestätigung in der Oberfläche).
+- **Anzeige pro Klasse**: der Service liefert den Fortschritt je Klasse, nach
+  Abschnitten gruppiert, inklusive Prozent (`StudentProgressRules` – reine,
+  getestete Logik). Endpunkte unter `/api/students/{id}/progress`.
+- Noch offen (spätere Teilschritte): vollwertiger „Stunde eintragen"-Datensatz
+  mit Typ/Dauer (4b) und die **Anrechnung** beim Klasse-Hinzufügen (4c).
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,

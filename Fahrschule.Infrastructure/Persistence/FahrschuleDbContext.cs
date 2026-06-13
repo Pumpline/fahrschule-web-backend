@@ -28,6 +28,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<DocumentCatalogItem> DocumentCatalogItems => Set<DocumentCatalogItem>();
     public DbSet<Student> Students => Set<Student>();
     public DbSet<DocumentChecklistItem> DocumentChecklistItems => Set<DocumentChecklistItem>();
+    public DbSet<StudentProgressItem> StudentProgressItems => Set<StudentProgressItem>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -198,6 +199,58 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
             // Mirror the soft-delete filters of both referenced entities
             // (EF requires dependents to match the principals' query filters).
             item.HasQueryFilter(x => !x.Student!.IsDeleted && !x.DocumentCatalogItem!.IsDeleted);
+        });
+
+        builder.Entity<StudentProgressItem>(item =>
+        {
+            item.Property(x => x.Section).HasMaxLength(100);
+            item.Property(x => x.Title).HasMaxLength(300);
+            item.Property(x => x.Note).HasMaxLength(1000);
+
+            // The checklist is always loaded for one student → index by student.
+            item.HasIndex(x => x.StudentId);
+
+            item.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Mirror the student's soft-delete filter (EF requires dependents to
+            // match the principal's query filter).
+            item.HasQueryFilter(x => !x.Student!.IsDeleted);
+        });
+
+        builder.Entity<StudentProgressItemClass>(link =>
+        {
+            link.HasKey(x => new { x.StudentProgressItemId, x.LicenseClassId });
+
+            link.HasOne(x => x.StudentProgressItem)
+                .WithMany(x => x.Classes)
+                .HasForeignKey(x => x.StudentProgressItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Licence classes are only ever soft-deleted - never let a hard
+            // delete drag a student's progress links along (Restrict).
+            link.HasOne(x => x.LicenseClass)
+                .WithMany()
+                .HasForeignKey(x => x.LicenseClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Mirror the soft-delete filter of the owning progress item's student.
+            link.HasQueryFilter(x => !x.StudentProgressItem!.Student!.IsDeleted);
+        });
+
+        builder.Entity<StudentProgressEntry>(entry =>
+        {
+            entry.Property(x => x.Note).HasMaxLength(1000);
+
+            entry.HasOne(x => x.StudentProgressItem)
+                .WithMany(x => x.Entries)
+                .HasForeignKey(x => x.StudentProgressItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Mirror the soft-delete filter of the owning progress item's student.
+            entry.HasQueryFilter(x => !x.StudentProgressItem!.Student!.IsDeleted);
         });
 
         builder.Entity<RefreshToken>(token =>
