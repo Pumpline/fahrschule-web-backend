@@ -155,11 +155,14 @@ App schnell startet und auch offline öffnet.
   App-Hülle). In `app.config.ts` via `provideServiceWorker(..., { enabled:
   !isDevMode() })` registriert – **nur im Produktions-Build aktiv**, nicht beim
   `ng serve`. `/api`-Aufrufe sind vom Caching ausgenommen (immer frisch vom Server).
-- **„Installieren"-Button** im Kopf (`layout/install-prompt.ts` + `core/pwa/
-  pwa-install.service.ts`): Android/Desktop-Chromium installieren direkt über das
+- **„App installieren"** liegt bewusst als **Eintrag im Benutzer-Menü** (oben
+  rechts, neben „Passwort ändern") – kein aufdringlicher Aufruf, nur die
+  Möglichkeit. Logik in `core/pwa/pwa-install.service.ts`, eingebunden in der
+  `Shell`: Android/Desktop-Chromium installieren direkt über das
   `beforeinstallprompt`-Ereignis; auf dem **iPhone** (Safari verbietet das
-  programmatisch) öffnet der Button eine kurze, bebilderte Anleitung („Teilen →
-  Zum Home-Bildschirm"). Der Button verschwindet, sobald die App installiert ist.
+  programmatisch) öffnet der Eintrag eine kurze, bebilderte Anleitung („Teilen →
+  Zum Home-Bildschirm"). Der Eintrag erscheint nur, wenn eine Installation möglich
+  ist, und verschwindet, sobald die App installiert ist.
 - **Datensparsamkeit/DSGVO**: alles läuft lokal/auf demselben Server – keine
   fremden CDNs, keine US-Dienste. (Push-Benachrichtigungen sind ein **eigener**,
   noch offener Konzept-Punkt und hier bewusst nicht enthalten.)
