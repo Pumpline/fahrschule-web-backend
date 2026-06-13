@@ -9,8 +9,24 @@ public class DashboardDto
     /// overdue) - "Bald fällig", so the office can inform the student.</summary>
     public List<UpcomingDocumentDto> UpcomingDocuments { get; set; } = [];
 
+    /// <summary>Open follow-ups that are due soon or overdue ("Wiedervorlagen").</summary>
+    public List<DashboardReminderDto> OpenReminders { get; set; } = [];
+
     /// <summary>The most recent audit-log entries ("Letzte Änderungen").</summary>
     public List<AuditLogDto> RecentChanges { get; set; } = [];
+}
+
+/// <summary>One open, due/overdue follow-up for the dashboard.</summary>
+public class DashboardReminderDto
+{
+    public Guid Id { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public Guid? StudentId { get; set; }
+    public string? StudentName { get; set; }
+    public DateOnly DueOn { get; set; }
+
+    /// <summary>Days until due (negative = already overdue).</summary>
+    public int DaysUntilDue { get; set; }
 }
 
 /// <summary>One soon-expiring document of a student.</summary>

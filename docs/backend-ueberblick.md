@@ -380,6 +380,27 @@ Rechnungsfunktion, nicht die reinen Ausbildungsdaten.)
 - Endpunkt `GET /api/dashboard` (alle angemeldeten Rollen). Frontend: `start-page`
   zeigt beide Listen; eine „Bald fällig"-Zeile öffnet die Schüler-Akte.
 
+## Wiedervorlagen / Erinnerungen (KONZEPT Stufe 2)
+
+Kleine „To-do-mit-Termin"-Liste für das Büro: `Reminder` (Bezeichnung, Fällig-am,
+optionaler Schüler, Notiz, erledigt-ja/nein) – z. B. „Antrag läuft ab",
+„Prüfung anmelden". Migration „Wiedervorlagen".
+
+- **`ReminderService`** (gleiches Muster wie der Kalender): Liste (offene zuerst
+  nach Fälligkeit; optional erledigte und Filter pro Schüler), Anlegen, Ändern,
+  **Erledigt/wieder offen** setzen, Löschen. Validierung (Bezeichnung Pflicht,
+  Schüler muss existieren) + Audit auf jede Änderung (EntityType „Wiedervorlage").
+- **Operative Daten, kein Soft-Delete**: das Büro darf eine Wiedervorlage echt
+  löschen. Ein optionaler Schüler-Bezug nutzt `DeleteBehavior.Restrict` (wie beim
+  Kalender) – der **Aufbewahrungs-Job** löscht die Wiedervorlagen eines Schülers
+  daher mit (analog zu den Terminen).
+- **Dashboard-Anbindung**: offene Wiedervorlagen, die innerhalb der nächsten Tage
+  fällig oder schon überfällig sind, erscheinen auf der Startseite neben „Bald
+  fällig" (`DashboardService`).
+- Endpunkte unter `/api/reminders` (GET mit `includeDone`/`studentId`, POST, PUT,
+  POST `{id}/erledigt?done=`, DELETE). Frontend: Seite `wiedervorlagen`
+  (Liste + Dialog), Menüpunkt unter „Verwaltung".
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,
