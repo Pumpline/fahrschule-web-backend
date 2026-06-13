@@ -119,6 +119,9 @@ Das erste große Fachmodul mit eigener Liste und Detailseite:
   bearbeitbar; leere Felder als „leer" markiert – KONZEPT 3.1). Darunter die
   Führerscheinklassen mit **Status pro Klasse** (Phasen-Auswahl), Klasse
   hinzufügen (mit Mindestalter-Prüfung) / entfernen, und Löschen (Soft-Delete).
+- **StudentDocuments** (eingebettet in die Akte): die aus dem Katalog
+  abgeleitete Unterlagen-Liste mit Häkchen „liegt vor", Vorgelegt-/Ablaufdatum,
+  Hervorhebung bald ablaufender Unterlagen und Erzwingung der Ablaufdatum-Pflicht.
 - Route mit Parameter: `/schueler/:id`; der Wert kommt über
   `withComponentInputBinding` in das `id`-Input. Wichtig: Laden erst in
   `ngOnInit`, nicht im Konstruktor (das required-Input ist dort noch nicht gesetzt).

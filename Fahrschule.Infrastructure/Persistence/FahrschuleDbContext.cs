@@ -27,6 +27,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<CurriculumItem> CurriculumItems => Set<CurriculumItem>();
     public DbSet<DocumentCatalogItem> DocumentCatalogItems => Set<DocumentCatalogItem>();
     public DbSet<Student> Students => Set<Student>();
+    public DbSet<DocumentChecklistItem> DocumentChecklistItems => Set<DocumentChecklistItem>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -175,6 +176,28 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
 
             // Mirror the student's soft-delete filter (EF requires this).
             link.HasQueryFilter(x => !x.Student!.IsDeleted);
+        });
+
+        builder.Entity<DocumentChecklistItem>(item =>
+        {
+            // One status row per student + catalogue item.
+            item.HasKey(x => new { x.StudentId, x.DocumentCatalogItemId });
+
+            item.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // The catalogue item is only soft-deleted - never let a hard delete
+            // drag a student's status along (Restrict).
+            item.HasOne(x => x.DocumentCatalogItem)
+                .WithMany()
+                .HasForeignKey(x => x.DocumentCatalogItemId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Mirror the soft-delete filters of both referenced entities
+            // (EF requires dependents to match the principals' query filters).
+            item.HasQueryFilter(x => !x.Student!.IsDeleted && !x.DocumentCatalogItem!.IsDeleted);
         });
 
         builder.Entity<RefreshToken>(token =>

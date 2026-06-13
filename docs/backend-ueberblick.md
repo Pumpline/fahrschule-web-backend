@@ -188,6 +188,12 @@ werden auditiert.
 - **Fortschritt %**: vorerst aus der Phase abgeleitet (`StudentRules`),
   bis die echte Stunden-/Prüfungserfassung kommt (Schritt 4).
 - Gleiches Muster wie überall: Audit-Log, Soft-Delete, xmin-Konfliktschutz.
+- **Unterlagen-Checkliste pro Schüler** (`DocumentChecklistItem` +
+  `StudentDocumentService`): die nötigen Unterlagen werden aus dem Katalog
+  **abgeleitet** (gilt-für-alle oder Schnittmenge mit den Klassen des Schülers);
+  gespeichert wird nur der Status (liegt vor / vorgelegt am / läuft ab am) –
+  nie Dokumente. „Ablaufdatum Pflicht" wird erzwungen; „bald fällig" nutzt die
+  konfigurierbare Vorlaufzeit aus den Einstellungen.
 
 ## Fehlerbehandlung – eine Stelle für alles
 
