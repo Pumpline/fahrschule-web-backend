@@ -1,6 +1,7 @@
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Auth;
 using Fahrschule.Application.Curriculum;
+using Fahrschule.Application.Documents;
 using Fahrschule.Application.LicenseClasses;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,6 +22,7 @@ public static class DependencyInjection
         services.AddScoped<IAuditWriter, AuditWriter>();
         services.AddScoped<ILicenseClassService, LicenseClassService>();
         services.AddScoped<ICurriculumItemService, CurriculumItemService>();
+        services.AddScoped<IDocumentCatalogService, DocumentCatalogService>();
 
         // "Singleton" = one instance for the whole runtime (stateless, config only).
         services.AddSingleton<IJwtTokenService, JwtTokenService>();

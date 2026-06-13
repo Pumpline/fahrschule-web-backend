@@ -25,6 +25,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<LicenseClass> LicenseClasses => Set<LicenseClass>();
     public DbSet<CurriculumItem> CurriculumItems => Set<CurriculumItem>();
+    public DbSet<DocumentCatalogItem> DocumentCatalogItems => Set<DocumentCatalogItem>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -105,6 +106,36 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
             // requires dependent tables to mirror the same filter (otherwise
             // there could be links to "invisible" items).
             link.HasQueryFilter(x => !x.CurriculumItem!.IsDeleted);
+        });
+
+        builder.Entity<DocumentCatalogItem>(doc =>
+        {
+            doc.Property(x => x.Name).HasMaxLength(200);
+            doc.Property(x => x.Note).HasMaxLength(1000);
+
+            doc.HasIndex(x => x.SortOrder);
+            doc.HasQueryFilter(x => !x.IsDeleted);
+            doc.Property<uint>("xmin").IsRowVersion();
+        });
+
+        builder.Entity<DocumentCatalogItemClass>(link =>
+        {
+            link.HasKey(x => new { x.DocumentCatalogItemId, x.LicenseClassId });
+
+            link.HasOne(x => x.DocumentCatalogItem)
+                .WithMany(x => x.Classes)
+                .HasForeignKey(x => x.DocumentCatalogItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Licence classes are only ever soft-deleted - never let a hard
+            // delete silently drag link rows along (Restrict).
+            link.HasOne(x => x.LicenseClass)
+                .WithMany()
+                .HasForeignKey(x => x.LicenseClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Mirror the parent's soft-delete filter (EF requires this).
+            link.HasQueryFilter(x => !x.DocumentCatalogItem!.IsDeleted);
         });
 
         builder.Entity<RefreshToken>(token =>

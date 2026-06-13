@@ -140,6 +140,17 @@ Gesetzesänderungen wirken nie rückwirkend. Rein organisatorische Änderungen
 Die Klassen-Zuordnung läuft über die M:N-Tabelle `CurriculumItemClass`;
 **keine Zuordnung bedeutet "gilt für alle Klassen"** (typisch Grundstoff).
 
+## Unterlagen-Katalog je Klasse (KONZEPT 3.1)
+
+`DocumentCatalogItem` steuert, welche Nachweise (Sehtest, Erste-Hilfe, Antrag …)
+in der Schüler-Akte erscheinen – je nach gewählten Klassen (M:N über
+`DocumentCatalogItemClass`; **keine Zuordnung = gilt für alle Klassen**).
+Besonderheit: das Flag `ExpiryDateRequired` erzwingt später ein Ablaufdatum,
+bevor eine Unterlage als „liegt vor" abgehakt werden darf. **Datensparsamkeit
+(DSGVO)**: gespeichert wird nur der Status + Daten, nie die Dokumente selbst.
+Gleiches Muster wie die übrigen Konfigurationsdaten (Audit, Soft-Delete,
+xmin-Konfliktschutz, Admin-only beim Schreiben).
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,

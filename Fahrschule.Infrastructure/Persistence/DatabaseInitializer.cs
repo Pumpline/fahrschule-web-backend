@@ -123,7 +123,35 @@ public static class DatabaseInitializer
             logger.LogInformation("Beispiel-Theoriethemen angelegt (Startwerte, im Adminpanel änderbar).");
         }
 
-        // 5. Create the first admin - only while no user exists at all.
+        // 5. Seed sample document catalogue entries - only if the table is empty.
+        //    STARTING VALUES: the common standard documents (apply to all
+        //    classes). Data minimisation: only the STATUS is tracked later,
+        //    never the documents themselves. All editable in the admin panel.
+        if (!await db.DocumentCatalogItems.AnyAsync())
+        {
+            var now = DateTime.UtcNow;
+            var sortOrder = 0;
+            DocumentCatalogItem Document(string name, bool expiryRequired, string? note = null) => new()
+            {
+                Id = Guid.NewGuid(), Name = name, Note = note,
+                ExpiryDateRequired = expiryRequired, IsActive = true,
+                SortOrder = (sortOrder += 10), CreatedAtUtc = now, UpdatedAtUtc = now,
+                // No class assignment = required for all classes.
+            };
+
+            db.DocumentCatalogItems.AddRange(
+                Document("Sehtest", expiryRequired: false),
+                Document("Erste-Hilfe-Bescheinigung", expiryRequired: false),
+                Document("Biometrisches Passbild", expiryRequired: false),
+                Document("Antrag bei der Führerscheinstelle", expiryRequired: true,
+                    note: "Vom Amt ausgestellt; Ablaufdatum verpflichtend eintragen"),
+                Document("Personalausweis oder Reisepass (Kopie geprüft)", expiryRequired: false));
+
+            await db.SaveChangesAsync();
+            logger.LogInformation("Beispiel-Unterlagen angelegt (Startwerte, im Adminpanel änderbar).");
+        }
+
+        // 6. Create the first admin - only while no user exists at all.
         var userManager = provider.GetRequiredService<UserManager<ApplicationUser>>();
         if (await userManager.Users.AnyAsync())
         {
