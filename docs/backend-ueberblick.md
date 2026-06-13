@@ -280,7 +280,26 @@ werden auditiert.
   Schüler existiert), Audit. Endpunkte `/api/calendar?year=&month=`.
 - Frontend: Seite `kalender` (`CalendarPage`) mit Monatsgitter, Tages-Terminliste
   und Termin-Dialog (anlegen/bearbeiten/löschen, optionaler Schüler).
-- Noch offen (später): Termin → Unterrichtsnachweis verknüpfen, Push-Erinnerung.
+
+### Termin → Stunde („geplant" vs. „durchgeführt", KONZEPT 3.5)
+
+Ein geplanter Praxis-/Theorie-Termin mit Schüler lässt sich **als durchgeführte
+Stunde** übernehmen – ohne die Stunde getrennt neu einzutippen:
+
+- `CalendarEvent` hat ein optionales **`LessonId`** (Migration „TerminStunde-
+  Verknuepfung"; FK auf `Lesson`, `OnDelete: SetNull`). Gesetzt = „durchgeführt".
+- `CreateLessonRequest` nimmt optional eine **`CalendarEventId`** entgegen.
+  `LessonService.CreateAsync` setzt nach dem Anlegen `CalendarEvent.LessonId`,
+  **wenn** der Termin zum selben Schüler gehört und noch nicht verknüpft ist.
+  So bleibt die **eine** Eingabestelle für Stunden erhalten, nur eben vom Termin
+  aus vorbefüllt.
+- Frontend: Im Tages-Termin steht bei passenden Terminen „📝 Als Stunde eintragen"
+  → wechselt in die Schüler-Akte (Tab Fortschritt) und öffnet den Stunden-Dialog
+  **vorbefüllt** (Art, Datum, Dauer aus dem Termin; Klasse + behandelte Punkte
+  wählt der Fahrlehrer). Nach dem Speichern zeigt der Termin „✓ durchgeführt".
+  Verdrahtung über Query-Parameter (`?termin=&typ=&datum=&dauer=`), die die Akte
+  als `lessonPrefill` an `StudentProgressPanel` weitergibt.
+- Noch offen (später): Push-Erinnerung.
 
 ## Ausbildungsnachweis als PDF (KONZEPT 3.3/7) – Schritt 7
 

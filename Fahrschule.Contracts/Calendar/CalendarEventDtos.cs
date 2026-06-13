@@ -22,6 +22,10 @@ public class CalendarEventDto
     public string? StudentName { get; set; }
 
     public string? Note { get; set; }
+
+    /// <summary>The recorded lesson, once the appointment was carried out
+    /// ("durchgeführt"). null = still only planned.</summary>
+    public Guid? LessonId { get; set; }
 }
 
 /// <summary>"Create / update an appointment" request (KONZEPT 3.5).</summary>

@@ -192,6 +192,7 @@ public class CalendarService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         StudentId = e.StudentId,
         StudentName = e.Student is null ? null : $"{e.Student.FirstName} {e.Student.LastName}".Trim(),
         Note = e.Note,
+        LessonId = e.LessonId,
     };
 
     private static string KindLabel(CalendarEventKind kind, string? customTitle) => kind switch

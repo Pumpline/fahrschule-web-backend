@@ -337,6 +337,13 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
                 .WithMany()
                 .HasForeignKey(x => x.StudentId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Optional link to the recorded lesson ("durchgeführt"). If that lesson
+            // is ever removed, just clear the link (the appointment itself stays).
+            ev.HasOne(x => x.Lesson)
+                .WithMany()
+                .HasForeignKey(x => x.LessonId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<RefreshToken>(token =>

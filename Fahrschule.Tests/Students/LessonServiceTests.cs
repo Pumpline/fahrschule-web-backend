@@ -154,6 +154,71 @@ public class LessonServiceTests
         Assert.Contains("Grundstoff-Thema", lessons[0].CoveredTitles);
     }
 
+    [Fact]
+    public async Task Create_with_a_calendar_event_marks_it_durchgefuehrt()
+    {
+        var progress = await SeedAndSnapshotAsync();
+        var topicId = Item(progress, "Grundstoff-Thema").Id;
+        var eventId = Guid.NewGuid();
+
+        await using (var db = NewDb())
+        {
+            db.CalendarEvents.Add(new CalendarEvent
+            {
+                Id = eventId, StudentId = _student, DateOn = new DateOnly(2026, 6, 13),
+                StartTime = new TimeOnly(9, 0), EndTime = new TimeOnly(10, 30), Kind = CalendarEventKind.Practice,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        Guid lessonId;
+        await using (var db = NewDb())
+        {
+            lessonId = (await NewService(db).CreateAsync(_student, new CreateLessonRequest
+            {
+                Type = "Practice", LicenseClassId = _classB, DateOn = new DateOnly(2026, 6, 13), DurationMinutes = 90,
+                CoveredItemIds = [topicId], CalendarEventId = eventId,
+            }, TestActor)).Id;
+        }
+
+        await using var check = NewDb();
+        var ev = await check.CalendarEvents.FirstAsync(e => e.Id == eventId);
+        Assert.Equal(lessonId, ev.LessonId);
+    }
+
+    [Fact]
+    public async Task Create_does_not_link_a_calendar_event_of_another_student()
+    {
+        var progress = await SeedAndSnapshotAsync();
+        var topicId = Item(progress, "Grundstoff-Thema").Id;
+        var eventId = Guid.NewGuid();
+        var otherStudent = Guid.NewGuid();
+
+        await using (var db = NewDb())
+        {
+            db.Students.Add(new Student { Id = otherStudent, FirstName = "Andere", LastName = "Person" });
+            db.CalendarEvents.Add(new CalendarEvent
+            {
+                Id = eventId, StudentId = otherStudent, DateOn = new DateOnly(2026, 6, 13),
+                StartTime = new TimeOnly(9, 0), Kind = CalendarEventKind.Practice,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).CreateAsync(_student, new CreateLessonRequest
+            {
+                Type = "Practice", LicenseClassId = _classB, DateOn = new DateOnly(2026, 6, 13), DurationMinutes = 90,
+                CoveredItemIds = [topicId], CalendarEventId = eventId,
+            }, TestActor);
+        }
+
+        await using var check = NewDb();
+        var ev = await check.CalendarEvents.FirstAsync(e => e.Id == eventId);
+        Assert.Null(ev.LessonId);
+    }
+
     /// <summary>Audit writer that does nothing - keeps these tests focused.</summary>
     private sealed class NullAuditWriter : IAuditWriter
     {

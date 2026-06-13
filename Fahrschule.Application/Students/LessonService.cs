@@ -111,6 +111,18 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
             item.UpdatedAtUtc = now;
         }
 
+        // If this lesson was carried out for a planned appointment, mark that
+        // appointment "durchgeführt" and link it (KONZEPT 3.5). Only when it
+        // belongs to the same student and isn't already linked.
+        if (request.CalendarEventId is { } eventId)
+        {
+            var calendarEvent = await db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == eventId, ct);
+            if (calendarEvent is not null && calendarEvent.StudentId == studentId && calendarEvent.LessonId is null)
+            {
+                calendarEvent.LessonId = lesson.Id;
+            }
+        }
+
         await db.SaveChangesAsync(ct);
 
         var classLabel = await ClassLabelAsync(request.LicenseClassId, ct);

@@ -36,4 +36,9 @@ public class CreateLessonRequest
 
     /// <summary>The progress points covered in this lesson (their ids).</summary>
     public Guid[] CoveredItemIds { get; set; } = [];
+
+    /// <summary>Optional: the calendar appointment this lesson was carried out for
+    /// (KONZEPT 3.5). When set, that appointment is marked "durchgeführt" and
+    /// linked to this lesson.</summary>
+    public Guid? CalendarEventId { get; set; }
 }

@@ -47,5 +47,10 @@ public class CalendarEvent
     /// <summary>Reserved for the push reminder (KONZEPT 3.5) - no double push.</summary>
     public bool Reminded { get; set; }
 
+    /// <summary>Set once the planned lesson was actually carried out and recorded
+    /// (KONZEPT 3.5: "geplant vs. durchgeführt"). null = still only planned.</summary>
+    public Guid? LessonId { get; set; }
+    public Lesson? Lesson { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
 }
