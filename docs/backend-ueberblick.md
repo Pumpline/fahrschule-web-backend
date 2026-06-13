@@ -281,6 +281,21 @@ werden auditiert.
   und Termin-Dialog (anlegen/bearbeiten/löschen, optionaler Schüler).
 - Noch offen (später): Termin → Unterrichtsnachweis verknüpfen, Push-Erinnerung.
 
+## Ausbildungsnachweis als PDF (KONZEPT 3.3/7) – Schritt 7
+
+- **`TrainingRecordPdfService`** erzeugt den druckbaren Ausbildungsnachweis mit
+  **QuestPDF** (Community-Lizenz – für Kleinbetriebe kostenlos, einmalig im
+  statischen Konstruktor gesetzt). Es ruft die vorhandenen Services
+  (Schüler/Fortschritt/Prüfungen) ab, sodass das PDF dieselben Zahlen zeigt wie
+  der Bildschirm; das Layout liegt in `TrainingRecordDocument`.
+- Inhalt: Kopf (Name, Geburtsdatum, Erstell-Datum), je Klasse der Stand und die
+  Plan-Punkte (erledigt/offen, zählbare mit x/n), dann die Prüfungen.
+- Endpunkt `GET /api/students/{id}/ausbildungsnachweis` → liefert die PDF-Datei.
+  Frontend: Button „🖨 Ausbildungsnachweis (PDF)" im Stammdaten-Tab lädt sie über
+  HttpClient (damit der Auth-Interceptor das Token erneuern kann).
+- Noch offen (später): Fahrschul-Stammdaten (Name/Anschrift) im Kopf, Vertrag/
+  Quittung als weitere Vorlagen.
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,

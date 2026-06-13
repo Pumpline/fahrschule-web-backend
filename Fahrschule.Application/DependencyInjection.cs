@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<ILessonService, LessonService>();
         services.AddScoped<IExamService, ExamService>();
         services.AddScoped<Calendar.ICalendarService, Calendar.CalendarService>();
+        services.AddScoped<Pdf.ITrainingRecordPdfService, Pdf.TrainingRecordPdfService>();
 
         // "Singleton" = one instance for the whole runtime (stateless, config only).
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
