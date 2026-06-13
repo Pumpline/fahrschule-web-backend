@@ -317,6 +317,16 @@ Kein separates DSGVO-Center – alles liegt im Adminpanel (eine Karte), **admin-
 - Noch offen (später): automatischer Aufbewahrungs-Job (fristengeprüfte echte
   Löschung), Legal-Texte (Impressum/Datenschutz).
 
+## Start-Dashboard (KONZEPT 3.1/3a)
+
+- **`DashboardService`** füllt die Startseite, indem es vorhandene Daten bündelt
+  (nur lesen): **„Bald fällig"** = Unterlagen mit Ablaufdatum innerhalb des
+  Erinnerungsfensters (`DocumentExpiryReminderDays` aus den Settings) oder schon
+  überfällig, je Schüler/Unterlage; **„Letzte Änderungen"** = die neuesten
+  Audit-Einträge (über `AuditQueryService`).
+- Endpunkt `GET /api/dashboard` (alle angemeldeten Rollen). Frontend: `start-page`
+  zeigt beide Listen; eine „Bald fällig"-Zeile öffnet die Schüler-Akte.
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,
