@@ -396,6 +396,34 @@ Rechnungsfunktion, nicht die reinen Ausbildungsdaten.)
 - Endpunkt `GET /api/dashboard` (alle angemeldeten Rollen). Frontend: `start-page`
   zeigt beide Listen; eine „Bald fällig"-Zeile öffnet die Schüler-Akte.
 
+## Theorie-Anwesenheitslisten (KONZEPT Stufe 2)
+
+Eine Theorie-Doppelstunde haben **viele** Schüler gleichzeitig – darum ist das
+hier ein **Gruppen-Eintrag** (das Gegenstück zum Stunden-Eintrag pro Schüler):
+ein Datum + ein **Thema** aus dem Theorie-Katalog + die **anwesenden Schüler**.
+Migration „TheorieAnwesenheit".
+
+- **`TheorySession`** (Datum, Dauer, Thema als versionsstabiler `CurriculumItemKey`
+  + Titel/Abschnitt als Snapshot, Notiz) + **`TheoryAttendance`** (Session ↔ Schüler).
+- **Integriert** (Inhaber-Entscheidung): Wer als anwesend markiert wird, bei dem
+  wird das **Thema automatisch im Theorie-Fortschritt abgehakt** (auf das Stunden-
+  datum) – keine zweite Eingabe. Der `TheorySessionService` nutzt dafür den
+  vorhandenen `StudentProgressService` (Snapshot sicherstellen), dann wird der
+  passende `StudentProgressItem` gesetzt.
+- **Sauberes Zurücknehmen**: jede Anwesenheit merkt sich, **welchen** Fortschritts-
+  Punkt sie abgehakt hat (`TickedProgressItemId`). Entfernen/Löschen nimmt **genau
+  das** zurück – und nur, wenn der Punkt noch am Stundendatum als erledigt steht
+  (so wird nie eine Erledigung zerstört, die woanders/an anderem Datum gesetzt wurde).
+  War das Thema schon erledigt, wird nichts erneut gesetzt und beim Entfernen nichts
+  zurückgenommen.
+- Nur **einfache** Theorie-Themen (Häkchen) sind wählbar; jede Änderung an einem
+  Schüler-Fortschritt wird auditiert (DSGVO, „Theorie besucht").
+- Endpunkte `/api/theory-sessions` (Liste, Detail, `topics`, POST, `…/attendees`
+  hinzufügen/entfernen, DELETE). Frontend: Seite `theorie-anwesenheit`
+  (Liste + „Neue Theorie-Stunde"-Dialog mit Schüler-Mehrfachauswahl + Detail zum
+  Verwalten der Anwesenheit), Menüpunkt unter „Fahrlehrer". Der Aufbewahrungs-Job
+  löscht die Anwesenheiten eines Schülers mit (Restrict-FK).
+
 ## Fehlerbehandlung – eine Stelle für alles
 
 Services werfen aussagekräftige Ausnahmen (`AppValidationException`,

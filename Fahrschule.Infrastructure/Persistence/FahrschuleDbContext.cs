@@ -32,6 +32,8 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<Exam> Exams => Set<Exam>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
+    public DbSet<TheorySession> TheorySessions => Set<TheorySession>();
+    public DbSet<TheoryAttendance> TheoryAttendances => Set<TheoryAttendance>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -337,6 +339,38 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
                 .WithMany()
                 .HasForeignKey(x => x.StudentId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<TheorySession>(session =>
+        {
+            session.Property(x => x.TopicTitle).HasMaxLength(300);
+            session.Property(x => x.TopicSection).HasMaxLength(100);
+            session.Property(x => x.Note).HasMaxLength(1000);
+
+            // The list is browsed by date (newest first).
+            session.HasIndex(x => x.DateOn);
+        });
+
+        builder.Entity<TheoryAttendance>(attendance =>
+        {
+            // One row per session + student.
+            attendance.HasKey(x => new { x.TheorySessionId, x.StudentId });
+
+            attendance.HasOne(x => x.Session)
+                .WithMany(x => x.Attendances)
+                .HasForeignKey(x => x.TheorySessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // The student is only ever soft-deleted - never let a hard delete drag
+            // attendances along (Restrict). The retention job removes them explicitly.
+            attendance.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Mirror the student's soft-delete filter (EF requires dependents with a
+            // required filtered principal to match - same as Lesson/Exam).
+            attendance.HasQueryFilter(x => !x.Student!.IsDeleted);
         });
 
         builder.Entity<RefreshToken>(token =>

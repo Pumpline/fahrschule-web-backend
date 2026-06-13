@@ -113,6 +113,12 @@ public class RetentionService(
             var events = await db.CalendarEvents.Where(e => e.StudentId == id).ToListAsync(ct);
             db.CalendarEvents.RemoveRange(events);
 
+            // Theory attendances also reference the student with Restrict. Bypass
+            // the soft-delete filter so a hidden student's rows are found.
+            var attendances = await db.TheoryAttendances.IgnoreQueryFilters()
+                .Where(a => a.StudentId == id).ToListAsync(ct);
+            db.TheoryAttendances.RemoveRange(attendances);
+
             db.Students.Remove(student);
             await db.SaveChangesAsync(ct);
 
