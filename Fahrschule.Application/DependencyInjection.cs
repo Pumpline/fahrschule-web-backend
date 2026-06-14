@@ -37,6 +37,7 @@ public static class DependencyInjection
         services.AddScoped<Pdf.ITrainingRecordPdfService, Pdf.TrainingRecordPdfService>();
         services.AddScoped<Pdf.ITrainingContractPdfService, Pdf.TrainingContractPdfService>();
         services.AddScoped<IAuditQueryService, AuditQueryService>();
+        services.AddScoped<IAuditVisibilityService, AuditVisibilityService>();
         services.AddScoped<Admin.IStudentExportService, Admin.StudentExportService>();
         services.AddScoped<Dashboard.IDashboardService, Dashboard.DashboardService>();
         services.AddScoped<Retention.IRetentionService, Retention.RetentionService>();

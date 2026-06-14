@@ -75,13 +75,15 @@ public class DsgvoServiceTests
                 {
                     TimestampUtc = new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc).AddMinutes(i),
                     UserName = "Test", Action = "Geändert", EntityType = "Schüler", EntityId = $"nr-{i}",
+                    Category = AuditCategory.Students,
                 });
             }
             await db.SaveChangesAsync();
         }
 
         await using var read = NewDb();
-        var page = await new AuditQueryService(read).GetListAsync(search: null, page: 1, pageSize: 2);
+        var auditQuery = new AuditQueryService(read, new AuditVisibilityService(read, new NullAuditWriter()));
+        var page = await auditQuery.GetListAsync(["Admin"], search: null, category: null, page: 1, pageSize: 2);
 
         Assert.Equal(5, page.Total);
         Assert.Equal(2, page.Items.Count);

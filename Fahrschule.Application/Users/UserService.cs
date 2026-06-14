@@ -240,6 +240,7 @@ public class UserService(
         Role = await GetRoleAsync(user),
         MustChangePassword = user.MustChangePassword,
         IsLockedOut = await userManager.IsLockedOutAsync(user),
+        LastLoginAtUtc = user.LastLoginAtUtc,
     };
 
     /// <summary>Translates Identity error codes into plain German (user-facing).</summary>

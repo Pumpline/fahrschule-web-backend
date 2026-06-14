@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Fahrschule.Application.Dashboard;
 using Fahrschule.Contracts.Dashboard;
 using Microsoft.AspNetCore.Mvc;
@@ -14,5 +15,5 @@ public class DashboardController(IDashboardService service) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<DashboardDto>> Get(CancellationToken ct)
-        => Ok(await service.GetAsync(ct));
+        => Ok(await service.GetAsync(User.FindAll(ClaimTypes.Role).Select(c => c.Value), ct));
 }

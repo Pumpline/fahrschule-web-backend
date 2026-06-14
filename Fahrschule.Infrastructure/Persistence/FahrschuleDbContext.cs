@@ -43,10 +43,13 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
             // The audit log is often filtered by time range → index speeds that up.
             log.HasIndex(x => x.TimestampUtc);
             log.HasIndex(x => new { x.EntityType, x.EntityId });
+            // The log is filtered by category (role visibility) → index it.
+            log.HasIndex(x => x.Category);
             log.Property(x => x.Action).HasMaxLength(100);
             log.Property(x => x.EntityType).HasMaxLength(100);
             log.Property(x => x.EntityId).HasMaxLength(100);
             log.Property(x => x.UserName).HasMaxLength(200);
+            log.Property(x => x.Category).HasMaxLength(40);
         });
 
         builder.Entity<Setting>(setting =>

@@ -32,6 +32,8 @@ public class AuditWriter(FahrschuleDbContext db) : IAuditWriter
             UserName = userName,
             Action = action,
             EntityType = entityType,
+            // Derive the topic centrally so the ~30 call sites stay unchanged.
+            Category = AuditCategory.For(action, entityType),
             EntityId = entityId,
             OldValuesJson = oldValuesJson,
             NewValuesJson = newValuesJson,

@@ -20,8 +20,13 @@ public class CreateCurriculumItemRequest
 }
 
 /// <summary>
-/// "Update item" request. Content changes (title, target count, classes)
-/// automatically create a NEW VERSION - the old one is preserved.
+/// "Update item" request. The editor decides what a content change (title,
+/// target count, classes) does:
+///  - AsNewVersion = true  → keep the old version, add a NEW one (only future/new
+///    students follow it; existing snapshots stay on the old version).
+///  - AsNewVersion = false → correct the existing version in place (applies
+///    retroactively to everyone, e.g. fixing a typo).
+/// Organisational-only changes (active/sort order) never create a version.
 /// </summary>
 public class UpdateCurriculumItemRequest
 {
@@ -32,6 +37,9 @@ public class UpdateCurriculumItemRequest
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
     public Guid[] ClassIds { get; set; } = [];
+
+    /// <summary>True = a content change becomes a new version; false = correct in place.</summary>
+    public bool AsNewVersion { get; set; }
 
     /// <summary>Version marker against mutual overwrites.</summary>
     public uint RowVersion { get; set; }

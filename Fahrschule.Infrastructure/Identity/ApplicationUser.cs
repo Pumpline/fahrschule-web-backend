@@ -26,4 +26,8 @@ public class ApplicationUser : IdentityUser<Guid>
     public bool MustChangePassword { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }
+
+    /// <summary>When the user last signed in successfully (UTC; null = never).
+    /// Shown in the admin user list so the owner can spot unused accounts.</summary>
+    public DateTime? LastLoginAtUtc { get; set; }
 }

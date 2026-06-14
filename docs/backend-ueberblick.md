@@ -363,7 +363,21 @@ lesbar für **Admin, Fahrlehrer und Verwaltung**.
   keinen Schreib-Endpunkt; Einträge entstehen nur über den `AuditWriter`).
 - Nutzt denselben `AuditQueryService`: filterbar (Freitext über Nutzer/Aktion/
   EntityType/EntityId via `ILike`) und paginiert, neueste zuerst.
+- **Kategorien + Rollen-Sichtbarkeit** (least privilege): Jeder Eintrag bekommt
+  beim Schreiben eine **Kategorie** (`AuditLog.Category`, zentral aus Aktion/
+  EntityType abgeleitet in `AuditCategory.For`, sechs Bereiche von „Anmeldung &
+  Sicherheit" bis „Einrichtung"). Der `AuditQueryService` filtert auf die für die
+  Rolle erlaubten Kategorien (Admin sieht alles; `AuditVisibilityService` hält die
+  Zuordnung pro Rolle in `Setting`-Zeilen `Audit.Visible.{Rolle}`, der Admin pflegt
+  sie über die Karte „Protokoll-Sichtbarkeit"). So sieht z. B. das Büro keine
+  Passwort-Änderungen. Migration `AuditKategorien` füllt Altbestände per `CASE` nach.
+- **Aktueller Initiator-Name + Schüler-Link**: Der `AuditQueryService` löst den
+  Namen des Initiators zur Lesezeit aus `Users` auf (eine spätere Umbenennung wird
+  reflektiert; Fallback auf den gespeicherten Namen). Bei schülerbezogenen Einträgen
+  (führende Guid der `EntityId`) liefert er Schüler-Id + aktuellen Namen mit, das
+  Frontend zeigt einen Link zur Akte.
 - Frontend: Seite `protokoll` (`AuditLogPage`), Menüpunkt „Protokoll" für alle.
+  Kategorie-Chips (nur die erlaubten), Spalte „Bereich", Schüler als Link.
   Hinweis Beschäftigtendatenschutz: das Protokoll zeigt, wer was geändert hat –
   bewusste Entscheidung des Inhabers, allen Mitarbeitern Lesezugriff zu geben.
 

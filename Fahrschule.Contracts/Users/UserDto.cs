@@ -15,6 +15,9 @@ public class UserDto
 
     /// <summary>True = currently locked out (too many failed sign-in attempts).</summary>
     public bool IsLockedOut { get; set; }
+
+    /// <summary>When the user last signed in successfully (UTC; null = never).</summary>
+    public DateTime? LastLoginAtUtc { get; set; }
 }
 
 /// <summary>

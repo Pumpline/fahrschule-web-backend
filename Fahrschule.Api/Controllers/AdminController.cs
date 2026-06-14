@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Fahrschule.Application.Admin;
+using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
 using Fahrschule.Application.Retention;
@@ -22,8 +23,23 @@ namespace Fahrschule.Api.Controllers;
 public class AdminController(
     IStudentService students,
     IStudentExportService export,
-    IRetentionService retention) : ControllerBase
+    IRetentionService retention,
+    IAuditVisibilityService auditVisibility) : ControllerBase
 {
+    /// <summary>The role→category visibility for the change log (which role sees
+    /// which audit topics). Admin always sees everything.</summary>
+    [HttpGet("audit-visibility")]
+    public async Task<ActionResult<AuditVisibilityDto>> AuditVisibility(CancellationToken ct)
+        => Ok(await auditVisibility.GetConfigAsync(ct));
+
+    /// <summary>Save the change-log visibility per role.</summary>
+    [HttpPut("audit-visibility")]
+    public async Task<IActionResult> SaveAuditVisibility([FromBody] AuditVisibilityDto config, CancellationToken ct)
+    {
+        await auditVisibility.SaveConfigAsync(config, GetActor(), ct);
+        return NoContent();
+    }
+
     /// <summary>Students marked for deletion ("Zur Löschung vorgemerkt").</summary>
     [HttpGet("students/deleted")]
     public async Task<ActionResult<List<DeletedStudentDto>>> DeletedStudents(CancellationToken ct)

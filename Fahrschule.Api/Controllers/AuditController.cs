@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Fahrschule.Application.Audit;
 using Fahrschule.Contracts.Admin;
 using Fahrschule.Infrastructure.Identity;
@@ -18,9 +19,14 @@ namespace Fahrschule.Api.Controllers;
 [Route("api/audit")]
 public class AuditController(IAuditQueryService auditQuery) : ControllerBase
 {
-    /// <summary>Audit log, filterable + paginated (newest first).</summary>
+    /// <summary>Audit log, filterable + paginated (newest first). Each role only
+    /// sees the categories configured for it (Admin sees all).</summary>
     [HttpGet]
     public async Task<ActionResult<AuditListResultDto>> Get(
-        [FromQuery] string? search, [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
-        => Ok(await auditQuery.GetListAsync(search, page, pageSize, ct));
+        [FromQuery] string? search, [FromQuery] string? category,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken ct = default)
+    {
+        var roles = User.FindAll(ClaimTypes.Role).Select(c => c.Value);
+        return Ok(await auditQuery.GetListAsync(roles, search, category, page, pageSize, ct));
+    }
 }

@@ -10,7 +10,9 @@ namespace Fahrschule.Application.Dashboard;
 
 public interface IDashboardService
 {
-    Task<DashboardDto> GetAsync(CancellationToken ct = default);
+    /// <summary>The dashboard for a user with these roles. "Letzte Änderungen"
+    /// respects the change-log visibility, so a role only sees what it may.</summary>
+    Task<DashboardDto> GetAsync(IEnumerable<string> roles, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -27,7 +29,7 @@ public class DashboardService(
     private const int MaxUpcoming = 50;
     private const int RecentChanges = 8;
 
-    public async Task<DashboardDto> GetAsync(CancellationToken ct = default)
+    public async Task<DashboardDto> GetAsync(IEnumerable<string> roles, CancellationToken ct = default)
     {
         var reminderDays = (await settingsService.GetAsync(ct)).DocumentExpiryReminderDays;
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -55,7 +57,7 @@ public class DashboardService(
             })
             .ToList();
 
-        var recent = (await auditQuery.GetListAsync(search: null, page: 1, pageSize: RecentChanges, ct)).Items;
+        var recent = (await auditQuery.GetListAsync(roles, search: null, category: null, page: 1, pageSize: RecentChanges, ct)).Items;
 
         return new DashboardDto { UpcomingDocuments = upcoming, RecentChanges = recent };
     }

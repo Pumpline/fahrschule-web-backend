@@ -33,6 +33,11 @@ public class AuditLog
     /// <summary>Which kind of record? E.g. "Schüler", "Benutzer".</summary>
     public string EntityType { get; set; } = string.Empty;
 
+    /// <summary>Topic this entry belongs to (a stable key like "students",
+    /// "security"), derived from Action/EntityType at write time. Drives which
+    /// role may see the entry in the change log (see AuditCategory).</summary>
+    public string Category { get; set; } = string.Empty;
+
     /// <summary>Key of the affected record.</summary>
     public string EntityId { get; set; } = string.Empty;
 

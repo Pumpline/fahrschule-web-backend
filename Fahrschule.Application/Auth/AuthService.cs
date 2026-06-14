@@ -75,8 +75,11 @@ public class AuthService(
             throw new AuthenticationFailedException(LoginFailedMessage);
         }
 
-        // Successful sign-in → reset the failed-attempts counter.
+        // Successful sign-in → reset the failed-attempts counter and remember
+        // the time (shown in the admin user list to spot unused accounts).
         await userManager.ResetAccessFailedCountAsync(user);
+        user.LastLoginAtUtc = DateTime.UtcNow;
+        await userManager.UpdateAsync(user);
 
         logger.LogInformation("Benutzer {UserId} hat sich angemeldet.", user.Id);
         return await IssueTokensAsync(user, ct);

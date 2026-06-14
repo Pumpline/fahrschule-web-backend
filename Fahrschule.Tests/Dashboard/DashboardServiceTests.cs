@@ -42,9 +42,10 @@ public class DashboardServiceTests
         await db.SaveChangesAsync();
 
         var audit = new NullAuditWriter();
-        var service = new DashboardService(db, new SettingsService(db, audit), new AuditQueryService(db));
+        var auditQuery = new AuditQueryService(db, new AuditVisibilityService(db, audit));
+        var service = new DashboardService(db, new SettingsService(db, audit), auditQuery);
 
-        var dashboard = await service.GetAsync();
+        var dashboard = await service.GetAsync(["Admin"]);
 
         var doc = Assert.Single(dashboard.UpcomingDocuments);
         Assert.Equal("Fahrerlaubnis-Antrag", doc.DocumentName);

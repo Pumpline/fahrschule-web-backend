@@ -106,10 +106,13 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
         Guid resultId;
         string auditAction;
 
-        if (CurriculumRules.NeedsNewVersion(
-                entity.Title, title, entity.RequiredCount, request.RequiredCount, oldClassIds, request.ClassIds))
+        var contentChanged = CurriculumRules.NeedsNewVersion(
+            entity.Title, title, entity.RequiredCount, request.RequiredCount, oldClassIds, request.ClassIds);
+
+        if (contentChanged && request.AsNewVersion)
         {
-            // Content changed → supersede the old version, add a new row.
+            // The editor chose "new version": supersede the old one, add a new row.
+            // Existing student snapshots keep pointing at the old version.
             entity.SupersededAtUtc = now;
 
             var newVersion = new CurriculumItem
@@ -133,12 +136,24 @@ public class CurriculumItemService(FahrschuleDbContext db, IAuditWriter auditWri
         }
         else
         {
-            // Organisational only (active/sort order) → update the same version.
+            // Correct the SAME version in place. For an organisational-only change
+            // (active/sort) this is the normal path; for a content change the
+            // editor explicitly chose "correct" (applies retroactively to everyone).
+            entity.Title = title;
+            entity.RequiredCount = request.RequiredCount;
             entity.IsActive = request.IsActive;
             entity.SortOrder = request.SortOrder;
             entity.UpdatedAtUtc = now;
+
+            // Sync the class assignment (M:N): drop the old links, add the new set.
+            entity.Classes.Clear();
+            foreach (var classId in request.ClassIds.Distinct())
+            {
+                entity.Classes.Add(new CurriculumItemClass { LicenseClassId = classId });
+            }
+
             resultId = entity.Id;
-            auditAction = "Geändert";
+            auditAction = contentChanged ? "Korrigiert" : "Geändert";
         }
 
         await db.SaveChangesAsync(ct);
