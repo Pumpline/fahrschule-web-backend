@@ -39,7 +39,6 @@ public class JwtTokenService(IOptions<JwtOptions> options) : IJwtTokenService
         {
             // "sub" (subject) = whose token this is. Standard claim from the JWT spec.
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
-            new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(ClaimTypes.Name, user.DisplayName),
             // Unique token id - useful for logs and debugging.
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),

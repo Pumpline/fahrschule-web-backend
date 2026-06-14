@@ -54,9 +54,13 @@ public class UserService(
     public async Task<TemporaryPasswordResultDto> CreateAsync(CreateUserRequest request, Actor actor, CancellationToken ct = default)
     {
         var role = ValidateRole(request.Role);
-        var email = request.Email.Trim();
+        var userName = request.UserName.Trim();
         var displayName = request.DisplayName.Trim();
 
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            throw new AppValidationException("Bitte einen Benutzernamen für die Anmeldung eintragen.");
+        }
         if (string.IsNullOrWhiteSpace(displayName))
         {
             throw new AppValidationException("Bitte einen Namen eintragen.");
@@ -65,9 +69,7 @@ public class UserService(
         var temporaryPassword = TemporaryPasswordGenerator.Generate();
         var user = new ApplicationUser
         {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
+            UserName = userName, // login name (no e-mail stored on accounts anymore)
             DisplayName = displayName,
             CreatedAtUtc = DateTime.UtcNow,
             MustChangePassword = true, // forced change on first sign-in
@@ -82,7 +84,7 @@ public class UserService(
         await userManager.AddToRoleAsync(user, role);
 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Angelegt",
-            "Benutzer", email, newValuesJson: $"{{\"Rolle\":\"{role}\"}}", cancellationToken: ct);
+            "Benutzer", userName, newValuesJson: $"{{\"Rolle\":\"{role}\"}}", cancellationToken: ct);
 
         return new TemporaryPasswordResultDto
         {
@@ -235,7 +237,7 @@ public class UserService(
     private async Task<UserDto> ToDtoAsync(ApplicationUser user) => new()
     {
         Id = user.Id,
-        Email = user.Email ?? string.Empty,
+        UserName = user.UserName ?? string.Empty,
         DisplayName = user.DisplayName,
         Role = await GetRoleAsync(user),
         MustChangePassword = user.MustChangePassword,
@@ -247,8 +249,8 @@ public class UserService(
     private static string TranslateErrors(IdentityResult result)
         => string.Join(" ", result.Errors.Select(e => e.Code switch
         {
-            "DuplicateUserName" or "DuplicateEmail" => "Diese E-Mail-Adresse wird bereits verwendet.",
-            "InvalidEmail" => "Das ist keine gültige E-Mail-Adresse.",
+            "DuplicateUserName" or "DuplicateEmail" => "Dieser Benutzername wird bereits verwendet.",
+            "InvalidUserName" => "Der Benutzername enthält unzulässige Zeichen. Erlaubt sind Buchstaben, Ziffern und . _ - @ +.",
             "PasswordTooShort" => "Das Passwort ist zu kurz.",
             _ => e.Description,
         }));

@@ -6,9 +6,8 @@ namespace Fahrschule.Contracts.Users;
 /// password; the admin passes it on. No password field here.</summary>
 public class CreateUserRequest
 {
-    [Required(ErrorMessage = "Bitte eine E-Mail-Adresse eintragen.")]
-    [EmailAddress(ErrorMessage = "Das ist keine gültige E-Mail-Adresse.")]
-    public string Email { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Bitte einen Benutzernamen für die Anmeldung eintragen.")]
+    public string UserName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Bitte einen Namen eintragen.")]
     public string DisplayName { get; set; } = string.Empty;

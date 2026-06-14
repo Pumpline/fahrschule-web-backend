@@ -25,7 +25,7 @@ public class AuthController(IAuthService authService) : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<CurrentUserDto>> Login(LoginRequest request, CancellationToken ct)
     {
-        var result = await authService.LoginAsync(request.Email, request.Password, ct);
+        var result = await authService.LoginAsync(request.UserName, request.Password, ct);
         AuthCookies.Write(HttpContext, result);
         return Ok(result.User);
     }

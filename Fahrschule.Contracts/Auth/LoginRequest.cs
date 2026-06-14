@@ -15,9 +15,8 @@ namespace Fahrschule.Contracts.Auth;
 /// </summary>
 public class LoginRequest
 {
-    [Required(ErrorMessage = "Bitte die E-Mail-Adresse eintragen.")]
-    [EmailAddress(ErrorMessage = "Das ist keine gültige E-Mail-Adresse.")]
-    public string Email { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Bitte den Benutzernamen eintragen.")]
+    public string UserName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Bitte das Passwort eintragen.")]
     public string Password { get; set; } = string.Empty;

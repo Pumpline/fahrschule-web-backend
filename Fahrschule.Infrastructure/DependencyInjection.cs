@@ -48,7 +48,10 @@ public static class DependencyInjection
                 options.Lockout.MaxFailedAccessAttempts = 5;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
 
-                options.User.RequireUniqueEmail = true;
+                // Accounts log in by user name, not e-mail - so no e-mail is
+                // stored or required (RequireUniqueEmail would otherwise reject
+                // the empty e-mail with "Email '' is invalid").
+                options.User.RequireUniqueEmail = false;
             })
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<FahrschuleDbContext>();

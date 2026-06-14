@@ -25,7 +25,7 @@ public record AuthResult(
 
 public interface IAuthService
 {
-    Task<AuthResult> LoginAsync(string email, string password, CancellationToken ct = default);
+    Task<AuthResult> LoginAsync(string userName, string password, CancellationToken ct = default);
     Task<AuthResult> RefreshAsync(string refreshToken, CancellationToken ct = default);
     Task LogoutAsync(string refreshToken, CancellationToken ct = default);
     Task<AuthResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct = default);
@@ -50,12 +50,12 @@ public class AuthService(
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
 
     // Deliberately ONE shared message for "unknown e-mail" and "wrong password":
-    // otherwise an attacker could probe which e-mail addresses have an account.
-    private const string LoginFailedMessage = "E-Mail oder Passwort ist falsch. Bitte prüfen Sie beides und versuchen Sie es noch einmal.";
+    // otherwise an attacker could probe which user names have an account.
+    private const string LoginFailedMessage = "Benutzername oder Passwort ist falsch. Bitte prüfen Sie beides und versuchen Sie es noch einmal.";
 
-    public async Task<AuthResult> LoginAsync(string email, string password, CancellationToken ct = default)
+    public async Task<AuthResult> LoginAsync(string userName, string password, CancellationToken ct = default)
     {
-        var user = await userManager.FindByEmailAsync(email);
+        var user = await userManager.FindByNameAsync(userName.Trim());
         if (user is null)
         {
             throw new AuthenticationFailedException(LoginFailedMessage);
@@ -190,7 +190,7 @@ public class AuthService(
         return new CurrentUserDto
         {
             Id = user.Id,
-            Email = user.Email ?? string.Empty,
+            UserName = user.UserName ?? string.Empty,
             DisplayName = user.DisplayName,
             Roles = [.. roles],
             MustChangePassword = user.MustChangePassword,

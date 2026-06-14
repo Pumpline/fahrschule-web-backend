@@ -40,7 +40,9 @@ public class JwtTokenServiceTests
         var jwt = CreateAndParse(User, [Roles.Admin, Roles.Fahrlehrer]);
 
         Assert.Equal(User.Id.ToString(), jwt.Subject);
-        Assert.Contains(jwt.Claims, c => c.Type == "email" && c.Value == "helga@fahrschule.local");
+        // The token carries the display name (no e-mail claim anymore - login is by user name).
+        Assert.Contains(jwt.Claims, c => c.Value == "Helga Muster");
+        Assert.DoesNotContain(jwt.Claims, c => c.Type == "email");
 
         var roleClaims = jwt.Claims
             .Where(c => c.Type is "role" or System.Security.Claims.ClaimTypes.Role)
