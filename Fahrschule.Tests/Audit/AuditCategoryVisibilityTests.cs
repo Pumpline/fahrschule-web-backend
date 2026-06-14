@@ -135,6 +135,13 @@ public class AuditCategoryVisibilityTests
             await w.WriteAsync(Guid.NewGuid(), "A", "Abgehakt", "Ausbildungsfortschritt", $"{studentId}/Überlandfahrt");
             await w.WriteAsync(Guid.NewGuid(), "A", "Geändert", "Schüler", studentId.ToString(),
                 oldValuesJson: "{\"Email\":\"a@x\",\"Phone\":\"1\"}", newValuesJson: "{\"Email\":\"b@x\",\"Phone\":\"1\"}");
+            // class added (new only) and removed (old only) + a phase change
+            await w.WriteAsync(Guid.NewGuid(), "A", "Geändert", "Schüler", studentId.ToString(),
+                newValuesJson: "{\"KlasseHinzugefügt\":\"B\"}");
+            await w.WriteAsync(Guid.NewGuid(), "A", "Geändert", "Schüler", studentId.ToString(),
+                oldValuesJson: "{\"KlasseEntfernt\":\"A1\"}");
+            await w.WriteAsync(Guid.NewGuid(), "A", "Prüfung eingetragen", "Prüfung", studentId.ToString(),
+                newValuesJson: "{\"Art\":\"Praxisprüfung\",\"Klasse\":\"B\",\"Datum\":\"05.06.2026\",\"Ergebnis\":\"bestanden\"}");
         }
 
         await using (var db = NewDb())
@@ -143,7 +150,10 @@ public class AuditCategoryVisibilityTests
             Assert.Equal("E-Mail", items.Single(i => i.Action == "Stammdaten angesehen").Detail);
             Assert.Equal("Überlandfahrt", items.Single(i => i.Action == "Abgehakt").Detail);
             // only the e-mail changed → just that field's label, never the values
-            Assert.Equal("E-Mail", items.Single(i => i.Action == "Geändert").Detail);
+            Assert.Equal("E-Mail", items.Single(i => i.Action == "Geändert" && i.Detail == "E-Mail").Detail);
+            Assert.Contains(items, i => i.Detail == "Klasse B hinzugefügt");
+            Assert.Contains(items, i => i.Detail == "Klasse A1 entfernt");
+            Assert.Equal("Praxisprüfung, Klasse B, bestanden", items.Single(i => i.Action == "Prüfung eingetragen").Detail);
         }
     }
 

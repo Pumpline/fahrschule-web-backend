@@ -151,7 +151,8 @@ public class AuditQueryService(FahrschuleDbContext db, IAuditVisibilityService v
     /// Extracts a human-readable specific of the action so the log reads precisely:
     ///  - an EntityId of the form "guid/rest" carries the affected item in "rest"
     ///    (e.g. the plan point "Überlandfahrt" or the document name),
-    ///  - a NewValuesJson of {"Feld":"E-Mail"} carries the viewed/changed field,
+    ///  - a known payload (class added/removed, phase, role, exam, lesson,
+    ///    appointment) is rendered as a short German phrase,
     ///  - otherwise the before/after snapshots are diffed to list the CHANGED field
     ///    names (no values, so the log stays data-minimal).
     /// Returns null when there is nothing extra to show.
@@ -164,33 +165,80 @@ public class AuditQueryService(FahrschuleDbContext db, IAuditVisibilityService v
             return entityId[(slash + 1)..];
         }
 
-        var field = TryReadField(newValuesJson);
-        if (field != null)
+        // Known payloads usually sit in the "new" values; a removal (e.g. a class
+        // taken away) only has an "old" payload - so try both.
+        var described = DescribePayload(newValuesJson) ?? DescribePayload(oldValuesJson);
+        if (described != null)
         {
-            return field;
+            return described;
         }
 
         var changed = ChangedFieldLabels(oldValuesJson, newValuesJson);
         return changed.Count > 0 ? string.Join(", ", changed) : null;
     }
 
-    /// <summary>Reads the "Feld" string of a {"Feld":"…"} payload (else null).</summary>
-    private static string? TryReadField(string? json)
+    /// <summary>Turns a known audit payload into a short German phrase (no
+    /// personal names, German enum labels). Returns null for unrecognised JSON.</summary>
+    private static string? DescribePayload(string? json)
     {
         if (string.IsNullOrEmpty(json)) return null;
         try
         {
             using var doc = System.Text.Json.JsonDocument.Parse(json);
-            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object
-                && doc.RootElement.TryGetProperty("Feld", out var feld)
-                && feld.ValueKind == System.Text.Json.JsonValueKind.String)
+            var root = doc.RootElement;
+            if (root.ValueKind != System.Text.Json.JsonValueKind.Object) return null;
+
+            string? S(string key) => root.TryGetProperty(key, out var v)
+                && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
+
+            if (S("Feld") is { } feld) return feld;                              // viewed/changed field
+            if (S("KlasseHinzugefügt") is { } added) return $"Klasse {added} hinzugefügt";
+            if (S("KlasseEntfernt") is { } removed) return $"Klasse {removed} entfernt";
+            if (S("Phase") is { } phase) return $"Phase: {PhaseLabel(phase)}";
+            if (S("Rolle") is { } role) return $"Rolle: {role}";
+
+            // Exam: "Praxisprüfung, Klasse B, bestanden" (Art/Ergebnis already German).
+            if (S("Ergebnis") is { } result)
             {
-                return feld.GetString();
+                var parts = new[] { S("Art"), S("Klasse") is { } k ? $"Klasse {k}" : null, result };
+                return string.Join(", ", parts.Where(p => !string.IsNullOrEmpty(p)));
             }
+            // Lesson: "Theorie, Klasse B".
+            if (S("Typ") is { } lessonType)
+            {
+                var parts = new[] { LessonTypeLabel(lessonType), S("Klasse") is { } k ? $"Klasse {k}" : null };
+                return string.Join(", ", parts.Where(p => !string.IsNullOrEmpty(p)));
+            }
+            // Appointment: "Praxis, 09:00–10:30" (no student name shown).
+            if (S("Art") is { } kind)
+            {
+                return S("Von") is { } from ? $"{kind}, {from}–{S("Bis")}" : kind;
+            }
+
+            return null;
         }
-        catch (System.Text.Json.JsonException) { /* not recognised JSON */ }
-        return null;
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
+
+    private static string PhaseLabel(string phase) => phase switch
+    {
+        "Theory" => "Theorie",
+        "TheoryExam" => "Theorieprüfung",
+        "Practice" => "Praxis",
+        "PracticeExam" => "Praxisprüfung",
+        "Completed" => "Abgeschlossen",
+        _ => phase,
+    };
+
+    private static string LessonTypeLabel(string type) => type switch
+    {
+        "Theory" => "Theorie",
+        "Practice" => "Praxis",
+        _ => type,
+    };
 
     /// <summary>Diffs two before/after snapshot objects and returns the German
     /// labels of the keys whose value changed (names only, never the values).</summary>
