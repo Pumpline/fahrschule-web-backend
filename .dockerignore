@@ -1,0 +1,11 @@
+# Keep the build context small and never ship local secrets or build output.
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+.git/
+.gitignore
+**/appsettings.Local.json
+**/*.user
+docs/
+design-mockup.html

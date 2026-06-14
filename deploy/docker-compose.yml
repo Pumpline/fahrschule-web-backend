@@ -1,0 +1,67 @@
+# Fahrschulverwaltung - production stack (own isolated containers).
+#
+# Layout on the server (see docs/deployment.md):
+#   /opt/fahrschule/
+#     backend/   (clone of fahrschule-web-backend)
+#     frontend/  (clone of fahrschule-web-frontend)
+#     docker-compose.yml   (this file)
+#     .env                 (secrets - NEVER committed; see .env.example)
+#
+# Only the "web" container binds a port, and only on localhost. The host Nginx
+# terminates TLS and proxies the public domain to 127.0.0.1:${WEB_PORT}.
+name: fahrschule
+
+services:
+  api:
+    build:
+      context: ./backend
+    image: fahrschule-api:latest
+    container_name: fahrschule-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      # TLS is enforced at the edge (host Nginx / Cloudflare); no in-container redirect.
+      Security__EnableHttpsRedirection: "false"
+      # All secrets come from .env (see .env.example). The "__" maps to the
+      # nested config keys (ConnectionStrings:Default, Jwt:SecretKey, ...).
+      ConnectionStrings__Default: ${DB_CONNECTION}
+      Jwt__SecretKey: ${JWT_SECRET}
+      Jwt__Issuer: ${JWT_ISSUER:-Fahrschule.Api}
+      Jwt__Audience: ${JWT_AUDIENCE:-Fahrschule.Frontend}
+      Seed__Admin__UserName: ${ADMIN_USERNAME}
+      Seed__Admin__Password: ${ADMIN_PASSWORD}
+      Seed__Admin__DisplayName: ${ADMIN_DISPLAYNAME:-Inhaber}
+    # Lets the container reach a host-published Postgres port (postgres-bots)
+    # via "host.docker.internal". Alternative: attach to the postgres network
+    # (see the commented "networks" below + docs/deployment.md, option B).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - fahrschule
+    # If postgres-bots is NOT published on a host port, comment out extra_hosts
+    # above, uncomment here and add the external network at the bottom:
+    #   - dbnet
+
+  web:
+    build:
+      context: ./frontend
+    image: fahrschule-web:latest
+    container_name: fahrschule-web
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      # Only localhost - the host Nginx proxies the public domain here.
+      - "127.0.0.1:${WEB_PORT:-8090}:80"
+    networks:
+      - fahrschule
+
+networks:
+  fahrschule:
+    driver: bridge
+  # Option B - reach postgres-bots over its own docker network instead of a
+  # host port. Set the real network name during deployment and attach "api".
+  # dbnet:
+  #   external: true
+  #   name: <network-of-postgres-bots>

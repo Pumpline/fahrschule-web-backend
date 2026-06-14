@@ -171,23 +171,24 @@ public static class DatabaseInitializer
         }
 
         var config = provider.GetRequiredService<IConfiguration>();
-        var email = config["Seed:Admin:Email"];
+        // Login is by user name (no e-mail on accounts). Accept the new
+        // Seed:Admin:UserName and fall back to the former Seed:Admin:Email key
+        // so existing configurations keep working.
+        var userName = config["Seed:Admin:UserName"] ?? config["Seed:Admin:Email"];
         var password = config["Seed:Admin:Password"];
         var displayName = config["Seed:Admin:DisplayName"] ?? "Inhaber";
 
-        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(password))
         {
             logger.LogWarning(
-                "Kein Admin-Seed konfiguriert (Seed:Admin:Email / Seed:Admin:Password). " +
+                "Kein Admin-Seed konfiguriert (Seed:Admin:UserName / Seed:Admin:Password). " +
                 "Ohne ersten Admin ist keine Anmeldung möglich.");
             return;
         }
 
         var admin = new ApplicationUser
         {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
+            UserName = userName, // login name (no e-mail stored on accounts)
             DisplayName = displayName,
             CreatedAtUtc = DateTime.UtcNow,
             // The seed password lives in a configuration file and therefore
@@ -203,6 +204,6 @@ public static class DatabaseInitializer
         }
 
         await userManager.AddToRoleAsync(admin, Roles.Admin);
-        logger.LogInformation("Erster Admin {Email} wurde angelegt (Passwort muss beim ersten Login geändert werden).", email);
+        logger.LogInformation("Erster Admin {UserName} wurde angelegt (Passwort muss beim ersten Login geändert werden).", userName);
     }
 }

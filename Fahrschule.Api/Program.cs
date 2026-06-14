@@ -6,6 +6,7 @@ using Fahrschule.Application.Auth;
 using Fahrschule.Infrastructure;
 using Fahrschule.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 
@@ -132,6 +133,20 @@ var app = builder.Build();
 //    in exactly this order (middleware concept).
 // ----------------------------------------------------------------------------
 
+// Behind a reverse proxy (Nginx/Cloudflare) TLS is terminated there and the app
+// receives plain HTTP. Honour X-Forwarded-Proto/-For so Request.IsHttps and the
+// client IP are correct again - needed for the Secure auth cookies and the HTTPS
+// handling. Must run before everything else that inspects the request.
+var forwardedOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+};
+// We sit behind our own trusted reverse proxy (not directly on the internet),
+// so accept the forwarded headers from it.
+forwardedOptions.KnownNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedOptions);
+
 // Outermost: catches all errors and turns them into understandable JSON responses.
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
@@ -148,8 +163,12 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi().AllowAnonymous();
 }
-else
+else if (app.Configuration.GetValue("Security:EnableHttpsRedirection", true))
 {
+    // TLS is normally enforced here. When the app runs BEHIND a reverse proxy
+    // that already terminates TLS (our Docker deployment), in-container HTTP→HTTPS
+    // redirection would loop - set Security:EnableHttpsRedirection=false there and
+    // let Nginx/Cloudflare enforce HTTPS at the edge instead.
     app.UseHsts();             // tell browsers: HTTPS only for this domain
     app.UseHttpsRedirection(); // redirect HTTP → HTTPS (HTTPS is mandatory)
 }
