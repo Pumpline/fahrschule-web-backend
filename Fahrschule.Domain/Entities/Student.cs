@@ -21,9 +21,9 @@ public class Student : ISoftDeletable
 
     public string? Email { get; set; }
     public string? Phone { get; set; }
-    public string? Street { get; set; }
-    public string? PostalCode { get; set; }
-    public string? City { get; set; }
+
+    /// <summary>Full address as one free-text field (Straße, PLZ, Ort combined).</summary>
+    public string? Address { get; set; }
 
     /// <summary>Free-text notes (no special categories!).</summary>
     public string? Notes { get; set; }

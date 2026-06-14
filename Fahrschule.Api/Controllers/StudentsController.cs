@@ -34,15 +34,21 @@ public class StudentsController(IStudentService service) : ControllerBase
     }
 
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<StudentDetailDto>> GetById(Guid id, CancellationToken ct)
-        => Ok(await service.GetByIdAsync(id, ct));
+    public async Task<ActionResult<StudentAkteDto>> GetById(Guid id, CancellationToken ct)
+        => Ok(await service.GetAkteAsync(id, ct));
+
+    /// <summary>Reveal one sensitive master-data field on demand. The access is
+    /// recorded in the audit log (KONZEPT 3.1 / DSGVO Zugriffsprotokoll).</summary>
+    [HttpGet("{id:guid}/stammdaten/{field}")]
+    public async Task<ActionResult<StudentFieldValueDto>> GetField(Guid id, string field, CancellationToken ct)
+        => Ok(await service.GetFieldAsync(id, field, GetActor(), ct));
 
     [HttpPost]
-    public async Task<ActionResult<StudentDetailDto>> Create(CreateStudentRequest request, CancellationToken ct)
+    public async Task<ActionResult<StudentAkteDto>> Create(CreateStudentRequest request, CancellationToken ct)
         => Ok(await service.CreateAsync(request, GetActor(), ct));
 
     [HttpPut("{id:guid}")]
-    public async Task<ActionResult<StudentDetailDto>> Update(Guid id, UpdateStudentRequest request, CancellationToken ct)
+    public async Task<ActionResult<StudentAkteDto>> Update(Guid id, UpdateStudentRequest request, CancellationToken ct)
         => Ok(await service.UpdateAsync(id, request, GetActor(), ct));
 
     [HttpDelete("{id:guid}")]
@@ -53,15 +59,15 @@ public class StudentsController(IStudentService service) : ControllerBase
     }
 
     [HttpPost("{id:guid}/classes")]
-    public async Task<ActionResult<StudentDetailDto>> AddClass(Guid id, AddStudentLicenseClassRequest request, CancellationToken ct)
+    public async Task<ActionResult<StudentAkteDto>> AddClass(Guid id, AddStudentLicenseClassRequest request, CancellationToken ct)
         => Ok(await service.AddLicenseClassAsync(id, request.LicenseClassId, GetActor(), ct));
 
     [HttpDelete("{id:guid}/classes/{licenseClassId:guid}")]
-    public async Task<ActionResult<StudentDetailDto>> RemoveClass(Guid id, Guid licenseClassId, CancellationToken ct)
+    public async Task<ActionResult<StudentAkteDto>> RemoveClass(Guid id, Guid licenseClassId, CancellationToken ct)
         => Ok(await service.RemoveLicenseClassAsync(id, licenseClassId, GetActor(), ct));
 
     [HttpPut("{id:guid}/classes/{licenseClassId:guid}/phase")]
-    public async Task<ActionResult<StudentDetailDto>> SetPhase(Guid id, Guid licenseClassId, SetStudentPhaseRequest request, CancellationToken ct)
+    public async Task<ActionResult<StudentAkteDto>> SetPhase(Guid id, Guid licenseClassId, SetStudentPhaseRequest request, CancellationToken ct)
     {
         if (!Enum.TryParse<StudentPhase>(request.Phase, out var phase))
         {

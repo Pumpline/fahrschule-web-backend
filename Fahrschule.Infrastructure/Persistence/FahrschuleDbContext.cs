@@ -150,9 +150,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
             student.Property(x => x.LastName).HasMaxLength(100);
             student.Property(x => x.Email).HasMaxLength(256);
             student.Property(x => x.Phone).HasMaxLength(50);
-            student.Property(x => x.Street).HasMaxLength(200);
-            student.Property(x => x.PostalCode).HasMaxLength(20);
-            student.Property(x => x.City).HasMaxLength(100);
+            student.Property(x => x.Address).HasMaxLength(400);
             student.Property(x => x.Notes).HasMaxLength(2000);
 
             student.HasIndex(x => x.LastName);

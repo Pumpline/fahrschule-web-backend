@@ -102,13 +102,8 @@ public class TrainingContractDocument(
                 });
                 col.Item().Text($"Geburtsdatum: {(student.DateOfBirth is { } d ? d.ToString("dd.MM.yyyy") : "—")}")
                     .FontColor(Colors.Grey.Darken1);
-                var studentAddress = string.Join(", ", new[]
-                {
-                    student.Street,
-                    string.Join(" ", new[] { student.PostalCode, student.City }.Where(s => !string.IsNullOrWhiteSpace(s))),
-                }.Where(s => !string.IsNullOrWhiteSpace(s)));
-                if (!string.IsNullOrWhiteSpace(studentAddress))
-                    col.Item().Text($"Anschrift: {studentAddress}").FontColor(Colors.Grey.Darken1);
+                if (!string.IsNullOrWhiteSpace(student.Address))
+                    col.Item().Text($"Anschrift: {student.Address}").FontColor(Colors.Grey.Darken1);
                 var contact = string.Join(" · ", new[] { student.Phone, student.Email }.Where(s => !string.IsNullOrWhiteSpace(s)));
                 if (!string.IsNullOrWhiteSpace(contact))
                     col.Item().Text($"Kontakt: {contact}").FontColor(Colors.Grey.Darken1);

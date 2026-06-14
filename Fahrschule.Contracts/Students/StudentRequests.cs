@@ -14,9 +14,7 @@ public class CreateStudentRequest
     public DateOnly? DateOfBirth { get; set; }
     public string? Email { get; set; }
     public string? Phone { get; set; }
-    public string? Street { get; set; }
-    public string? PostalCode { get; set; }
-    public string? City { get; set; }
+    public string? Address { get; set; }
     public string? Notes { get; set; }
 }
 
@@ -32,10 +30,14 @@ public class UpdateStudentRequest
     public DateOnly? DateOfBirth { get; set; }
     public string? Email { get; set; }
     public string? Phone { get; set; }
-    public string? Street { get; set; }
-    public string? PostalCode { get; set; }
-    public string? City { get; set; }
+    public string? Address { get; set; }
     public string? Notes { get; set; }
+
+    /// <summary>Which sensitive fields the client actually loaded/edited and is
+    /// therefore allowed to overwrite. Fields not listed are left unchanged - this
+    /// is what makes the lazy "reveal only what you need" approach safe to save.
+    /// (The name is always updated.)</summary>
+    public List<string> EditableFields { get; set; } = [];
 
     public uint Version { get; set; }
 }

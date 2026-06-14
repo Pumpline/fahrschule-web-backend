@@ -21,13 +21,23 @@ public record StudentListQuery(
 public interface IStudentService
 {
     Task<StudentListResultDto> GetListAsync(StudentListQuery query, CancellationToken ct = default);
+
+    /// <summary>The FULL record incl. all values - INTERNAL only (export, PDFs).</summary>
     Task<StudentDetailDto> GetByIdAsync(Guid id, CancellationToken ct = default);
-    Task<StudentDetailDto> CreateAsync(CreateStudentRequest request, Actor actor, CancellationToken ct = default);
-    Task<StudentDetailDto> UpdateAsync(Guid id, UpdateStudentRequest request, Actor actor, CancellationToken ct = default);
+
+    /// <summary>The lightweight "Akte" for the detail page (no sensitive values,
+    /// only which fields are filled). Data minimisation (KONZEPT 3.1).</summary>
+    Task<StudentAkteDto> GetAkteAsync(Guid id, CancellationToken ct = default);
+
+    /// <summary>Reveal one sensitive field's value on demand - and audit the access.</summary>
+    Task<StudentFieldValueDto> GetFieldAsync(Guid id, string field, Actor actor, CancellationToken ct = default);
+
+    Task<StudentAkteDto> CreateAsync(CreateStudentRequest request, Actor actor, CancellationToken ct = default);
+    Task<StudentAkteDto> UpdateAsync(Guid id, UpdateStudentRequest request, Actor actor, CancellationToken ct = default);
     Task DeleteAsync(Guid id, Actor actor, CancellationToken ct = default);
-    Task<StudentDetailDto> AddLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
-    Task<StudentDetailDto> RemoveLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
-    Task<StudentDetailDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default);
+    Task<StudentAkteDto> AddLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
+    Task<StudentAkteDto> RemoveLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
+    Task<StudentAkteDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default);
 
     /// <summary>Students marked for deletion ("Zur Löschung vorgemerkt", KONZEPT 3.7).</summary>
     Task<List<DeletedStudentDto>> GetDeletedAsync(CancellationToken ct = default);
@@ -105,7 +115,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
     public async Task<StudentDetailDto> GetByIdAsync(Guid id, CancellationToken ct = default)
         => ToDetailDto(await LoadAsync(id, ct));
 
-    public async Task<StudentDetailDto> CreateAsync(CreateStudentRequest request, Actor actor, CancellationToken ct = default)
+    public async Task<StudentAkteDto> CreateAsync(CreateStudentRequest request, Actor actor, CancellationToken ct = default)
     {
         var firstName = Clean(request.FirstName);
         var lastName = Clean(request.LastName);
@@ -120,9 +130,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             DateOfBirth = request.DateOfBirth,
             Email = NullIfEmpty(request.Email),
             Phone = NullIfEmpty(request.Phone),
-            Street = NullIfEmpty(request.Street),
-            PostalCode = NullIfEmpty(request.PostalCode),
-            City = NullIfEmpty(request.City),
+            Address = NullIfEmpty(request.Address),
             Notes = NullIfEmpty(request.Notes),
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
@@ -134,10 +142,10 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Angelegt",
             "Schüler", student.Id.ToString(), newValuesJson: Snapshot(student), cancellationToken: ct);
 
-        return ToDetailDto(await LoadAsync(student.Id, ct));
+        return ToAkteDto(await LoadAsync(student.Id, ct));
     }
 
-    public async Task<StudentDetailDto> UpdateAsync(Guid id, UpdateStudentRequest request, Actor actor, CancellationToken ct = default)
+    public async Task<StudentAkteDto> UpdateAsync(Guid id, UpdateStudentRequest request, Actor actor, CancellationToken ct = default)
     {
         var student = await LoadAsync(id, ct);
         var firstName = Clean(request.FirstName);
@@ -146,15 +154,17 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
 
         var oldSnapshot = Snapshot(student);
 
+        // The name is always editable. The sensitive fields are only overwritten
+        // when the client actually loaded/edited them (EditableFields) - otherwise
+        // an unrevealed field would be wiped on save (lazy-load safety).
         student.FirstName = firstName!;
         student.LastName = lastName!;
-        student.DateOfBirth = request.DateOfBirth;
-        student.Email = NullIfEmpty(request.Email);
-        student.Phone = NullIfEmpty(request.Phone);
-        student.Street = NullIfEmpty(request.Street);
-        student.PostalCode = NullIfEmpty(request.PostalCode);
-        student.City = NullIfEmpty(request.City);
-        student.Notes = NullIfEmpty(request.Notes);
+        var editable = request.EditableFields ?? [];
+        if (editable.Contains("dateOfBirth")) student.DateOfBirth = request.DateOfBirth;
+        if (editable.Contains("email")) student.Email = NullIfEmpty(request.Email);
+        if (editable.Contains("phone")) student.Phone = NullIfEmpty(request.Phone);
+        if (editable.Contains("address")) student.Address = NullIfEmpty(request.Address);
+        if (editable.Contains("notes")) student.Notes = NullIfEmpty(request.Notes);
         student.UpdatedAtUtc = DateTime.UtcNow;
 
         db.Entry(student).Property<uint>("xmin").OriginalValue = request.Version;
@@ -163,7 +173,33 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Geändert",
             "Schüler", student.Id.ToString(), oldSnapshot, Snapshot(student), ct);
 
-        return ToDetailDto(student);
+        return ToAkteDto(student);
+    }
+
+    public async Task<StudentAkteDto> GetAkteAsync(Guid id, CancellationToken ct = default)
+        => ToAkteDto(await LoadAsync(id, ct));
+
+    public async Task<StudentFieldValueDto> GetFieldAsync(Guid id, string field, Actor actor, CancellationToken ct = default)
+    {
+        var student = await db.Students.FirstOrDefaultAsync(s => s.Id == id, ct)
+            ?? throw new NotFoundException("Dieser Schüler wurde nicht gefunden. Bitte die Liste neu laden.");
+
+        var (label, value) = field switch
+        {
+            "dateOfBirth" => ("Geburtsdatum", student.DateOfBirth?.ToString("yyyy-MM-dd")),
+            "email" => ("E-Mail", student.Email),
+            "phone" => ("Telefon", student.Phone),
+            "address" => ("Adresse", student.Address),
+            "notes" => ("Notizen", student.Notes),
+            _ => throw new AppValidationException("Unbekanntes Feld."),
+        };
+
+        // Accessing a single personal-data field is logged (GDPR access trail).
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Stammdaten angesehen",
+            "Schüler", id.ToString(),
+            newValuesJson: $"{{\"Feld\":\"{label}\"}}", cancellationToken: ct);
+
+        return new StudentFieldValueDto { Key = field, Value = value ?? string.Empty };
     }
 
     public async Task DeleteAsync(Guid id, Actor actor, CancellationToken ct = default)
@@ -182,7 +218,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             oldValuesJson: Snapshot(student), cancellationToken: ct);
     }
 
-    public async Task<StudentDetailDto> AddLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
+    public async Task<StudentAkteDto> AddLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
     {
         var student = await LoadAsync(id, ct);
 
@@ -216,10 +252,10 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             "Schüler", student.Id.ToString(),
             newValuesJson: $"{{\"KlasseHinzugefügt\":\"{licenseClass.Code}\"}}", cancellationToken: ct);
 
-        return ToDetailDto(await LoadAsync(id, ct));
+        return ToAkteDto(await LoadAsync(id, ct));
     }
 
-    public async Task<StudentDetailDto> RemoveLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
+    public async Task<StudentAkteDto> RemoveLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
     {
         var student = await LoadAsync(id, ct);
         var entry = student.LicenseClasses.FirstOrDefault(lc => lc.LicenseClassId == licenseClassId)
@@ -234,10 +270,10 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             "Schüler", student.Id.ToString(),
             oldValuesJson: $"{{\"KlasseEntfernt\":\"{code}\"}}", cancellationToken: ct);
 
-        return ToDetailDto(await LoadAsync(id, ct));
+        return ToAkteDto(await LoadAsync(id, ct));
     }
 
-    public async Task<StudentDetailDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default)
+    public async Task<StudentAkteDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default)
     {
         var student = await LoadAsync(id, ct);
         var entry = student.LicenseClasses.FirstOrDefault(lc => lc.LicenseClassId == licenseClassId)
@@ -253,7 +289,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             oldValuesJson: $"{{\"Phase\":\"{oldPhase}\"}}",
             newValuesJson: $"{{\"Phase\":\"{phase}\"}}", cancellationToken: ct);
 
-        return ToDetailDto(student);
+        return ToAkteDto(student);
     }
 
     public async Task<List<DeletedStudentDto>> GetDeletedAsync(CancellationToken ct = default)
@@ -315,11 +351,34 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         DateOfBirth = s.DateOfBirth,
         Email = s.Email,
         Phone = s.Phone,
-        Street = s.Street,
-        PostalCode = s.PostalCode,
-        City = s.City,
+        Address = s.Address,
         Notes = s.Notes,
-        Classes = [.. s.LicenseClasses
+        Classes = ClassDtos(s),
+        Version = db.Entry(s).Property<uint>("xmin").CurrentValue,
+    };
+
+    /// <summary>The lightweight Akte: name, classes, version and which sensitive
+    /// fields are filled - but NOT their values (data minimisation).</summary>
+    private StudentAkteDto ToAkteDto(Student s) => new()
+    {
+        Id = s.Id,
+        FirstName = s.FirstName,
+        LastName = s.LastName,
+        Classes = ClassDtos(s),
+        Version = db.Entry(s).Property<uint>("xmin").CurrentValue,
+        Fields =
+        [
+            new() { Key = "dateOfBirth", Label = "Geburtsdatum", HasValue = s.DateOfBirth is not null },
+            new() { Key = "email", Label = "E-Mail", HasValue = !string.IsNullOrWhiteSpace(s.Email) },
+            new() { Key = "phone", Label = "Telefon", HasValue = !string.IsNullOrWhiteSpace(s.Phone) },
+            new() { Key = "address", Label = "Adresse", HasValue = !string.IsNullOrWhiteSpace(s.Address) },
+            new() { Key = "notes", Label = "Notizen", HasValue = !string.IsNullOrWhiteSpace(s.Notes) },
+        ],
+    };
+
+    private static List<StudentLicenseClassDto> ClassDtos(Student s) =>
+    [
+        .. s.LicenseClasses
             .Where(lc => lc.LicenseClass != null)
             .OrderBy(lc => lc.LicenseClass!.SortOrder)
             .Select(lc => new StudentLicenseClassDto
@@ -328,16 +387,15 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
                 Code = lc.LicenseClass!.Code,
                 Description = lc.LicenseClass!.Description,
                 Phase = lc.Phase.ToString(),
-            })],
-        Version = db.Entry(s).Property<uint>("xmin").CurrentValue,
-    };
+            }),
+    ];
 
     /// <summary>Snapshot for the audit log. Note: this includes personal data,
     /// which is exactly what the audit log is meant to record (before/after) -
     /// but never special categories, as we don't store any.</summary>
     private static string Snapshot(Student s) => JsonSerializer.Serialize(new
     {
-        s.FirstName, s.LastName, s.DateOfBirth, s.Email, s.Phone, s.Street, s.PostalCode, s.City, s.Notes,
+        s.FirstName, s.LastName, s.DateOfBirth, s.Email, s.Phone, s.Address, s.Notes,
     });
 
     private static string? Clean(string? value) => value?.Trim();

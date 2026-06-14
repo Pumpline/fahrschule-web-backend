@@ -114,9 +114,16 @@ Das erste große Fachmodul mit eigener Liste und Detailseite:
 - **StudentsListPage**: Namenssuche, Klassen-Filter (ein Chip) und Stand-Filter
   (mehrere Phase-Chips), Fortschrittsbalken je Zeile, Paging, „Neuer Schüler"-
   Dialog. Datensparsamkeit: die Liste zeigt nur den aggregierten Fortschritt.
-- **StudentDetailPage** (die „Akte"): Stammdaten mit **Augen-Enthüllung pro Feld**
-  (Name sichtbar, Rest verschwommen; 👁 deckt auf und macht das Feld
-  bearbeitbar; leere Felder als „leer" markiert – KONZEPT 3.1). Darunter die
+- **StudentDetailPage** (die „Akte"): Stammdaten mit **bedarfsgesteuerter
+  Augen-Enthüllung pro Feld** (Datensparsamkeit, KONZEPT 3.1 / DSGVO): Die Akte
+  wird **ohne** die sensiblen Werte geladen – das Backend meldet nur, *welche*
+  Felder gefüllt sind. Ein gefülltes Feld bleibt hinter dem 👁 verdeckt; erst der
+  Klick holt diesen **einen** Wert nach (dieser Zugriff wird im Audit-Log
+  protokolliert: „Stammdaten angesehen") und macht das Feld bearbeitbar. Leere
+  Felder werden direkt bearbeitbar angezeigt (kein Auge – es gibt nichts zu
+  schützen). Adresse ist **ein** Freitextfeld (Straße/PLZ/Ort zusammengefasst).
+  Gespeichert werden nur die aufgedeckten/leeren Felder (`editableFields`), damit
+  ein verdeckter Wert nie versehentlich überschrieben wird. Darunter die
   Führerscheinklassen mit **Status pro Klasse** (Phasen-Auswahl), Klasse
   hinzufügen (mit Mindestalter-Prüfung) / entfernen, und Löschen (Soft-Delete).
 - **StudentDocuments** (eingebettet in die Akte): die aus dem Katalog

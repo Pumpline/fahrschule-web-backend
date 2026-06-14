@@ -28,7 +28,7 @@ public class TrainingContractPdfServiceTests
         db.Students.Add(new Student
         {
             Id = studentId, FirstName = "Lisa", LastName = "Wagner", DateOfBirth = new DateOnly(2007, 9, 2),
-            Street = "Hauptstr. 1", PostalCode = "04109", City = "Leipzig",
+            Address = "Hauptstr. 1, 04109 Leipzig",
             LicenseClasses = { new StudentLicenseClass { LicenseClassId = classB, Phase = StudentPhase.Theory } },
         });
         db.Settings.Add(new Setting { Key = SettingsService.ContractTerms, Value = "§1 Die Ausbildung erfolgt …", UpdatedAtUtc = DateTime.UtcNow });
