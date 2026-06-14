@@ -14,6 +14,10 @@ public class AuditLogDto
     public string EntityId { get; set; } = string.Empty;
     public string? OldValuesJson { get; set; }
     public string? NewValuesJson { get; set; }
+    /// <summary>Human-readable specifics of the action, when available - e.g. the
+    /// viewed master-data field ("E-Mail") or the affected plan point
+    /// ("Überlandfahrt"). Shown after the action so the log reads precisely.</summary>
+    public string? Detail { get; set; }
     /// <summary>Topic key (e.g. "students") + German label, for grouping/filtering.</summary>
     public string Category { get; set; } = string.Empty;
     public string CategoryLabel { get; set; } = string.Empty;

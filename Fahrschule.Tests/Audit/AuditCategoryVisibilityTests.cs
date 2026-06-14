@@ -117,6 +117,37 @@ public class AuditCategoryVisibilityTests
     }
 
     [Fact]
+    public async Task Detail_shows_the_specifics_of_an_action()
+    {
+        var studentId = Guid.NewGuid();
+        await using (var db = NewDb())
+        {
+            db.Students.Add(new Student
+            {
+                Id = studentId, FirstName = "Lisa", LastName = "Wagner",
+                CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
+            var w = new AuditWriter(db);
+            // viewed field, ticked plan point, and a change that only touches the e-mail
+            await w.WriteAsync(Guid.NewGuid(), "A", "Stammdaten angesehen", "Schüler",
+                studentId.ToString(), newValuesJson: "{\"Feld\":\"E-Mail\"}");
+            await w.WriteAsync(Guid.NewGuid(), "A", "Abgehakt", "Ausbildungsfortschritt", $"{studentId}/Überlandfahrt");
+            await w.WriteAsync(Guid.NewGuid(), "A", "Geändert", "Schüler", studentId.ToString(),
+                oldValuesJson: "{\"Email\":\"a@x\",\"Phone\":\"1\"}", newValuesJson: "{\"Email\":\"b@x\",\"Phone\":\"1\"}");
+        }
+
+        await using (var db = NewDb())
+        {
+            var items = (await Query(db).GetListAsync(["Admin"], null, null, 1, 20)).Items;
+            Assert.Equal("E-Mail", items.Single(i => i.Action == "Stammdaten angesehen").Detail);
+            Assert.Equal("Überlandfahrt", items.Single(i => i.Action == "Abgehakt").Detail);
+            // only the e-mail changed → just that field's label, never the values
+            Assert.Equal("E-Mail", items.Single(i => i.Action == "Geändert").Detail);
+        }
+    }
+
+    [Fact]
     public async Task Saving_visibility_restricts_what_a_role_sees()
     {
         await using (var db = NewDb())
