@@ -53,11 +53,20 @@ public static class DatabaseInitializer
         if (!await db.LicenseClasses.AnyAsync())
         {
             var now = DateTime.UtcNow;
-            LicenseClass NewClass(string code, string description, int? age, string? requirements, int sortOrder) => new()
+            // Training-plan target numbers per class (theory double lessons +
+            // special drives Überland/Autobahn/Nacht). Legal starting values; the
+            // owner edits them in the admin panel. Only filled where they are
+            // legally well-defined (class B); others start at 0 (please verify).
+            LicenseClass NewClass(string code, string description, int? age, string? requirements, int sortOrder,
+                int theoryDoubleLessons = 0, int overland = 0, int highway = 0, int night = 0) => new()
             {
                 Id = Guid.NewGuid(), Code = code, Description = description,
                 MinimumAge = age, Requirements = requirements,
                 IsActive = true, SortOrder = sortOrder, CreatedAtUtc = now, UpdatedAtUtc = now,
+                RequiredTheoryDoubleLessons = theoryDoubleLessons,
+                RequiredSpecialDrivesOverland = overland,
+                RequiredSpecialDrivesHighway = highway,
+                RequiredSpecialDrivesNight = night,
             };
 
             db.LicenseClasses.AddRange(
@@ -65,7 +74,10 @@ public static class DatabaseInitializer
                 NewClass("A1", "Leichtkrafträder bis 125 cm³", 16, null, 20),
                 NewClass("A2", "Krafträder bis 35 kW", 18, "Direkteinstieg oder Aufstieg von A1 nach 2 Jahren", 30),
                 NewClass("A", "Krafträder unbeschränkt", 24, "Direkteinstieg ab 24; Aufstieg von A2 nach 2 Jahren ab 20", 40),
-                NewClass("B", "Pkw bis 3,5 t", 17, "Mit 17 nur begleitetes Fahren (BF17); allein ab 18", 50),
+                // Class B (§ 5 FahrSchAusbO): 2 Zusatzstoff double lessons, special
+                // drives Überland 5 / Autobahn 4 / Nacht 3.
+                NewClass("B", "Pkw bis 3,5 t", 17, "Mit 17 nur begleitetes Fahren (BF17); allein ab 18", 50,
+                    theoryDoubleLessons: 2, overland: 5, highway: 4, night: 3),
                 NewClass("BE", "Pkw mit Anhänger über 750 kg", 17, "Vorbesitz Klasse B erforderlich", 60),
                 NewClass("B96", "Pkw mit Anhänger (Zug bis 4,25 t)", 17, "Erweiterung zu Klasse B (nur Schulung, keine Prüfung)", 70),
                 NewClass("L", "Land-/forstwirtschaftliche Zugmaschinen bis 40 km/h", 16, null, 80),

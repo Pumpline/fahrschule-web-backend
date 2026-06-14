@@ -42,6 +42,10 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
                 Requirements = x.Requirements,
                 IsActive = x.IsActive,
                 SortOrder = x.SortOrder,
+                RequiredTheoryDoubleLessons = x.RequiredTheoryDoubleLessons,
+                RequiredSpecialDrivesOverland = x.RequiredSpecialDrivesOverland,
+                RequiredSpecialDrivesHighway = x.RequiredSpecialDrivesHighway,
+                RequiredSpecialDrivesNight = x.RequiredSpecialDrivesNight,
                 // xmin = PostgreSQL system column used as version marker (see DTO).
                 Version = EF.Property<uint>(x, "xmin"),
             })
@@ -63,6 +67,10 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
             Requirements = NullIfEmpty(request.Requirements),
             IsActive = request.IsActive,
             SortOrder = request.SortOrder,
+            RequiredTheoryDoubleLessons = Math.Max(0, request.RequiredTheoryDoubleLessons),
+            RequiredSpecialDrivesOverland = Math.Max(0, request.RequiredSpecialDrivesOverland),
+            RequiredSpecialDrivesHighway = Math.Max(0, request.RequiredSpecialDrivesHighway),
+            RequiredSpecialDrivesNight = Math.Max(0, request.RequiredSpecialDrivesNight),
             CreatedAtUtc = now,
             UpdatedAtUtc = now,
         };
@@ -92,6 +100,10 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
         entity.Requirements = NullIfEmpty(request.Requirements);
         entity.IsActive = request.IsActive;
         entity.SortOrder = request.SortOrder;
+        entity.RequiredTheoryDoubleLessons = Math.Max(0, request.RequiredTheoryDoubleLessons);
+        entity.RequiredSpecialDrivesOverland = Math.Max(0, request.RequiredSpecialDrivesOverland);
+        entity.RequiredSpecialDrivesHighway = Math.Max(0, request.RequiredSpecialDrivesHighway);
+        entity.RequiredSpecialDrivesNight = Math.Max(0, request.RequiredSpecialDrivesNight);
         entity.UpdatedAtUtc = DateTime.UtcNow;
 
         // Optimistic concurrency: we tell EF which version the editor started
@@ -152,6 +164,10 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
         Requirements = entity.Requirements,
         IsActive = entity.IsActive,
         SortOrder = entity.SortOrder,
+        RequiredTheoryDoubleLessons = entity.RequiredTheoryDoubleLessons,
+        RequiredSpecialDrivesOverland = entity.RequiredSpecialDrivesOverland,
+        RequiredSpecialDrivesHighway = entity.RequiredSpecialDrivesHighway,
+        RequiredSpecialDrivesNight = entity.RequiredSpecialDrivesNight,
         // After SaveChanges PostgreSQL returns the new version marker.
         Version = db.Entry(entity).Property<uint>("xmin").CurrentValue,
     };
@@ -160,6 +176,8 @@ public class LicenseClassService(FahrschuleDbContext db, IAuditWriter auditWrite
     private static string Snapshot(LicenseClass x) => JsonSerializer.Serialize(new
     {
         x.Code, x.Description, x.MinimumAge, x.Requirements, x.IsActive, x.SortOrder,
+        x.RequiredTheoryDoubleLessons,
+        x.RequiredSpecialDrivesOverland, x.RequiredSpecialDrivesHighway, x.RequiredSpecialDrivesNight,
     });
 
     private static string? NullIfEmpty(string? value)

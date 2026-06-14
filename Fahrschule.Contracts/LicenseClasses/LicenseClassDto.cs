@@ -11,6 +11,14 @@ public class LicenseClassDto
     public bool IsActive { get; set; }
     public int SortOrder { get; set; }
 
+    /// <summary>Class-specific theory double lessons (Zusatzstoff), e.g. B = 2.</summary>
+    public int RequiredTheoryDoubleLessons { get; set; }
+
+    /// <summary>Mandatory special drives per class (drive the progress counters).</summary>
+    public int RequiredSpecialDrivesOverland { get; set; }
+    public int RequiredSpecialDrivesHighway { get; set; }
+    public int RequiredSpecialDrivesNight { get; set; }
+
     /// <summary>
     /// Version marker for optimistic concurrency (project rule 7):
     /// the frontend sends this number back when saving. If someone else

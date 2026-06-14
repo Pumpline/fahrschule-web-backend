@@ -9,18 +9,30 @@ namespace Fahrschule.Application.Students;
 /// </summary>
 public static class StudentProgressRules
 {
-    /// <summary>A point is countable when it has a target count (e.g. special
-    /// drives 5x); otherwise it is a simple check-off point.</summary>
-    public static bool IsCountable(int? requiredCount) => requiredCount is > 0;
+    /// <summary>A point is countable (has a +/− counter) when it carries a
+    /// required-count value. Three kinds (KONZEPT 3.3):
+    ///  - null  → simple check-off point (a theory topic, Grundfahraufgaben),
+    ///  - 0     → a VOLUNTARY counter (extra lessons "über die Pflicht hinaus"),
+    ///  - &gt; 0 → a mandatory counter with a target (e.g. Überlandfahrt 5x).</summary>
+    public static bool IsCountable(int? requiredCount) => requiredCount.HasValue;
+
+    /// <summary>A voluntary point (target 0) is optional: shown and countable,
+    /// but it does not count toward the class completion / percentage.</summary>
+    public static bool IsVoluntary(int? requiredCount) => requiredCount == 0;
+
+    /// <summary>Counts toward the Pflicht (completion %)? Everything except the
+    /// voluntary extra-lesson counters.</summary>
+    public static bool IsRequired(StudentProgressItem item) => !IsVoluntary(item.RequiredCount);
 
     /// <summary>
-    /// Is this point done? Countable points are done once the counted sessions
-    /// reach the target (KONZEPT 3.3: "bei Erreichen des Solls automatisch
-    /// erledigt"). Simple points use the explicit completed flag.
+    /// Is this point done? A mandatory counter is done once the counted sessions
+    /// reach its target (KONZEPT 3.3: "bei Erreichen des Solls automatisch
+    /// erledigt"). Voluntary counters are never "done" (no target). Simple points
+    /// use the explicit completed flag.
     /// </summary>
     public static bool IsDone(StudentProgressItem item)
         => IsCountable(item.RequiredCount)
-            ? item.Entries.Count >= item.RequiredCount!.Value
+            ? item.RequiredCount!.Value > 0 && item.Entries.Count >= item.RequiredCount.Value
             : item.IsCompleted;
 
     /// <summary>

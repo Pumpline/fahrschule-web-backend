@@ -34,6 +34,23 @@ public class LicenseClass : ISoftDeletable
     /// <summary>Position in lists (smaller number = higher up).</summary>
     public int SortOrder { get; set; }
 
+    // --- Training-plan target numbers (KONZEPT 3.3, editable per class) ---
+    // These drive the practice/extra-theory counters in the student's progress.
+    // 0 = not applicable for this class. Legal defaults are seeded (e.g. class B),
+    // the owner edits them in the admin panel when the law changes (project rule 3).
+
+    /// <summary>Class-specific theory double lessons (Zusatzstoff), e.g. B = 2.</summary>
+    public int RequiredTheoryDoubleLessons { get; set; }
+
+    /// <summary>Mandatory special drives: overland trips (Überlandfahrt), e.g. B = 5.</summary>
+    public int RequiredSpecialDrivesOverland { get; set; }
+
+    /// <summary>Mandatory special drives: motorway trips (Autobahnfahrt), e.g. B = 4.</summary>
+    public int RequiredSpecialDrivesHighway { get; set; }
+
+    /// <summary>Mandatory special drives: night trips (Nachtfahrt), e.g. B = 3.</summary>
+    public int RequiredSpecialDrivesNight { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 

@@ -243,10 +243,105 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             changed = true;
         }
 
+        // Per-class practice / extra-theory points are DERIVED from the class's
+        // target numbers (Sonderfahrten, Zusatzstoff double lessons) rather than
+        // from the theory-topic catalogue (KONZEPT 3.3). We materialise them as
+        // normal progress rows so the existing counter/entry mechanics apply, with
+        // a deterministic synthetic key per (class, slot) so reads don't duplicate.
+        EnsureDerivedItems(student, existingByKey, now, ref changed);
+
         if (changed)
         {
             await db.SaveChangesAsync(ct);
         }
+    }
+
+    /// <summary>
+    /// Ensures the generated Praxis / Zusatzstoff rows exist for each of the
+    /// student's classes, mirroring the per-class target numbers. A class only
+    /// gets these rows once it actually requires them, so unconfigured classes
+    /// stay untouched:
+    ///  - Theorie-Zusatzstoff (only when the class has Zusatzstoff double lessons):
+    ///    a "Zusatzstoff (Doppelstunden)" counter + a voluntary extra-theory counter,
+    ///  - Praxis (only when the class has any special drives): the Überland/Autobahn/
+    ///    Nacht counters (each if &gt; 0), a "Grundfahraufgaben" check-off, and a
+    ///    voluntary extra-lessons counter.
+    /// A mandatory counter follows the class setting (an admin change updates its
+    /// target). Nothing is ever removed - recorded sessions stay.
+    /// </summary>
+    private void EnsureDerivedItems(
+        Student student, Dictionary<Guid, StudentProgressItem> existingByKey, DateTime now, ref bool changed)
+    {
+        foreach (var studentClass in student.LicenseClasses)
+        {
+            var lc = studentClass.LicenseClass;
+            if (lc is null) continue;
+            var classId = studentClass.LicenseClassId;
+
+            var hasTheory = lc.RequiredTheoryDoubleLessons > 0;
+            var hasPractice = lc.RequiredSpecialDrivesOverland > 0
+                || lc.RequiredSpecialDrivesHighway > 0 || lc.RequiredSpecialDrivesNight > 0;
+
+            // (slot, section, title, requiredCount, sortOrder, generate?)
+            var slots = new (string Slot, string Section, string Title, int? Required, int Sort, bool Generate)[]
+            {
+                ("theory-zusatz", "Theorie-Zusatzstoff", "Zusatzstoff (Doppelstunden)", lc.RequiredTheoryDoubleLessons, 200, hasTheory),
+                ("theory-extra", "Theorie-Zusatzstoff", "Zusätzliche Theoriestunden (freiwillig)", 0, 210, hasTheory),
+                ("drive-overland", "Praxis", "Überlandfahrt", lc.RequiredSpecialDrivesOverland, 300, lc.RequiredSpecialDrivesOverland > 0),
+                ("drive-highway", "Praxis", "Autobahnfahrt", lc.RequiredSpecialDrivesHighway, 310, lc.RequiredSpecialDrivesHighway > 0),
+                ("drive-night", "Praxis", "Nachtfahrt", lc.RequiredSpecialDrivesNight, 320, lc.RequiredSpecialDrivesNight > 0),
+                ("basic-tasks", "Praxis", "Grundfahraufgaben", null, 330, hasPractice),
+                ("practice-extra", "Praxis", "Übungs-/Zusatzstunden (freiwillig)", 0, 340, hasPractice),
+            };
+
+            foreach (var slot in slots)
+            {
+                var key = DerivedKey(classId, slot.Slot);
+                if (existingByKey.TryGetValue(key, out var item))
+                {
+                    // Keep a counter's target in sync with the current class setting.
+                    if (item.RequiredCount != slot.Required)
+                    {
+                        item.RequiredCount = slot.Required;
+                        item.UpdatedAtUtc = now;
+                        changed = true;
+                    }
+                    if (item.Classes.All(c => c.LicenseClassId != classId))
+                    {
+                        item.Classes.Add(new StudentProgressItemClass { LicenseClassId = classId });
+                        changed = true;
+                    }
+                    continue;
+                }
+
+                if (!slot.Generate) continue;
+
+                db.StudentProgressItems.Add(new StudentProgressItem
+                {
+                    Id = Guid.NewGuid(),
+                    StudentId = student.Id,
+                    CurriculumItemKey = key,
+                    CurriculumItemVersion = 0, // derived, not a curriculum snapshot
+                    Section = slot.Section,
+                    Title = slot.Title,
+                    RequiredCount = slot.Required,
+                    SortOrder = slot.Sort,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now,
+                    Classes = [new StudentProgressItemClass { LicenseClassId = classId }],
+                });
+                changed = true;
+            }
+        }
+    }
+
+    /// <summary>Deterministic synthetic curriculum key for a derived per-class
+    /// point, so repeated reads find the same row instead of duplicating it.</summary>
+    private static Guid DerivedKey(Guid classId, string slot)
+    {
+        var bytes = System.Security.Cryptography.MD5.HashData(
+            System.Text.Encoding.UTF8.GetBytes(classId.ToString("N") + "|" + slot));
+        return new Guid(bytes);
     }
 
     // --- DTO building ---
@@ -273,7 +368,10 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             .OrderBy(p => p.SortOrder).ThenBy(p => p.Title)
             .ToList();
 
-        var done = forClass.Count(StudentProgressRules.IsDone);
+        // Voluntary extra-lesson counters are shown but do not count toward the
+        // Pflicht completion (KONZEPT 3.3).
+        var required = forClass.Where(StudentProgressRules.IsRequired).ToList();
+        var done = required.Count(StudentProgressRules.IsDone);
 
         var sections = forClass
             .GroupBy(p => p.Section)
@@ -281,7 +379,8 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             .Select(g => new ProgressSectionDto
             {
                 Section = g.Key,
-                Items = g.Select(p => ToItemDto(p, studentClassCount)).ToList(),
+                Items = g.OrderBy(p => p.SortOrder).ThenBy(p => p.Title)
+                    .Select(p => ToItemDto(p, studentClassCount)).ToList(),
             })
             .ToList();
 
@@ -292,8 +391,8 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             Description = studentClass.LicenseClass!.Description,
             Phase = studentClass.Phase.ToString(),
             DoneCount = done,
-            TotalCount = forClass.Count,
-            DonePercent = StudentProgressRules.Percent(done, forClass.Count),
+            TotalCount = required.Count,
+            DonePercent = StudentProgressRules.Percent(done, required.Count),
             Sections = sections,
         };
     }
@@ -301,10 +400,10 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
     private static ProgressItemDto ToItemDto(StudentProgressItem p, int studentClassCount)
     {
         var countable = StudentProgressRules.IsCountable(p.RequiredCount);
-        // Shared = counts for more than one of the student's classes: either an
-        // "all classes" point (empty list) when the student has several classes,
-        // or a point explicitly linked to more than one.
-        var isShared = (p.Classes.Count == 0 && studentClassCount > 1) || p.Classes.Count > 1;
+        // Shared "Grundstoff" = a point with no class restriction (applies to all
+        // of the student's classes). Shown once in its own card, even when the
+        // student currently has a single class (matches the design mockup).
+        var isShared = p.Classes.Count == 0 || p.Classes.Count > 1;
 
         return new ProgressItemDto
         {

@@ -215,9 +215,26 @@ werden auditiert.
   (`StudentProgressEntry`), und beim Erreichen des Solls gilt der Punkt
   automatisch als erledigt. Das Austragen eines erledigten Punkts wird
   protokolliert (Bestätigung in der Oberfläche).
+- **Praxis & Zusatzstoff aus Klassen-Pflichtzahlen** (KONZEPT 3.3, wie Mockup):
+  Sonderfahrten (Überland/Autobahn/Nacht) und die Zusatzstoff-Doppelstunden sind
+  **keine** Theorie-Katalogpunkte, sondern **Pflichtzahlen pro Führerscheinklasse**
+  (`LicenseClass.RequiredSpecialDrives*` + `RequiredTheoryDoubleLessons`, im
+  Adminpanel-Klasseneditor pflegbar; gesetzliche B-Startwerte 5/4/3/2 per Seed +
+  Migration). `EnsureSnapshotAsync` **generiert** daraus pro Klasse die
+  Praxis-/Zusatzstoff-Zähler (deterministischer synthetischer Schlüssel je
+  Klasse+Slot, damit Re-Reads nicht duplizieren), dazu eine Grundfahraufgaben-
+  Checkbox und **freiwillige** Zähler („über die Pflicht hinaus"). Eine Klasse
+  bekommt diese Zeilen erst, wenn sie die Pflicht hat (>0). Mandatory-Zähler
+  folgen der Klassen-Einstellung (Admin-Änderung aktualisiert das Soll).
+- **„Freiwillig" (Soll 0)**: `RequiredCount` kennt jetzt drei Fälle –
+  `null` = Häkchen, `0` = freiwilliger Zähler (zählt, aber **nicht** zur Pflicht),
+  `>0` = Pflicht-Zähler mit Soll (`StudentProgressRules.IsCountable/IsVoluntary/
+  IsRequired`). Die Prozent-/Done-Zählung nutzt nur Pflicht-Punkte.
 - **Anzeige pro Klasse**: der Service liefert den Fortschritt je Klasse, nach
   Abschnitten gruppiert, inklusive Prozent (`StudentProgressRules` – reine,
-  getestete Logik). Endpunkte unter `/api/students/{id}/progress`.
+  getestete Logik). „Grundstoff" (gilt für alle Klassen) wird **immer** als
+  eigene geteilte Karte geführt, auch bei nur einer Klasse. Endpunkte unter
+  `/api/students/{id}/progress`.
 ## Stunde eintragen (KONZEPT 3.3) – Schritt 4b
 
 - **`Lesson`** (+ `LessonType` Theorie/Praxis, + `LessonItem`): eine eingetragene

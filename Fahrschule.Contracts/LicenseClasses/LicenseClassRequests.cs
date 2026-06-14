@@ -13,6 +13,11 @@ public class CreateLicenseClassRequest
     public string? Requirements { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
+
+    public int RequiredTheoryDoubleLessons { get; set; }
+    public int RequiredSpecialDrivesOverland { get; set; }
+    public int RequiredSpecialDrivesHighway { get; set; }
+    public int RequiredSpecialDrivesNight { get; set; }
 }
 
 /// <summary>"Update licence class" request - with version marker against
@@ -27,6 +32,11 @@ public class UpdateLicenseClassRequest
     public string? Requirements { get; set; }
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
+
+    public int RequiredTheoryDoubleLessons { get; set; }
+    public int RequiredSpecialDrivesOverland { get; set; }
+    public int RequiredSpecialDrivesHighway { get; set; }
+    public int RequiredSpecialDrivesNight { get; set; }
 
     public uint Version { get; set; }
 }

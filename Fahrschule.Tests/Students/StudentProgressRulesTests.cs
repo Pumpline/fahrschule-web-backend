@@ -7,12 +7,22 @@ namespace Fahrschule.Tests.Students;
 public class StudentProgressRulesTests
 {
     [Theory]
-    [InlineData(null, false)]
-    [InlineData(0, false)]
+    [InlineData(null, false)] // simple check-off point
+    [InlineData(0, true)]     // voluntary counter (no target)
     [InlineData(1, true)]
     [InlineData(5, true)]
-    public void IsCountable_only_for_positive_target(int? required, bool expected)
+    public void IsCountable_when_a_required_count_is_present(int? required, bool expected)
         => Assert.Equal(expected, StudentProgressRules.IsCountable(required));
+
+    [Fact]
+    public void Voluntary_counter_is_never_done_and_not_required()
+    {
+        var item = new StudentProgressItem { RequiredCount = 0 };
+        item.Entries.Add(new StudentProgressEntry());
+        Assert.True(StudentProgressRules.IsCountable(item.RequiredCount));
+        Assert.False(StudentProgressRules.IsDone(item)); // no target → never "done"
+        Assert.False(StudentProgressRules.IsRequired(item)); // optional → off the percentage
+    }
 
     [Fact]
     public void IsDone_simple_point_uses_the_flag()

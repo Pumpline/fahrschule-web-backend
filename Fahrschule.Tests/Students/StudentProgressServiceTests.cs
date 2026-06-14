@@ -220,6 +220,46 @@ public class StudentProgressServiceTests
         Assert.Contains(c.Sections.SelectMany(s => s.Items), i => i.Title == "Grundstoff-Thema");
     }
 
+    [Fact]
+    public async Task Derived_practice_points_come_from_the_class_targets()
+    {
+        var classId = Guid.NewGuid();
+        var studentId = Guid.NewGuid();
+        await using (var db = NewDb())
+        {
+            // Class B with the legal target numbers (Zusatzstoff 2, drives 5/4/3).
+            db.LicenseClasses.Add(new LicenseClass
+            {
+                Id = classId, Code = "B", SortOrder = 1, IsActive = true,
+                RequiredTheoryDoubleLessons = 2, RequiredSpecialDrivesOverland = 5,
+                RequiredSpecialDrivesHighway = 4, RequiredSpecialDrivesNight = 3,
+            });
+            db.Students.Add(new Student
+            {
+                Id = studentId, FirstName = "Lisa", LastName = "Wagner",
+                LicenseClasses = { new StudentLicenseClass { LicenseClassId = classId, Phase = StudentPhase.Practice } },
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var db2 = NewDb();
+        var b = (await NewService(db2).GetForStudentAsync(studentId)).Classes.Single();
+        var items = b.Sections.SelectMany(s => s.Items).ToList();
+
+        // Special drives become mandatory counters with the class target.
+        var overland = items.Single(i => i.Title == "Überlandfahrt");
+        Assert.True(overland.IsCountable);
+        Assert.Equal(5, overland.RequiredCount);
+        Assert.Equal(2, items.Single(i => i.Title == "Zusatzstoff (Doppelstunden)").RequiredCount);
+        // Grundfahraufgaben is a simple check-off (no counter).
+        Assert.Contains(items, i => i.Title == "Grundfahraufgaben" && !i.IsCountable);
+
+        // The two voluntary counters are present but excluded from the Pflicht total:
+        // Pflicht = Überland + Autobahn + Nacht + Grundfahraufgaben + Zusatzstoff = 5.
+        Assert.Contains(items, i => i.Title.StartsWith("Übungs") && i.IsCountable);
+        Assert.Equal(5, b.TotalCount);
+    }
+
     private static ProgressItemDto ItemByTitle(StudentProgressDto dto, string title)
         => dto.Classes.SelectMany(c => c.Sections).SelectMany(s => s.Items).First(i => i.Title == title);
 
