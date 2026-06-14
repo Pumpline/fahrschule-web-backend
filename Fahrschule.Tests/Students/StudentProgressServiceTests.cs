@@ -25,6 +25,8 @@ public class StudentProgressServiceTests
 
     private FahrschuleDbContext NewDb() => new(_options);
     private StudentProgressService NewService(FahrschuleDbContext db) => new(db, new NullAuditWriter());
+    /// <summary>Service with a real audit writer, for the "is it logged?" tests.</summary>
+    private static StudentProgressService AuditingService(FahrschuleDbContext db) => new(db, new AuditWriter(db));
 
     // --- ids shared across the seed ---
     private readonly Guid _classB = Guid.NewGuid();
@@ -258,6 +260,26 @@ public class StudentProgressServiceTests
         // Pflicht = Überland + Autobahn + Nacht + Grundfahraufgaben + Zusatzstoff = 5.
         Assert.Contains(items, i => i.Title.StartsWith("Übungs") && i.IsCountable);
         Assert.Equal(5, b.TotalCount);
+    }
+
+    [Fact]
+    public async Task Re_setting_a_point_to_the_same_state_writes_no_extra_audit()
+    {
+        await SeedAsync();
+
+        Guid topicId;
+        await using (var db = NewDb())
+            topicId = ItemByTitle(await AuditingService(db).GetForStudentAsync(_student), "Grundstoff-Thema").Id;
+
+        // First tick → one "Abgehakt" entry.
+        await using (var db = NewDb())
+            await AuditingService(db).SetItemAsync(_student, topicId, new SetProgressItemRequest { IsDone = true }, TestActor);
+        // Same state again → no real change → no new entry.
+        await using (var db = NewDb())
+            await AuditingService(db).SetItemAsync(_student, topicId, new SetProgressItemRequest { IsDone = true }, TestActor);
+
+        await using var check = NewDb();
+        Assert.Equal(1, await check.AuditLogs.CountAsync(a => a.Action == "Abgehakt"));
     }
 
     private static ProgressItemDto ItemByTitle(StudentProgressDto dto, string title)

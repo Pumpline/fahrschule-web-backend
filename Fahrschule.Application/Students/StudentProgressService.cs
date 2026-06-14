@@ -57,9 +57,21 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        item.IsCompleted = request.IsDone;
-        item.CompletedOn = request.IsDone ? request.CompletedOn ?? today : null;
-        item.Note = NullIfEmpty(request.Note);
+        var newCompleted = request.IsDone;
+        DateOnly? newCompletedOn = request.IsDone ? request.CompletedOn ?? today : null;
+        var newNote = NullIfEmpty(request.Note);
+
+        // No real change → don't write and don't log (e.g. re-saving the same
+        // "Erledigt am"/note, or a tick that doesn't actually flip the state).
+        // Only genuine changes land in the audit log.
+        if (item.IsCompleted == newCompleted && item.CompletedOn == newCompletedOn && item.Note == newNote)
+        {
+            return await GetForStudentAsync(studentId, ct);
+        }
+
+        item.IsCompleted = newCompleted;
+        item.CompletedOn = newCompletedOn;
+        item.Note = newNote;
         item.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
 

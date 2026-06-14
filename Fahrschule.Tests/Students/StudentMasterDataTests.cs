@@ -74,6 +74,32 @@ public class StudentMasterDataTests
     }
 
     [Fact]
+    public async Task Update_without_a_real_change_writes_no_audit_entry()
+    {
+        await SeedAsync();
+
+        uint version;
+        await using (var db = NewDb()) version = (await NewService(db).GetAkteAsync(_id)).Version;
+
+        // Resend exactly the seeded values (all fields revealed) → nothing changes.
+        await using (var db = NewDb())
+        {
+            await NewService(db).UpdateAsync(_id, new UpdateStudentRequest
+            {
+                FirstName = "Lisa", LastName = "Wagner", Version = version,
+                DateOfBirth = new DateOnly(2006, 5, 1), Email = "lisa@example.com",
+                Phone = null, Address = "Hauptstr. 1", Notes = null,
+                EditableFields = ["dateOfBirth", "email", "phone", "address", "notes"],
+            }, TestActor);
+        }
+
+        await using (var db = NewDb())
+        {
+            Assert.False(await db.AuditLogs.AnyAsync(a => a.Action == "Geändert" && a.EntityType == "Schüler"));
+        }
+    }
+
+    [Fact]
     public async Task Update_only_changes_fields_listed_as_editable()
     {
         await SeedAsync();

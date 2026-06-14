@@ -99,6 +99,10 @@ dotnet ef migrations add NameDerAenderung --project Fahrschule.Infrastructure --
 Schon vorhandene Grundlagen für spätere Module:
 - **`AuditLog`** – append-only-Protokoll „wer hat wann was geändert"
   (DSGVO-Pflicht); `IAuditWriter` schreibt Einträge, z. B. bei Passwortänderung.
+  Grundsatz: **nur echte Änderungen** werden protokolliert – ein Schreibvorgang,
+  der nichts ändert (z. B. identische Stammdaten erneut speichern, oder einen
+  Fortschritts-Punkt auf seinen aktuellen Stand setzen), erzeugt **keinen**
+  Eintrag. Lesende Zugriffe bleiben protokolliert (z. B. „Stammdaten angesehen").
 - **`Setting`** – Schlüssel/Wert-Einstellungen, die das Adminpanel später
   pflegt (Projektregel 3: kein Hardcoding fachlicher Werte).
 - **`ISoftDeletable`** – Vertrag für „weiches Löschen": markieren statt

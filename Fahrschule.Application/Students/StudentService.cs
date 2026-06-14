@@ -165,13 +165,22 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         if (editable.Contains("phone")) student.Phone = NullIfEmpty(request.Phone);
         if (editable.Contains("address")) student.Address = NullIfEmpty(request.Address);
         if (editable.Contains("notes")) student.Notes = NullIfEmpty(request.Notes);
-        student.UpdatedAtUtc = DateTime.UtcNow;
 
+        // No real change → don't touch the database and don't write an audit
+        // entry (only actual changes are logged; reading/revealing a field stays
+        // audited). Saving identical values must not produce a "Geändert" entry.
+        var newSnapshot = Snapshot(student);
+        if (newSnapshot == oldSnapshot)
+        {
+            return ToAkteDto(student);
+        }
+
+        student.UpdatedAtUtc = DateTime.UtcNow;
         db.Entry(student).Property<uint>("xmin").OriginalValue = request.Version;
         await db.SaveChangesAsync(ct);
 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Geändert",
-            "Schüler", student.Id.ToString(), oldSnapshot, Snapshot(student), ct);
+            "Schüler", student.Id.ToString(), oldSnapshot, newSnapshot, ct);
 
         return ToAkteDto(student);
     }
