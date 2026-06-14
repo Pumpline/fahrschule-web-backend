@@ -38,6 +38,16 @@ public class AuditCategoryVisibilityTests
         Assert.Equal(AuditCategory.Students, byEntity.Single(a => a.EntityType == "Schüler").Category);
     }
 
+    [Theory]
+    [InlineData("Angemeldet")]
+    [InlineData("Anmeldung fehlgeschlagen")]
+    public void Login_events_are_security_not_user_management(string action)
+    {
+        // Sign-in events belong to the Admin-only "security" topic, not the
+        // general "users" topic the instructors may see.
+        Assert.Equal(AuditCategory.Security, AuditCategory.For(action, "Benutzer"));
+    }
+
     [Fact]
     public async Task Instructor_does_not_see_the_security_category()
     {

@@ -49,7 +49,8 @@ public static class AuditCategory
     {
         // "Benutzer" covers both account management and password actions - split
         // by action so password events land in the Admin-only security topic.
-        "Benutzer" => action is "PasswortGeändert" or "PasswortZurückgesetzt" ? Security : Users,
+        "Benutzer" => action is "PasswortGeändert" or "PasswortZurückgesetzt"
+            or "Angemeldet" or "Anmeldung fehlgeschlagen" ? Security : Users,
         "Schüler" => Students,
         "Ausbildungsfortschritt" or "Ausbildungsstunde" or "Prüfung" or "Unterlage-Schüler" => Training,
         "Termin" => Calendar,

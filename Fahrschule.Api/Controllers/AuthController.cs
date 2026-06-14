@@ -25,9 +25,23 @@ public class AuthController(IAuthService authService) : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<CurrentUserDto>> Login(LoginRequest request, CancellationToken ct)
     {
-        var result = await authService.LoginAsync(request.UserName, request.Password, ct);
+        var result = await authService.LoginAsync(request.UserName, request.Password, ResolveClientIp(), ct);
         AuthCookies.Write(HttpContext, result);
         return Ok(result.User);
+    }
+
+    /// <summary>Determines the real client IP for the per-IP login throttle and
+    /// the audit log. Behind Cloudflare the honest source address is in the
+    /// "CF-Connecting-IP" header; the direct connection is only our own proxy.
+    /// We fall back to the socket address for local/direct calls.</summary>
+    private string ResolveClientIp()
+    {
+        var cf = Request.Headers["CF-Connecting-IP"].ToString();
+        if (!string.IsNullOrWhiteSpace(cf))
+        {
+            return cf.Trim();
+        }
+        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unbekannt";
     }
 
     /// <summary>Exchanges the refresh token (from the cookie) for a fresh

@@ -191,6 +191,7 @@ public class AuditQueryService(FahrschuleDbContext db, IAuditVisibilityService v
             string? S(string key) => root.TryGetProperty(key, out var v)
                 && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() : null;
 
+            if (S("IP") is { } ip) return $"IP {ip}";                            // login attempt source
             if (S("Feld") is { } feld) return feld;                              // viewed/changed field
             if (S("KlasseHinzugefügt") is { } added) return $"Klasse {added} hinzugefügt";
             if (S("KlasseEntfernt") is { } removed) return $"Klasse {removed} entfernt";

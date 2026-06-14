@@ -22,3 +22,10 @@ public class ForbiddenException(string message) : AppException(message);
 
 /// <summary>Record does not exist (or is deleted) → HTTP 404 (Not Found).</summary>
 public class NotFoundException(string message) : AppException(message);
+
+/// <summary>Too many attempts from this client → HTTP 429 (Too Many Requests).
+/// Carries how many seconds the caller should wait (sent as Retry-After).</summary>
+public class TooManyRequestsException(string message, int retryAfterSeconds) : AppException(message)
+{
+    public int RetryAfterSeconds { get; } = retryAfterSeconds;
+}

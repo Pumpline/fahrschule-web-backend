@@ -42,11 +42,12 @@ public static class DependencyInjection
                 options.Password.RequireLowercase = true;
                 options.Password.RequireNonAlphanumeric = false;
 
-                // Account lockout against password guessing (brute force):
-                // locked for 15 minutes after 5 failed attempts.
-                options.Lockout.AllowedForNewUsers = true;
-                options.Lockout.MaxFailedAccessAttempts = 5;
-                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+                // No per-ACCOUNT lockout: brute force is handled per CLIENT IP
+                // instead (see LoginThrottle - escalating cooldown from the 3rd
+                // failed attempt). Locking the account would let an attacker who
+                // knows a user name lock a legitimate user out ("denial of
+                // service"); throttling the IP avoids that.
+                options.Lockout.AllowedForNewUsers = false;
 
                 // Accounts log in by user name, not e-mail - so no e-mail is
                 // stored or required (RequireUniqueEmail would otherwise reject

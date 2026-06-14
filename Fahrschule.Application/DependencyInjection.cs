@@ -46,6 +46,13 @@ public static class DependencyInjection
         // "Singleton" = one instance for the whole runtime (stateless, config only).
         services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
+        // The login throttle keeps per-IP state in memory, so it MUST be a
+        // singleton (one shared instance) - a scoped instance would forget the
+        // failed attempts after every request. TimeProvider.System is the real
+        // clock; the tests inject a fake one to fast-forward time.
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<ILoginThrottle, LoginThrottle>();
+
         return services;
     }
 }

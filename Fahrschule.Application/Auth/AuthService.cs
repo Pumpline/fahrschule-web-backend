@@ -25,7 +25,7 @@ public record AuthResult(
 
 public interface IAuthService
 {
-    Task<AuthResult> LoginAsync(string userName, string password, CancellationToken ct = default);
+    Task<AuthResult> LoginAsync(string userName, string password, string clientIp, CancellationToken ct = default);
     Task<AuthResult> RefreshAsync(string refreshToken, CancellationToken ct = default);
     Task LogoutAsync(string refreshToken, CancellationToken ct = default);
     Task<AuthResult> ChangePasswordAsync(Guid userId, string currentPassword, string newPassword, CancellationToken ct = default);
@@ -44,6 +44,7 @@ public class AuthService(
     IJwtTokenService jwtTokenService,
     FahrschuleDbContext db,
     IAuditWriter auditWriter,
+    ILoginThrottle loginThrottle,
     IOptions<JwtOptions> jwtOptions,
     ILogger<AuthService> logger) : IAuthService
 {
@@ -53,37 +54,53 @@ public class AuthService(
     // otherwise an attacker could probe which user names have an account.
     private const string LoginFailedMessage = "Benutzername oder Passwort ist falsch. Bitte prüfen Sie beides und versuchen Sie es noch einmal.";
 
-    public async Task<AuthResult> LoginAsync(string userName, string password, CancellationToken ct = default)
+    public async Task<AuthResult> LoginAsync(string userName, string password, string clientIp, CancellationToken ct = default)
     {
+        // Brute-force protection per CLIENT IP (not per account): the first
+        // attempts are free, then a cooldown begins that grows strongly with
+        // every further failure. We check BEFORE touching the database so a
+        // blocked client cannot even probe whether a user name exists.
+        var gate = loginThrottle.Check(clientIp);
+        if (!gate.Allowed)
+        {
+            throw new TooManyRequestsException(
+                $"Zu viele Fehlversuche von diesem Anschluss. Bitte warten Sie {gate.RetryAfterSeconds} Sekunden und versuchen Sie es dann erneut.",
+                gate.RetryAfterSeconds);
+        }
+
         var user = await userManager.FindByNameAsync(userName.Trim());
-        if (user is null)
+
+        // ONE branch for "unknown user name" and "wrong password" so neither the
+        // message nor the timing reveals which user names exist.
+        if (user is null || !await userManager.CheckPasswordAsync(user, password))
         {
+            loginThrottle.RegisterFailure(clientIp);
+            // Audit the failed attempt with the real client IP (security review:
+            // the owner can spot repeated attacks in the admin log).
+            await auditWriter.WriteAsync(
+                user?.Id, user?.DisplayName ?? userName.Trim(),
+                "Anmeldung fehlgeschlagen", "Benutzer", userName.Trim(),
+                newValuesJson: IpJson(clientIp), cancellationToken: ct);
             throw new AuthenticationFailedException(LoginFailedMessage);
         }
 
-        if (await userManager.IsLockedOutAsync(user))
-        {
-            throw new AuthenticationFailedException(
-                "Das Konto ist nach mehreren Fehlversuchen vorübergehend gesperrt. " +
-                "Bitte warten Sie 15 Minuten und versuchen Sie es dann erneut.");
-        }
-
-        if (!await userManager.CheckPasswordAsync(user, password))
-        {
-            // Count the failed attempt - after 5, Identity locks the account automatically.
-            await userManager.AccessFailedAsync(user);
-            throw new AuthenticationFailedException(LoginFailedMessage);
-        }
-
-        // Successful sign-in → reset the failed-attempts counter and remember
-        // the time (shown in the admin user list to spot unused accounts).
-        await userManager.ResetAccessFailedCountAsync(user);
+        // Successful sign-in → forgive this IP and remember the time
+        // (shown in the admin user list to spot unused accounts).
+        loginThrottle.RegisterSuccess(clientIp);
         user.LastLoginAtUtc = DateTime.UtcNow;
         await userManager.UpdateAsync(user);
 
-        logger.LogInformation("Benutzer {UserId} hat sich angemeldet.", user.Id);
+        await auditWriter.WriteAsync(
+            user.Id, user.DisplayName, "Angemeldet", "Benutzer", user.UserName ?? userName.Trim(),
+            newValuesJson: IpJson(clientIp), cancellationToken: ct);
+
+        logger.LogInformation("Benutzer {UserId} hat sich angemeldet (IP {Ip}).", user.Id, clientIp);
         return await IssueTokensAsync(user, ct);
     }
+
+    /// <summary>Wraps the client IP as a small JSON payload for the audit log.</summary>
+    private static string IpJson(string clientIp) =>
+        System.Text.Json.JsonSerializer.Serialize(new { IP = clientIp });
 
     public async Task<AuthResult> RefreshAsync(string refreshToken, CancellationToken ct = default)
     {

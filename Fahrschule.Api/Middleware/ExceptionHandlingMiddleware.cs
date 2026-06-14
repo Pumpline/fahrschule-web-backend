@@ -29,6 +29,14 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
                 "Diese Daten wurden zwischenzeitlich von jemand anderem geändert. " +
                 "Bitte laden Sie die Liste neu und tragen Sie Ihre Änderung dann noch einmal ein.");
         }
+        catch (TooManyRequestsException ex)
+        {
+            // Brute-force throttle hit: tell the client how long to wait, both
+            // as the standard "Retry-After" header (in seconds) and in the
+            // German message the user actually sees.
+            await WriteProblemAsync(context, StatusCodes.Status429TooManyRequests, ex.Message,
+                retryAfterSeconds: ex.RetryAfterSeconds);
+        }
         catch (AppException ex)
         {
             // Expected business error: the message is meant for the user.
@@ -55,7 +63,8 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
         }
     }
 
-    private static async Task WriteProblemAsync(HttpContext context, int statusCode, string detail)
+    private static async Task WriteProblemAsync(HttpContext context, int statusCode, string detail,
+        int? retryAfterSeconds = null)
     {
         if (context.Response.HasStarted)
         {
@@ -64,6 +73,12 @@ public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<Exception
 
         context.Response.Clear();
         context.Response.StatusCode = statusCode;
+
+        // Set AFTER Clear() - it wipes the headers - so the value survives.
+        if (retryAfterSeconds is { } seconds)
+        {
+            context.Response.Headers.RetryAfter = seconds.ToString();
+        }
 
         var problem = new ProblemDetails
         {
