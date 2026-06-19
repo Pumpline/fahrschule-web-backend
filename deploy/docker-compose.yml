@@ -32,6 +32,10 @@ services:
       Seed__Admin__UserName: ${ADMIN_USERNAME}
       Seed__Admin__Password: ${ADMIN_PASSWORD}
       Seed__Admin__DisplayName: ${ADMIN_DISPLAYNAME:-Inhaber}
+      # Web Push (KONZEPT 3.5): VAPID key pair from .env. Empty → push is off.
+      WebPush__PublicKey: ${WEBPUSH_PUBLIC_KEY:-}
+      WebPush__PrivateKey: ${WEBPUSH_PRIVATE_KEY:-}
+      WebPush__Subject: ${WEBPUSH_SUBJECT:-mailto:admin@fahrschule.pumpline.systems}
     # Lets the container reach a host-published Postgres port (postgres-bots)
     # via "host.docker.internal". Alternative: attach to the postgres network
     # (see the commented "networks" below + docs/deployment.md, option B).

@@ -35,6 +35,9 @@ builder.Services.AddOpenApi(); // API description at /openapi/v1.json (developme
 // whose retention period has elapsed (KONZEPT rule 7).
 builder.Services.AddHostedService<Fahrschule.Api.BackgroundJobs.RetentionBackgroundService>();
 
+// The reminder job: pushes appointment reminders to the Fahrlehrer (KONZEPT 3.5).
+builder.Services.AddHostedService<Fahrschule.Api.BackgroundJobs.ReminderBackgroundService>();
+
 // Automatic input validation ([Required] etc.) must answer in German (user-facing).
 builder.Services.Configure<ApiBehaviorOptions>(options =>
 {

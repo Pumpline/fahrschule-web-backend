@@ -20,6 +20,9 @@ public static class DependencyInjection
         // ("options pattern" - typed configuration instead of loose strings).
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
 
+        // VAPID keys for Web Push (KONZEPT 3.5); absent → push is simply off.
+        services.Configure<Push.WebPushOptions>(configuration.GetSection(Push.WebPushOptions.SectionName));
+
         // "Scoped" = one instance per HTTP request (matches the DbContext).
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAuditWriter, AuditWriter>();
@@ -42,6 +45,8 @@ public static class DependencyInjection
         services.AddScoped<Dashboard.IDashboardService, Dashboard.DashboardService>();
         services.AddScoped<Retention.IRetentionService, Retention.RetentionService>();
         services.AddScoped<Theory.ITheoryAttendanceService, Theory.TheoryAttendanceService>();
+        services.AddScoped<Push.IPushService, Push.PushService>();
+        services.AddScoped<Push.IAppointmentReminderService, Push.AppointmentReminderService>();
 
         // "Singleton" = one instance for the whole runtime (stateless, config only).
         services.AddSingleton<IJwtTokenService, JwtTokenService>();

@@ -32,6 +32,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<Exam> Exams => Set<Exam>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -373,6 +374,23 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
 
             // If a user is permanently removed, their tokens go with them.
             token.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<PushSubscription>(sub =>
+        {
+            sub.Property(x => x.Endpoint).HasMaxLength(2000);
+            sub.Property(x => x.P256dh).HasMaxLength(500);
+            sub.Property(x => x.Auth).HasMaxLength(500);
+
+            // One row per device subscription; look-ups are by endpoint / user.
+            sub.HasIndex(x => x.Endpoint).IsUnique();
+            sub.HasIndex(x => x.UserId);
+
+            // Removing a user takes their device subscriptions with them.
+            sub.HasOne<ApplicationUser>()
                 .WithMany()
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
