@@ -52,7 +52,7 @@ public class AppointmentReminderService(
             // Data minimisation (KONZEPT): time + short kind only, never a name.
             var body = $"Nächster Termin in {minutes} Min: {time} {KindLabel(e)}";
 
-            await push.SendToInstructorsAsync("Termin-Erinnerung", body, "/kalender", ct);
+            await push.SendToSubscribersAsync("Termin-Erinnerung", body, "/kalender", ct);
             e.Reminded = true;
             sent++;
         }

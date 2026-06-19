@@ -1,9 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Fahrschule.Application.Common;
-using Fahrschule.Infrastructure.Identity;
 using Fahrschule.Infrastructure.Persistence;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -24,9 +22,9 @@ public interface IPushService
     Task SaveSubscriptionAsync(Guid userId, string endpoint, string p256dh, string auth, CancellationToken ct = default);
     Task RemoveSubscriptionAsync(Guid userId, string endpoint, CancellationToken ct = default);
 
-    /// <summary>Sends a notification to every device of every Fahrlehrer
-    /// (KONZEPT: only the instructor role gets push).</summary>
-    Task SendToInstructorsAsync(string title, string body, string url, CancellationToken ct = default);
+    /// <summary>Sends a notification to every device that opted in (reminders are
+    /// opt-in per device, so any role that enabled them is notified).</summary>
+    Task SendToSubscribersAsync(string title, string body, string url, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -36,7 +34,6 @@ public interface IPushService
 /// </summary>
 public class PushService(
     FahrschuleDbContext db,
-    UserManager<ApplicationUser> userManager,
     IOptions<WebPushOptions> options,
     ILogger<PushService> logger) : IPushService
 {
@@ -82,15 +79,12 @@ public class PushService(
             .Where(s => s.Endpoint == endpoint && s.UserId == userId)
             .ExecuteDeleteAsync(ct);
 
-    public async Task SendToInstructorsAsync(string title, string body, string url, CancellationToken ct = default)
+    public async Task SendToSubscribersAsync(string title, string body, string url, CancellationToken ct = default)
     {
         if (!IsConfigured) return;
 
-        var instructorIds = (await userManager.GetUsersInRoleAsync(Roles.Fahrlehrer))
-            .Select(u => u.Id).ToHashSet();
-        if (instructorIds.Count == 0) return;
-
-        var subs = await db.PushSubscriptions.Where(s => instructorIds.Contains(s.UserId)).ToListAsync(ct);
+        // Everyone who turned reminders on (any role) gets them.
+        var subs = await db.PushSubscriptions.ToListAsync(ct);
         if (subs.Count == 0) return;
 
         // Payload shape the Angular service worker understands (it calls

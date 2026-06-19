@@ -2,16 +2,15 @@ using System.Security.Claims;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.Push;
 using Fahrschule.Contracts.Push;
-using Fahrschule.Infrastructure.Identity;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Fahrschule.Api.Controllers;
 
 /// <summary>
 /// Web-Push endpoints (KONZEPT 3.5): hand out the public VAPID key and let a
-/// device register/unregister for appointment reminders. Only the Fahrlehrer
-/// role may subscribe (Verwaltung/Admin get no push). Thin controller.
+/// device register/unregister for appointment reminders. Reminders are opt-in
+/// per device, so ANY signed-in user may enable them (owner decision 20.06.2026
+/// - originally Fahrlehrer-only). Thin controller.
 /// </summary>
 [ApiController]
 [Route("api/push")]
@@ -22,9 +21,8 @@ public class PushController(IPushService push) : ControllerBase
     public ActionResult<PushConfigDto> Config()
         => Ok(new PushConfigDto { PublicKey = push.PublicKey });
 
-    /// <summary>Register THIS device for appointment reminders (Fahrlehrer only).</summary>
+    /// <summary>Register THIS device for appointment reminders (any signed-in user).</summary>
     [HttpPost("subscribe")]
-    [Authorize(Roles = Roles.Fahrlehrer)]
     public async Task<IActionResult> Subscribe(SavePushSubscriptionRequest request, CancellationToken ct)
     {
         await push.SaveSubscriptionAsync(GetUserId(), request.Endpoint, request.P256dh, request.Auth, ct);
