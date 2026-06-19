@@ -47,10 +47,18 @@ public class StudentProgressItem
 
     // --- status (filled in while the student trains) ---
 
-    /// <summary>Done? For simple points this is set directly; for countable
-    /// points it is derived (reached the required count) - see
-    /// StudentProgressRules.</summary>
+    /// <summary>Done? For simple points this is a DERIVED, stored value:
+    /// <c>ManuallyCompleted || covered by a non-deleted lesson</c> (kept in sync
+    /// whenever a lesson or a manual mark changes). For countable points it is
+    /// unused (done = reached the count) - see StudentProgressRules.</summary>
     public bool IsCompleted { get; set; }
+
+    /// <summary>Simple point completed OUTSIDE a recorded lesson - the exception
+    /// path: a manual tick (e.g. Anrechnung/Übernahme from another school) or a
+    /// theory-attendance entry. Together with lesson coverage it drives
+    /// <see cref="IsCompleted"/>, so removing a lesson can recompute completion
+    /// correctly without wrongly un-ticking a manually credited point.</summary>
+    public bool ManuallyCompleted { get; set; }
 
     /// <summary>"Erledigt am" - the date the point was completed (KONZEPT 3.3:
     /// the small date field that opens on first check-off).</summary>
@@ -94,6 +102,13 @@ public class StudentProgressEntry
 
     public Guid StudentProgressItemId { get; set; }
     public StudentProgressItem? StudentProgressItem { get; set; }
+
+    /// <summary>The lesson this counted session belongs to (the new model: every
+    /// new counted session is backed by a recorded lesson). null = a legacy or
+    /// manually credited session with no lesson. When the lesson is soft-deleted
+    /// the session stops counting (query filter), but stays recoverable.</summary>
+    public Guid? LessonId { get; set; }
+    public Lesson? Lesson { get; set; }
 
     /// <summary>When this session took place.</summary>
     public DateOnly PerformedOn { get; set; }

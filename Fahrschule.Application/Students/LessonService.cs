@@ -93,27 +93,45 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
         };
         db.Lessons.Add(lesson);
 
+        var partial = request.PartialPracticeItemIds.ToHashSet();
         foreach (var item in covered)
         {
-            lesson.Items.Add(new LessonItem { LessonId = lesson.Id, StudentProgressItemId = item.Id });
-
-            if (StudentProgressRules.IsCountable(item.RequiredCount))
+            var countable = StudentProgressRules.IsCountable(item.RequiredCount);
+            // For a countable point "partial" means: recorded but not a full
+            // session (+0). Simple points always just "cover" the topic.
+            var counts = countable && !partial.Contains(item.Id);
+            lesson.Items.Add(new LessonItem
             {
-                // A countable point gets one counted session for this lesson.
-                db.Set<StudentProgressEntry>().Add(new StudentProgressEntry
+                LessonId = lesson.Id,
+                StudentProgressItemId = item.Id,
+                CountsTowardRequirement = countable ? counts : true,
+            });
+
+            if (countable)
+            {
+                // A full session adds one counted, lesson-backed entry; a partial
+                // practice only keeps the link above (no counter increase).
+                if (counts)
                 {
-                    Id = Guid.NewGuid(),
-                    StudentProgressItemId = item.Id,
-                    PerformedOn = request.DateOn,
-                    Note = note,
-                    CreatedAtUtc = now,
-                });
+                    db.Set<StudentProgressEntry>().Add(new StudentProgressEntry
+                    {
+                        Id = Guid.NewGuid(),
+                        StudentProgressItemId = item.Id,
+                        LessonId = lesson.Id,
+                        PerformedOn = request.DateOn,
+                        Note = note,
+                        CreatedAtUtc = now,
+                    });
+                }
             }
-            else if (!item.IsCompleted)
+            else
             {
                 // A simple point is ticked off on the lesson's date.
                 item.IsCompleted = true;
-                item.CompletedOn = request.DateOn;
+                if (item.CompletedOn is null || item.CompletedOn > request.DateOn)
+                {
+                    item.CompletedOn = request.DateOn;
+                }
                 if (note is not null) item.Note = note;
             }
             item.UpdatedAtUtc = now;
@@ -162,17 +180,92 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
         }
 
         var lesson = await db.Lessons
+            .Include(l => l.Items)
             .FirstOrDefaultAsync(l => l.Id == lessonId && l.StudentId == studentId, ct)
             ?? throw new NotFoundException("Diese Stunde wurde nicht gefunden. Bitte die Liste neu laden.");
 
-        // Only the lesson's own fields are correctable here (the type/class and
-        // covered points define the progress linkage - changing those means
-        // delete + re-enter). This keeps the progress effect consistent.
+        var desiredIds = request.CoveredItemIds.Distinct().ToList();
+        var covered = await db.StudentProgressItems
+            .Where(p => p.StudentId == studentId && desiredIds.Contains(p.Id))
+            .ToListAsync(ct);
+        if (covered.Count != desiredIds.Count)
+        {
+            throw new AppValidationException("Mindestens ein behandelter Punkt wurde nicht gefunden. Bitte die Seite neu laden.");
+        }
+
+        var now = DateTime.UtcNow;
+        var note = NullIfEmpty(request.Note);
+        var partial = request.PartialPracticeItemIds.ToHashSet();
+        var coveredById = covered.ToDictionary(p => p.Id);
+        var currentByItem = lesson.Items.ToDictionary(li => li.StudentProgressItemId);
+        var lessonEntries = await db.Set<StudentProgressEntry>()
+            .Where(e => e.LessonId == lessonId)
+            .ToListAsync(ct);
+
+        // Simple points whose completion may change (recomputed at the end).
+        var affected = new HashSet<Guid>();
+
+        // 1) Removed coverage: drop the link + any counted session it produced.
+        foreach (var li in lesson.Items.ToList())
+        {
+            if (desiredIds.Contains(li.StudentProgressItemId)) continue;
+            lesson.Items.Remove(li);
+            db.Set<LessonItem>().Remove(li);
+            var entry = lessonEntries.FirstOrDefault(e => e.StudentProgressItemId == li.StudentProgressItemId);
+            if (entry is not null) db.Set<StudentProgressEntry>().Remove(entry);
+            affected.Add(li.StudentProgressItemId);
+        }
+
+        // 2) Added or changed coverage.
+        foreach (var id in desiredIds)
+        {
+            var item = coveredById[id];
+            var countable = StudentProgressRules.IsCountable(item.RequiredCount);
+            var counts = countable ? !partial.Contains(id) : true;
+            var entry = lessonEntries.FirstOrDefault(e => e.StudentProgressItemId == id);
+
+            if (currentByItem.TryGetValue(id, out var li))
+            {
+                // Existing coverage - maybe flip "full" ↔ "practice".
+                if (li.CountsTowardRequirement != counts)
+                {
+                    li.CountsTowardRequirement = counts;
+                    if (countable && counts && entry is null)
+                    {
+                        db.Set<StudentProgressEntry>().Add(NewEntry(id, lessonId, request.DateOn, note, now));
+                    }
+                    else if (countable && !counts && entry is not null)
+                    {
+                        db.Set<StudentProgressEntry>().Remove(entry);
+                    }
+                }
+            }
+            else
+            {
+                // Newly covered.
+                lesson.Items.Add(new LessonItem
+                {
+                    LessonId = lessonId, StudentProgressItemId = id, CountsTowardRequirement = counts,
+                });
+                if (countable && counts)
+                {
+                    db.Set<StudentProgressEntry>().Add(NewEntry(id, lessonId, request.DateOn, note, now));
+                }
+                affected.Add(id);
+            }
+        }
+
+        // 3) The lesson's own fields; keep its counted sessions' date/note in sync.
         lesson.DateOn = request.DateOn;
         lesson.StartTime = startTime;
         lesson.DurationMinutes = request.DurationMinutes;
-        lesson.Note = NullIfEmpty(request.Note);
+        lesson.Note = note;
+        foreach (var e in lessonEntries) { e.PerformedOn = request.DateOn; e.Note = note; }
 
+        await db.SaveChangesAsync(ct);
+
+        // 4) Recompute the simple points the change touched.
+        await ProgressCoupling.RecomputeSimpleAsync(db, affected.ToList(), now, ct);
         await db.SaveChangesAsync(ct);
 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Stunde geändert",
@@ -182,24 +275,48 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
                 Datum = request.DateOn.ToString("dd.MM.yyyy"),
                 Start = startTime.ToString("HH\\:mm"),
                 Dauer = request.DurationMinutes,
+                Punkte = desiredIds.Count,
             }), cancellationToken: ct);
 
         return await ReloadDtoAsync(lesson.Id, ct);
     }
 
+    private static StudentProgressEntry NewEntry(Guid itemId, Guid lessonId, DateOnly date, string? note, DateTime now)
+        => new()
+        {
+            Id = Guid.NewGuid(),
+            StudentProgressItemId = itemId,
+            LessonId = lessonId,
+            PerformedOn = date,
+            Note = note,
+            CreatedAtUtc = now,
+        };
+
     public async Task DeleteAsync(Guid studentId, Guid lessonId, Actor actor, CancellationToken ct = default)
     {
         var lesson = await db.Lessons
             .Include(l => l.LicenseClass)
+            .Include(l => l.Items)
             .FirstOrDefaultAsync(l => l.Id == lessonId && l.StudentId == studentId, ct)
             ?? throw new NotFoundException("Diese Stunde wurde nicht gefunden. Bitte die Liste neu laden.");
 
+        var coveredItemIds = lesson.Items.Select(i => i.StudentProgressItemId).ToList();
+
         // Soft-delete (project rule 7): the lesson vanishes from the hours list
-        // but stays recoverable. The already-ticked points/counters in the
-        // progress are deliberately left untouched (they are edited separately).
+        // but stays recoverable. Its counted sessions are removed so the counters
+        // drop, and the simple points it covered are recomputed below - a point
+        // only stays "done" if another lesson (or a manual mark) covers it.
+        var now = DateTime.UtcNow;
+        var entries = await db.Set<StudentProgressEntry>()
+            .Where(e => e.LessonId == lessonId).ToListAsync(ct);
+        db.Set<StudentProgressEntry>().RemoveRange(entries);
+
         lesson.IsDeleted = true;
-        lesson.DeletedAtUtc = DateTime.UtcNow;
+        lesson.DeletedAtUtc = now;
         lesson.DeletedByUserId = actor.UserId;
+        await db.SaveChangesAsync(ct);
+
+        await ProgressCoupling.RecomputeSimpleAsync(db, coveredItemIds, now, ct);
         await db.SaveChangesAsync(ct);
 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Stunde gelöscht",
@@ -245,6 +362,16 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
             .Where(i => i.StudentProgressItem != null)
             .Select(i => i.StudentProgressItem!.Title)
             .OrderBy(t => t)],
+        Covered = [.. l.Items
+            .Where(i => i.StudentProgressItem != null)
+            .Select(i => new LessonCoverDto
+            {
+                ItemId = i.StudentProgressItemId,
+                Title = i.StudentProgressItem!.Title,
+                IsCountable = StudentProgressRules.IsCountable(i.StudentProgressItem!.RequiredCount),
+                CountsTowardRequirement = i.CountsTowardRequirement,
+            })
+            .OrderBy(c => c.Title)],
     };
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

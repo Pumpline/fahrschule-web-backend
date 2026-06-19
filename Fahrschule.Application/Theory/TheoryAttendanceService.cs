@@ -76,6 +76,9 @@ public class TheoryAttendanceService(
                 continue;
             }
 
+            // Attendance is a completion OUTSIDE a recorded lesson - mark it as
+            // manual so a later progress recompute (driven by lessons) keeps it.
+            item.ManuallyCompleted = true;
             item.IsCompleted = true;
             item.CompletedOn = request.DateOn;
             item.UpdatedAtUtc = DateTime.UtcNow;

@@ -253,7 +253,20 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
                 .HasForeignKey(x => x.StudentProgressItemId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // A counted session is backed by a lesson (nullable for legacy /
+            // manual sessions). Restrict: the lesson is only ever soft-deleted,
+            // so a hard delete must never silently drag counted sessions away.
+            entry.HasOne(x => x.Lesson)
+                .WithMany()
+                .HasForeignKey(x => x.LessonId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entry.HasIndex(x => x.LessonId);
+
             // Mirror the soft-delete filter of the owning progress item's student.
+            // (When a lesson is deleted, the services explicitly remove its counted
+            // sessions, so we don't depend on a navigation-based filter here -
+            // which the in-memory test provider does not evaluate reliably.)
             entry.HasQueryFilter(x => !x.StudentProgressItem!.Student!.IsDeleted);
         });
 

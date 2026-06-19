@@ -69,4 +69,11 @@ public class LessonItem
 
     public Guid StudentProgressItemId { get; set; }
     public StudentProgressItem? StudentProgressItem { get; set; }
+
+    /// <summary>For a COUNTABLE point: does this coverage count as a full
+    /// session (+1 toward the target, e.g. one whole Überlandfahrt)? false =
+    /// only practised - the lesson is recorded and shows the topic, but it does
+    /// NOT raise the counter (e.g. just 30 min overland). Ignored for simple
+    /// points (those are simply "done" when a lesson covers them).</summary>
+    public bool CountsTowardRequirement { get; set; } = true;
 }

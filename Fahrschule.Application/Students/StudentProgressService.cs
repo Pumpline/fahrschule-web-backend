@@ -41,7 +41,13 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         await EnsureSnapshotAsync(student, ct);
 
         var items = await LoadProgressAsync(studentId, ct);
-        return BuildDto(student, items);
+        // Which points a (non-deleted) lesson covers - drives the "covered by
+        // lesson" lock and the "manuell" hint in the UI.
+        var coveredIds = (await db.Set<LessonItem>()
+            .Where(li => li.Lesson!.StudentId == studentId && !li.Lesson!.IsDeleted)
+            .Select(li => li.StudentProgressItemId)
+            .Distinct().ToListAsync(ct)).ToHashSet();
+        return BuildDto(student, items, coveredIds);
     }
 
     public async Task<StudentProgressDto> SetItemAsync(
@@ -57,22 +63,36 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var newCompleted = request.IsDone;
-        DateOnly? newCompletedOn = request.IsDone ? request.CompletedOn ?? today : null;
         var newNote = NullIfEmpty(request.Note);
 
-        // No real change → don't write and don't log (e.g. re-saving the same
-        // "Erledigt am"/note, or a tick that doesn't actually flip the state).
-        // Only genuine changes land in the audit log.
-        if (item.IsCompleted == newCompleted && item.CompletedOn == newCompletedOn && item.Note == newNote)
+        // New model: a simple point is normally completed by a recorded lesson;
+        // the manual tick is the EXCEPTION (Anrechnung/Übernahme from another
+        // school). A point already covered by a lesson must not be un-ticked here
+        // - that would contradict the lesson; it has to be changed via the lesson.
+        var coveredByLesson = await ProgressCoupling.IsCoveredByLessonAsync(db, item.Id, ct);
+        if (!request.IsDone && coveredByLesson)
+        {
+            throw new AppValidationException(
+                "Dieser Punkt wurde in einer Stunde abgehakt. Bitte ihn über die betreffende Stunde ändern, nicht von Hand.");
+        }
+
+        var before = (item.ManuallyCompleted, item.IsCompleted, item.CompletedOn, item.Note);
+
+        item.ManuallyCompleted = request.IsDone;
+        item.Note = newNote;
+        if (request.IsDone) item.CompletedOn = request.CompletedOn ?? today;
+        item.UpdatedAtUtc = DateTime.UtcNow;
+
+        // Derive the stored IsCompleted/CompletedOn from the manual flag + any
+        // lesson coverage (so "done" stays consistent with the lessons).
+        await ProgressCoupling.RecomputeSimpleAsync(db, [item.Id], DateTime.UtcNow, ct);
+
+        // No real change → don't write and don't log (e.g. re-saving the same note).
+        if (before == (item.ManuallyCompleted, item.IsCompleted, item.CompletedOn, item.Note))
         {
             return await GetForStudentAsync(studentId, ct);
         }
 
-        item.IsCompleted = newCompleted;
-        item.CompletedOn = newCompletedOn;
-        item.Note = newNote;
-        item.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
 
         // "Erledigtes wieder austragen" is the noteworthy case (KONZEPT 3.3) -
@@ -90,17 +110,39 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         var item = await LoadItemAsync(studentId, itemId, ct);
         RequireCountable(item);
 
-        // Add through the DbSet (not item.Entries) so we only insert the new
-        // row and update the item - we never re-save the already-loaded entries.
+        // New model: the quick "+" records a real, FULL lesson covering this
+        // point, so it shows up in the hours list / Ausbildungsnachweis. The
+        // start time stays 00:00 until it is filled in via the lesson edit.
+        var now = DateTime.UtcNow;
+        var note = NullIfEmpty(request.Note);
+        var scope = item.Classes.Count == 1 ? item.Classes[0].LicenseClassId : (Guid?)null;
+        var lesson = new Lesson
+        {
+            Id = Guid.NewGuid(),
+            StudentId = studentId,
+            Type = IsTheorySection(item.Section) ? LessonType.Theory : LessonType.Practice,
+            LicenseClassId = scope,
+            DateOn = request.PerformedOn,
+            StartTime = default,
+            DurationMinutes = await DefaultLessonDurationAsync(ct),
+            Note = note,
+            CreatedAtUtc = now,
+        };
+        db.Lessons.Add(lesson);
+        lesson.Items.Add(new LessonItem
+        {
+            LessonId = lesson.Id, StudentProgressItemId = item.Id, CountsTowardRequirement = true,
+        });
         db.Set<StudentProgressEntry>().Add(new StudentProgressEntry
         {
             Id = Guid.NewGuid(),
             StudentProgressItemId = item.Id,
+            LessonId = lesson.Id,
             PerformedOn = request.PerformedOn,
-            Note = NullIfEmpty(request.Note),
-            CreatedAtUtc = DateTime.UtcNow,
+            Note = note,
+            CreatedAtUtc = now,
         });
-        item.UpdatedAtUtc = DateTime.UtcNow;
+        item.UpdatedAtUtc = now;
         await db.SaveChangesAsync(ct);
 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Stunde gezählt",
@@ -117,13 +159,42 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         var entry = item.Entries.FirstOrDefault(e => e.Id == entryId)
             ?? throw new NotFoundException("Diese gezählte Stunde wurde nicht gefunden. Bitte die Seite neu laden.");
 
-        item.Entries.Remove(entry);
+        if (entry.LessonId is { } lessonId)
+        {
+            var lesson = await db.Lessons.Include(l => l.Items)
+                .FirstOrDefaultAsync(l => l.Id == lessonId, ct);
+            if (lesson is not null && lesson.Items.Count <= 1)
+            {
+                // The lesson exists only for this counted drive → soft-delete it
+                // and drop its counted session.
+                lesson.IsDeleted = true;
+                lesson.DeletedAtUtc = DateTime.UtcNow;
+                lesson.DeletedByUserId = actor.UserId;
+                db.Set<StudentProgressEntry>().Remove(entry);
+            }
+            else
+            {
+                // Part of a multi-topic lesson → keep the lesson, just downgrade
+                // this point to "practice" and drop the counted session.
+                var li = lesson?.Items.FirstOrDefault(i => i.StudentProgressItemId == itemId);
+                if (li is not null) li.CountsTowardRequirement = false;
+                db.Set<StudentProgressEntry>().Remove(entry);
+            }
+        }
+        else
+        {
+            // Legacy/manual session without a backing lesson.
+            db.Set<StudentProgressEntry>().Remove(entry);
+        }
+
         item.UpdatedAtUtc = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
 
+        var count = await db.Set<StudentProgressEntry>()
+            .CountAsync(e => e.StudentProgressItemId == itemId, ct);
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Gezählte Stunde entfernt",
             AuditEntityType, $"{studentId}/{item.Title}",
-            newValuesJson: $"{{\"Anzahl\":{item.Entries.Count}}}", cancellationToken: ct);
+            newValuesJson: $"{{\"Anzahl\":{count}}}", cancellationToken: ct);
 
         return await GetForStudentAsync(studentId, ct);
     }
@@ -358,20 +429,20 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
 
     // --- DTO building ---
 
-    private static StudentProgressDto BuildDto(Student student, List<StudentProgressItem> items)
+    private static StudentProgressDto BuildDto(Student student, List<StudentProgressItem> items, HashSet<Guid> coveredIds)
     {
         var studentClassCount = student.LicenseClasses.Count;
         var classes = student.LicenseClasses
             .Where(lc => lc.LicenseClass != null)
             .OrderBy(lc => lc.LicenseClass!.SortOrder)
-            .Select(lc => BuildClassProgress(lc, items, studentClassCount))
+            .Select(lc => BuildClassProgress(lc, items, studentClassCount, coveredIds))
             .ToList();
 
         return new StudentProgressDto { Classes = classes };
     }
 
     private static ClassProgressDto BuildClassProgress(
-        StudentLicenseClass studentClass, List<StudentProgressItem> items, int studentClassCount)
+        StudentLicenseClass studentClass, List<StudentProgressItem> items, int studentClassCount, HashSet<Guid> coveredIds)
     {
         // Points that count for this class (its own + shared).
         var forClass = items
@@ -392,7 +463,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             {
                 Section = g.Key,
                 Items = g.OrderBy(p => p.SortOrder).ThenBy(p => p.Title)
-                    .Select(p => ToItemDto(p, studentClassCount)).ToList(),
+                    .Select(p => ToItemDto(p, studentClassCount, coveredIds)).ToList(),
             })
             .ToList();
 
@@ -409,7 +480,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         };
     }
 
-    private static ProgressItemDto ToItemDto(StudentProgressItem p, int studentClassCount)
+    private static ProgressItemDto ToItemDto(StudentProgressItem p, int studentClassCount, HashSet<Guid> coveredIds)
     {
         var countable = StudentProgressRules.IsCountable(p.RequiredCount);
         // Shared "Grundstoff" = a point with no class restriction (applies to all
@@ -427,6 +498,9 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             IsDone = StudentProgressRules.IsDone(p),
             CompletedOn = p.CompletedOn,
             Note = p.Note,
+            // Simple point completed without a lesson covering it = a manual mark.
+            CompletedManually = !countable && p.ManuallyCompleted && !coveredIds.Contains(p.Id),
+            CoveredByLesson = coveredIds.Contains(p.Id),
             IsShared = isShared,
             Entries = countable
                 ? p.Entries.OrderBy(e => e.PerformedOn).ThenBy(e => e.CreatedAtUtc)
@@ -454,6 +528,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
     private async Task<StudentProgressItem> LoadItemAsync(Guid studentId, Guid itemId, CancellationToken ct)
         => await db.StudentProgressItems
             .Include(p => p.Entries)
+            .Include(p => p.Classes)
             .FirstOrDefaultAsync(p => p.Id == itemId && p.StudentId == studentId, ct)
             ?? throw new NotFoundException("Dieser Ausbildungspunkt wurde nicht gefunden. Bitte die Seite neu laden.");
 
@@ -463,6 +538,22 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         {
             throw new AppValidationException("Dieser Punkt hat keinen Zähler. Bitte ihn direkt abhaken.");
         }
+    }
+
+    /// <summary>A section counts as theory when its name starts with "Theorie"
+    /// (e.g. "Theorie-Grundstoff"); everything else is practice. Mirrors the
+    /// frontend grouping.</summary>
+    private static bool IsTheorySection(string section)
+        => section.TrimStart().StartsWith("Theorie", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The pre-selected lesson duration from the settings (data, not
+    /// code - project rule 3); falls back to 90 minutes.</summary>
+    private async Task<int> DefaultLessonDurationAsync(CancellationToken ct)
+    {
+        var raw = await db.Settings
+            .Where(s => s.Key == Settings.SettingsService.LessonDefaultDurationMinutes)
+            .Select(s => s.Value).FirstOrDefaultAsync(ct);
+        return int.TryParse(raw, out var minutes) && minutes > 0 ? minutes : 90;
     }
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

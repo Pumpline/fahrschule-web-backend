@@ -55,6 +55,15 @@ public class ProgressItemDto
     public DateOnly? CompletedOn { get; set; }
     public string? Note { get; set; }
 
+    /// <summary>Simple point completed by a MANUAL mark (Anrechnung/Übernahme or
+    /// theory attendance) rather than a recorded lesson - the UI shows a small
+    /// "manuell" hint.</summary>
+    public bool CompletedManually { get; set; }
+
+    /// <summary>This point is covered by at least one recorded lesson. When true
+    /// the manual haken is locked - the point must be changed via the lesson.</summary>
+    public bool CoveredByLesson { get; set; }
+
     /// <summary>True if this point counts for more than one of the student's
     /// classes (a shared "Grundstoff" point) - the UI hints "zählt für mehrere".</summary>
     public bool IsShared { get; set; }
