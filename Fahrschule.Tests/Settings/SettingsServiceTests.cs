@@ -54,6 +54,8 @@ public class SettingsServiceTests
             ExamLockShortenedWeeks = 1,
             ExamLockPracticeLessonsForShortening = 4,
             RetentionStudentYears = 6,
+            LessonDefaultDurationMinutes = 45,
+            LessonDurationPresets = "45, 90",
         }, TestActor);
 
         var reloaded = await service.GetAsync();
@@ -62,6 +64,30 @@ public class SettingsServiceTests
         Assert.Equal(3, reloaded.ExamLockNormalWeeks);
         Assert.Equal(4, reloaded.ExamLockPracticeLessonsForShortening);
         Assert.Equal(6, reloaded.RetentionStudentYears);
+        Assert.Equal(45, reloaded.LessonDefaultDurationMinutes);
+        Assert.Equal("45, 90", reloaded.LessonDurationPresets);
+    }
+
+    [Fact]
+    public async Task Duration_presets_are_normalised_sorted_and_deduplicated()
+    {
+        await using var db = NewDb();
+        var service = NewService(db);
+
+        await service.UpdateAsync(ValidDefaults() with { LessonDurationPresets = "90, 45, 45,135" }, TestActor);
+
+        var reloaded = await service.GetAsync();
+        Assert.Equal("45, 90, 135", reloaded.LessonDurationPresets);
+    }
+
+    [Fact]
+    public async Task Update_rejects_an_invalid_duration_preset_list()
+    {
+        await using var db = NewDb();
+        var service = NewService(db);
+
+        await Assert.ThrowsAsync<Fahrschule.Application.Common.AppValidationException>(() =>
+            service.UpdateAsync(ValidDefaults() with { LessonDurationPresets = "abc" }, TestActor));
     }
 
     [Fact]
@@ -78,6 +104,8 @@ public class SettingsServiceTests
             ExamLockShortenedWeeks = 1,
             ExamLockPracticeLessonsForShortening = 2,
             RetentionStudentYears = 5,
+            LessonDefaultDurationMinutes = 90,
+            LessonDurationPresets = "45, 90",
             SchoolName = "Fahrschule Muster",
             SchoolStreet = "Hauptstr. 1",
             SchoolPostalCode = "04109",
@@ -127,6 +155,8 @@ public class SettingsServiceTests
         public int ExamLockShortenedWeeks { get; init; } = 1;
         public int ExamLockPracticeLessonsForShortening { get; init; } = 2;
         public int RetentionStudentYears { get; init; } = 5;
+        public int LessonDefaultDurationMinutes { get; init; } = 90;
+        public string LessonDurationPresets { get; init; } = "45, 90, 135, 180";
 
         public static implicit operator AppSettingsDto(AppSettingsRecord r) => new()
         {
@@ -136,6 +166,8 @@ public class SettingsServiceTests
             ExamLockShortenedWeeks = r.ExamLockShortenedWeeks,
             ExamLockPracticeLessonsForShortening = r.ExamLockPracticeLessonsForShortening,
             RetentionStudentYears = r.RetentionStudentYears,
+            LessonDefaultDurationMinutes = r.LessonDefaultDurationMinutes,
+            LessonDurationPresets = r.LessonDurationPresets,
         };
     }
 

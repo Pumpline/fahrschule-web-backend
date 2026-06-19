@@ -40,6 +40,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string ExamLockShortenedWeeks = "ExamLock.ShortenedWeeks";
     public const string ExamLockPracticeLessonsForShortening = "ExamLock.PracticeLessonsForShortening";
     public const string RetentionStudentYears = "Retention.StudentYears";
+    public const string LessonDefaultDurationMinutes = "Lesson.DefaultDurationMinutes";
 
     private static readonly SettingDefinition[] Definitions =
     [
@@ -48,6 +49,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(ExamLockNormalWeeks, 2, 1, 12, "Normale Wiederholungssperre nach Fehlversuch (Wochen)"),
         new(ExamLockShortenedWeeks, 1, 0, 12, "Verkürzte Sperre mit Zusatzstunden (Wochen)"),
         new(ExamLockPracticeLessonsForShortening, 2, 0, 20, "Zusatzstunden für die verkürzte Sperre"),
+        new(LessonDefaultDurationMinutes, 90, 5, 600, "Vorausgewählte Dauer beim Stunden-Eintragen (Minuten)"),
         // § 31 Abs. 3 FahrlG: 5 years after the end of the training year. Range
         // 1-30 leaves room should the law change; default 5 is the current value.
         new(RetentionStudentYears, 5, 1, 30, "Aufbewahrungsfrist für Schüler-Daten nach Ausbildungsende (Jahre, § 31 FahrlG)"),
@@ -64,6 +66,12 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     // Document templates (KONZEPT 1b) - free text, shown on generated PDFs.
     public const string ContractTerms = "Contract.Terms";
 
+    // Quick-pick lesson durations (minutes), comma-separated and editable
+    // (project rule 3: data, not code). The "Stunde eintragen" dialog shows
+    // these as buttons; any other duration can still be typed freely.
+    public const string LessonDurationPresets = "Lesson.DurationPresets";
+    public const string DefaultLessonDurationPresets = "45, 90, 135, 180";
+
     private static readonly StringSettingDefinition[] StringDefinitions =
     [
         new(SchoolName, 200, "Name der Fahrschule"),
@@ -72,6 +80,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(SchoolCity, 100, "Ort"),
         new(SchoolPermitNumber, 100, "Erlaubnisnummer"),
         new(ContractTerms, 20000, "Vertragsbedingungen für den Ausbildungsvertrag"),
+        new(LessonDurationPresets, 200, "Schnell-Auswahl der Stundendauern (Minuten, mit Komma getrennt)"),
     ];
 
     public async Task<AppSettingsDto> GetAsync(CancellationToken ct = default)
@@ -91,6 +100,9 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             ExamLockShortenedWeeks = Read(ExamLockShortenedWeeks),
             ExamLockPracticeLessonsForShortening = Read(ExamLockPracticeLessonsForShortening),
             RetentionStudentYears = Read(RetentionStudentYears),
+            LessonDefaultDurationMinutes = Read(LessonDefaultDurationMinutes),
+            // Fall back to the sensible default list when nothing was saved yet.
+            LessonDurationPresets = NullIfEmpty(ReadText(LessonDurationPresets)) ?? DefaultLessonDurationPresets,
             SchoolName = ReadText(SchoolName),
             SchoolStreet = ReadText(SchoolStreet),
             SchoolPostalCode = ReadText(SchoolPostalCode),
@@ -110,6 +122,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             [ExamLockShortenedWeeks] = request.ExamLockShortenedWeeks,
             [ExamLockPracticeLessonsForShortening] = request.ExamLockPracticeLessonsForShortening,
             [RetentionStudentYears] = request.RetentionStudentYears,
+            [LessonDefaultDurationMinutes] = request.LessonDefaultDurationMinutes,
         };
 
         // Validate every value against its allowed range first (all-or-nothing).
@@ -126,6 +139,17 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         if (request.ExamLockShortenedWeeks > request.ExamLockNormalWeeks)
         {
             errors.Add("Die verkürzte Sperre darf nicht länger als die normale Sperre sein.");
+        }
+
+        // Lesson duration presets: parse + normalise the comma-separated list.
+        // On success we write the cleaned-up form back so it is stored tidily.
+        if (NormalizeDurationPresets(request.LessonDurationPresets, out var normalizedPresets, out var presetError))
+        {
+            request.LessonDurationPresets = normalizedPresets;
+        }
+        else
+        {
+            errors.Add(presetError!);
         }
 
         // Free-text school data: only a length check (empty is allowed).
@@ -168,7 +192,54 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         [SchoolCity] = r.SchoolCity,
         [SchoolPermitNumber] = r.SchoolPermitNumber,
         [ContractTerms] = r.ContractTerms,
+        [LessonDurationPresets] = r.LessonDurationPresets,
     };
+
+    private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>
+    /// Parses the comma-separated duration list, validates each value and returns
+    /// a tidy, de-duplicated, sorted form (e.g. "45, 90, 135"). Returns false with
+    /// a German error message when something is off.
+    /// </summary>
+    private static bool NormalizeDurationPresets(string? raw, out string normalized, out string? error)
+    {
+        normalized = string.Empty;
+        error = null;
+
+        var parts = (raw ?? string.Empty)
+            .Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        if (parts.Length == 0)
+        {
+            error = "Bitte mindestens eine Stundendauer eintragen (z. B. 45, 90).";
+            return false;
+        }
+        if (parts.Length > 12)
+        {
+            error = "Bitte höchstens 12 Stundendauern eintragen.";
+            return false;
+        }
+
+        var values = new SortedSet<int>();
+        foreach (var part in parts)
+        {
+            if (!int.TryParse(part, out var minutes))
+            {
+                error = "Bitte die Stundendauern als ganze Zahlen eintragen (z. B. 45, 90, 135).";
+                return false;
+            }
+            if (minutes < 5 || minutes > 600)
+            {
+                error = "Jede Stundendauer muss zwischen 5 und 600 Minuten liegen.";
+                return false;
+            }
+            values.Add(minutes);
+        }
+
+        normalized = string.Join(", ", values);
+        return true;
+    }
 
     private async Task UpsertAsync(string key, string value, string description, DateTime now, CancellationToken ct)
     {

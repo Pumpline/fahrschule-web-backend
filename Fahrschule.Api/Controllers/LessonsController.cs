@@ -24,6 +24,17 @@ public class LessonsController(ILessonService service) : ControllerBase
     public async Task<ActionResult<LessonDto>> Create(Guid studentId, CreateLessonRequest request, CancellationToken ct)
         => Ok(await service.CreateAsync(studentId, request, GetActor(), ct));
 
+    [HttpPut("{lessonId:guid}")]
+    public async Task<ActionResult<LessonDto>> Update(Guid studentId, Guid lessonId, UpdateLessonRequest request, CancellationToken ct)
+        => Ok(await service.UpdateAsync(studentId, lessonId, request, GetActor(), ct));
+
+    [HttpDelete("{lessonId:guid}")]
+    public async Task<IActionResult> Delete(Guid studentId, Guid lessonId, CancellationToken ct)
+    {
+        await service.DeleteAsync(studentId, lessonId, GetActor(), ct);
+        return NoContent();
+    }
+
     private Actor GetActor()
     {
         var idValue = User.FindFirstValue(ClaimTypes.NameIdentifier);

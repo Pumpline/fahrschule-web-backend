@@ -1,3 +1,5 @@
+using Fahrschule.Domain.Common;
+
 namespace Fahrschule.Domain.Entities;
 
 /// <summary>Whether a lesson was theory or practical driving (KONZEPT 3.3).</summary>
@@ -18,7 +20,7 @@ public enum LessonType
 /// linked via <see cref="Items"/> so the lesson can later appear on the printed
 /// Ausbildungsnachweis.
 /// </summary>
-public class Lesson
+public class Lesson : ISoftDeletable
 {
     public Guid Id { get; set; }
 
@@ -35,13 +37,25 @@ public class Lesson
     /// <summary>The day the lesson took place.</summary>
     public DateOnly DateOn { get; set; }
 
-    /// <summary>Duration in minutes (e.g. 90 for a Doppelstunde).</summary>
+    /// <summary>The time the lesson started (KONZEPT 3.3 "Lesson: Typ, Start,
+    /// Dauer"). Needed later for the printed Ausbildungsnachweis.</summary>
+    public TimeOnly StartTime { get; set; }
+
+    /// <summary>Duration in minutes (e.g. 90 for a Doppelstunde). Free value -
+    /// the UI offers editable presets but any duration may be entered.</summary>
     public int DurationMinutes { get; set; }
 
     /// <summary>Optional note for the whole lesson.</summary>
     public string? Note { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }
+
+    // Soft-delete (project rule 7): deleting a lesson only flags it so it
+    // vanishes from the hours list/totals but stays recoverable and is purged
+    // only by the retention job.
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
+    public Guid? DeletedByUserId { get; set; }
 
     /// <summary>The curriculum points covered in this lesson.</summary>
     public List<LessonItem> Items { get; set; } = [];

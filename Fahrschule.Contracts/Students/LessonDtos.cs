@@ -14,6 +14,10 @@ public class LessonDto
     public string ClassLabel { get; set; } = string.Empty;
 
     public DateOnly DateOn { get; set; }
+
+    /// <summary>Start time as "HH:mm" (e.g. "18:00").</summary>
+    public string StartTime { get; set; } = string.Empty;
+
     public int DurationMinutes { get; set; }
     public string? Note { get; set; }
 
@@ -31,6 +35,10 @@ public class CreateLessonRequest
     public Guid? LicenseClassId { get; set; }
 
     public DateOnly DateOn { get; set; }
+
+    /// <summary>Start time as "HH:mm" (required, e.g. "18:00").</summary>
+    public string StartTime { get; set; } = string.Empty;
+
     public int DurationMinutes { get; set; }
     public string? Note { get; set; }
 
@@ -41,4 +49,21 @@ public class CreateLessonRequest
     /// (KONZEPT 3.5). When set, that appointment is marked "durchgeführt" and
     /// linked to this lesson.</summary>
     public Guid? CalendarEventId { get; set; }
+}
+
+/// <summary>
+/// "Edit a lesson" request. Only the lesson's own fields are correctable
+/// (date, start time, duration, note) - the type, class and covered points
+/// define the progress linkage and are not changed here. To change what was
+/// covered, delete the lesson and enter it again.
+/// </summary>
+public class UpdateLessonRequest
+{
+    public DateOnly DateOn { get; set; }
+
+    /// <summary>Start time as "HH:mm" (required, e.g. "18:00").</summary>
+    public string StartTime { get; set; } = string.Empty;
+
+    public int DurationMinutes { get; set; }
+    public string? Note { get; set; }
 }

@@ -33,6 +33,16 @@ public class AppSettingsDto
     /// </summary>
     public int RetentionStudentYears { get; set; }
 
+    // --- Lesson entry (KONZEPT 3.3) - editable quick durations, project rule 3 ---
+
+    /// <summary>The duration pre-selected in the "Stunde eintragen" dialog
+    /// (minutes, default 90). Any value can still be entered freely.</summary>
+    public int LessonDefaultDurationMinutes { get; set; }
+
+    /// <summary>Quick-pick lesson durations as a comma-separated minute list
+    /// (e.g. "45, 90, 135, 180"). Shown as buttons in the lesson dialog.</summary>
+    public string LessonDurationPresets { get; set; } = string.Empty;
+
     // --- Driving-school master data (KONZEPT 1b) - shown on the printed
     //     Ausbildungsnachweis. Free text, editable in the admin panel. ---
 

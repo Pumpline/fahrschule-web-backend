@@ -201,6 +201,8 @@ public class RetentionServiceTests
                 ExamLockShortenedWeeks = 1,
                 ExamLockPracticeLessonsForShortening = 2,
                 RetentionStudentYears = 1,
+                LessonDefaultDurationMinutes = 90,
+                LessonDurationPresets = "45, 90, 135, 180",
             }, TestActor);
         }
 

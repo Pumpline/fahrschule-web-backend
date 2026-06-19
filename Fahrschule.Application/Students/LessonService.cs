@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
@@ -13,6 +14,8 @@ public interface ILessonService
 {
     Task<List<LessonDto>> GetForStudentAsync(Guid studentId, CancellationToken ct = default);
     Task<LessonDto> CreateAsync(Guid studentId, CreateLessonRequest request, Actor actor, CancellationToken ct = default);
+    Task<LessonDto> UpdateAsync(Guid studentId, Guid lessonId, UpdateLessonRequest request, Actor actor, CancellationToken ct = default);
+    Task DeleteAsync(Guid studentId, Guid lessonId, Actor actor, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -48,6 +51,10 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
         {
             throw new AppValidationException("Bitte eine Dauer für die Stunde wählen.");
         }
+        if (!TryParseTime(request.StartTime, out var startTime))
+        {
+            throw new AppValidationException("Bitte eine gültige Startzeit (z. B. 18:00) eintragen.");
+        }
 
         var student = await db.Students
             .Include(s => s.LicenseClasses)
@@ -79,6 +86,7 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
             Type = type,
             LicenseClassId = request.LicenseClassId,
             DateOn = request.DateOn,
+            StartTime = startTime,
             DurationMinutes = request.DurationMinutes,
             Note = note,
             CreatedAtUtc = now,
@@ -133,11 +141,76 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
                 Typ = type.ToString(),
                 Klasse = classLabel,
                 Datum = request.DateOn.ToString("dd.MM.yyyy"),
+                Start = startTime.ToString("HH\\:mm"),
                 Dauer = request.DurationMinutes,
                 Punkte = covered.Count,
             }), cancellationToken: ct);
 
         return await ReloadDtoAsync(lesson.Id, ct);
+    }
+
+    public async Task<LessonDto> UpdateAsync(
+        Guid studentId, Guid lessonId, UpdateLessonRequest request, Actor actor, CancellationToken ct = default)
+    {
+        if (request.DurationMinutes <= 0)
+        {
+            throw new AppValidationException("Bitte eine Dauer für die Stunde wählen.");
+        }
+        if (!TryParseTime(request.StartTime, out var startTime))
+        {
+            throw new AppValidationException("Bitte eine gültige Startzeit (z. B. 18:00) eintragen.");
+        }
+
+        var lesson = await db.Lessons
+            .FirstOrDefaultAsync(l => l.Id == lessonId && l.StudentId == studentId, ct)
+            ?? throw new NotFoundException("Diese Stunde wurde nicht gefunden. Bitte die Liste neu laden.");
+
+        // Only the lesson's own fields are correctable here (the type/class and
+        // covered points define the progress linkage - changing those means
+        // delete + re-enter). This keeps the progress effect consistent.
+        lesson.DateOn = request.DateOn;
+        lesson.StartTime = startTime;
+        lesson.DurationMinutes = request.DurationMinutes;
+        lesson.Note = NullIfEmpty(request.Note);
+
+        await db.SaveChangesAsync(ct);
+
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Stunde geändert",
+            "Ausbildungsstunde", studentId.ToString(),
+            newValuesJson: JsonSerializer.Serialize(new
+            {
+                Datum = request.DateOn.ToString("dd.MM.yyyy"),
+                Start = startTime.ToString("HH\\:mm"),
+                Dauer = request.DurationMinutes,
+            }), cancellationToken: ct);
+
+        return await ReloadDtoAsync(lesson.Id, ct);
+    }
+
+    public async Task DeleteAsync(Guid studentId, Guid lessonId, Actor actor, CancellationToken ct = default)
+    {
+        var lesson = await db.Lessons
+            .Include(l => l.LicenseClass)
+            .FirstOrDefaultAsync(l => l.Id == lessonId && l.StudentId == studentId, ct)
+            ?? throw new NotFoundException("Diese Stunde wurde nicht gefunden. Bitte die Liste neu laden.");
+
+        // Soft-delete (project rule 7): the lesson vanishes from the hours list
+        // but stays recoverable. The already-ticked points/counters in the
+        // progress are deliberately left untouched (they are edited separately).
+        lesson.IsDeleted = true;
+        lesson.DeletedAtUtc = DateTime.UtcNow;
+        lesson.DeletedByUserId = actor.UserId;
+        await db.SaveChangesAsync(ct);
+
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Stunde gelöscht",
+            "Ausbildungsstunde", studentId.ToString(),
+            oldValuesJson: JsonSerializer.Serialize(new
+            {
+                Typ = lesson.Type.ToString(),
+                Klasse = lesson.LicenseClass?.Code ?? "Grundstoff",
+                Datum = lesson.DateOn.ToString("dd.MM.yyyy"),
+                Start = lesson.StartTime.ToString("HH\\:mm"),
+            }), cancellationToken: ct);
     }
 
     private async Task<LessonDto> ReloadDtoAsync(Guid lessonId, CancellationToken ct)
@@ -165,6 +238,7 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
         LicenseClassId = l.LicenseClassId,
         ClassLabel = l.LicenseClass?.Code ?? "Grundstoff",
         DateOn = l.DateOn,
+        StartTime = l.StartTime.ToString("HH\\:mm"),
         DurationMinutes = l.DurationMinutes,
         Note = l.Note,
         CoveredTitles = [.. l.Items
@@ -174,4 +248,8 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
     };
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    /// <summary>Parses a "HH:mm" time string (same convention as the calendar).</summary>
+    private static bool TryParseTime(string? value, out TimeOnly time)
+        => TimeOnly.TryParse(value, CultureInfo.InvariantCulture, out time);
 }

@@ -76,7 +76,7 @@ public class LessonServiceTests
         {
             await NewService(db).CreateAsync(_student, new CreateLessonRequest
             {
-                Type = "Practice", LicenseClassId = _classB, DateOn = date, DurationMinutes = 90,
+                Type = "Practice", LicenseClassId = _classB, DateOn = date, StartTime = "14:30", DurationMinutes = 90,
                 CoveredItemIds = [topicId, driveId],
             }, TestActor);
         }
@@ -86,6 +86,7 @@ public class LessonServiceTests
         {
             var lesson = await check.Lessons.Include(l => l.Items).FirstAsync();
             Assert.Equal(LessonType.Practice, lesson.Type);
+            Assert.Equal(new TimeOnly(14, 30), lesson.StartTime);
             Assert.Equal(90, lesson.DurationMinutes);
             Assert.Equal(2, lesson.Items.Count);
         }
@@ -128,7 +129,7 @@ public class LessonServiceTests
         await SeedAndSnapshotAsync();
         await using var db = NewDb();
         await Assert.ThrowsAsync<AppValidationException>(() => NewService(db).CreateAsync(_student,
-            new CreateLessonRequest { Type = "Theory", LicenseClassId = Guid.NewGuid(), DateOn = new DateOnly(2026, 6, 13), DurationMinutes = 90, CoveredItemIds = [] },
+            new CreateLessonRequest { Type = "Theory", LicenseClassId = Guid.NewGuid(), DateOn = new DateOnly(2026, 6, 13), StartTime = "18:00", DurationMinutes = 90, CoveredItemIds = [] },
             TestActor));
     }
 
@@ -142,7 +143,7 @@ public class LessonServiceTests
         {
             await NewService(db).CreateAsync(_student, new CreateLessonRequest
             {
-                Type = "Theory", LicenseClassId = null, DateOn = new DateOnly(2026, 6, 10), DurationMinutes = 90,
+                Type = "Theory", LicenseClassId = null, DateOn = new DateOnly(2026, 6, 10), StartTime = "18:00", DurationMinutes = 90,
                 CoveredItemIds = [topicId],
             }, TestActor);
         }
@@ -151,7 +152,77 @@ public class LessonServiceTests
         var lessons = await NewService(read).GetForStudentAsync(_student);
         Assert.Single(lessons);
         Assert.Equal("Grundstoff", lessons[0].ClassLabel);
+        Assert.Equal("18:00", lessons[0].StartTime);
         Assert.Contains("Grundstoff-Thema", lessons[0].CoveredTitles);
+    }
+
+    [Fact]
+    public async Task Create_rejects_a_missing_start_time()
+    {
+        await SeedAndSnapshotAsync();
+        await using var db = NewDb();
+        await Assert.ThrowsAsync<AppValidationException>(() => NewService(db).CreateAsync(_student,
+            new CreateLessonRequest { Type = "Theory", DateOn = new DateOnly(2026, 6, 13), StartTime = "", DurationMinutes = 90, CoveredItemIds = [] },
+            TestActor));
+    }
+
+    [Fact]
+    public async Task Update_changes_the_lessons_own_fields()
+    {
+        var progress = await SeedAndSnapshotAsync();
+        var topicId = Item(progress, "Grundstoff-Thema").Id;
+
+        Guid lessonId;
+        await using (var db = NewDb())
+        {
+            lessonId = (await NewService(db).CreateAsync(_student, new CreateLessonRequest
+            {
+                Type = "Theory", LicenseClassId = null, DateOn = new DateOnly(2026, 6, 10), StartTime = "18:00", DurationMinutes = 90,
+                CoveredItemIds = [topicId],
+            }, TestActor)).Id;
+        }
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).UpdateAsync(_student, lessonId, new UpdateLessonRequest
+            {
+                DateOn = new DateOnly(2026, 6, 11), StartTime = "19:15", DurationMinutes = 45, Note = "verschoben",
+            }, TestActor);
+        }
+
+        await using var read = NewDb();
+        var lesson = await read.Lessons.FirstAsync(l => l.Id == lessonId);
+        Assert.Equal(new DateOnly(2026, 6, 11), lesson.DateOn);
+        Assert.Equal(new TimeOnly(19, 15), lesson.StartTime);
+        Assert.Equal(45, lesson.DurationMinutes);
+        Assert.Equal("verschoben", lesson.Note);
+    }
+
+    [Fact]
+    public async Task Delete_hides_the_lesson_from_the_list()
+    {
+        var progress = await SeedAndSnapshotAsync();
+        var topicId = Item(progress, "Grundstoff-Thema").Id;
+
+        Guid lessonId;
+        await using (var db = NewDb())
+        {
+            lessonId = (await NewService(db).CreateAsync(_student, new CreateLessonRequest
+            {
+                Type = "Theory", LicenseClassId = null, DateOn = new DateOnly(2026, 6, 10), StartTime = "18:00", DurationMinutes = 90,
+                CoveredItemIds = [topicId],
+            }, TestActor)).Id;
+        }
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).DeleteAsync(_student, lessonId, TestActor);
+        }
+
+        await using var read = NewDb();
+        // Gone from the hours list, but still present (soft-deleted) in the table.
+        Assert.Empty(await NewService(read).GetForStudentAsync(_student));
+        Assert.True((await read.Lessons.IgnoreQueryFilters().FirstAsync(l => l.Id == lessonId)).IsDeleted);
     }
 
     [Fact]
@@ -176,7 +247,7 @@ public class LessonServiceTests
         {
             lessonId = (await NewService(db).CreateAsync(_student, new CreateLessonRequest
             {
-                Type = "Practice", LicenseClassId = _classB, DateOn = new DateOnly(2026, 6, 13), DurationMinutes = 90,
+                Type = "Practice", LicenseClassId = _classB, DateOn = new DateOnly(2026, 6, 13), StartTime = "09:00", DurationMinutes = 90,
                 CoveredItemIds = [topicId], CalendarEventId = eventId,
             }, TestActor)).Id;
         }
@@ -209,7 +280,7 @@ public class LessonServiceTests
         {
             await NewService(db).CreateAsync(_student, new CreateLessonRequest
             {
-                Type = "Practice", LicenseClassId = _classB, DateOn = new DateOnly(2026, 6, 13), DurationMinutes = 90,
+                Type = "Practice", LicenseClassId = _classB, DateOn = new DateOnly(2026, 6, 13), StartTime = "09:00", DurationMinutes = 90,
                 CoveredItemIds = [topicId], CalendarEventId = eventId,
             }, TestActor);
         }

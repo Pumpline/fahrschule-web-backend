@@ -277,8 +277,12 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
                 .HasForeignKey(x => x.LicenseClassId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            // Mirror the student's soft-delete filter (EF requires this).
-            lesson.HasQueryFilter(x => !x.Student!.IsDeleted);
+            // Hide both soft-deleted lessons and lessons of a soft-deleted student.
+            lesson.HasQueryFilter(x => !x.IsDeleted && !x.Student!.IsDeleted);
+
+            // Optimistic concurrency against mutual overwrite (project rule 7).
+            // xmin is Postgres' built-in row version - no extra column needed.
+            lesson.Property<uint>("xmin").IsRowVersion();
         });
 
         builder.Entity<LessonItem>(link =>
@@ -295,8 +299,8 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
                 .HasForeignKey(x => x.StudentProgressItemId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            // Mirror the soft-delete filter of the owning lesson's student.
-            link.HasQueryFilter(x => !x.Lesson!.Student!.IsDeleted);
+            // Mirror the owning lesson's filter (its own + its student's soft-delete).
+            link.HasQueryFilter(x => !x.Lesson!.IsDeleted && !x.Lesson!.Student!.IsDeleted);
         });
 
         builder.Entity<Exam>(exam =>
