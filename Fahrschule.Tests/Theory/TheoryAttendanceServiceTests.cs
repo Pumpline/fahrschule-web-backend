@@ -29,7 +29,8 @@ public class TheoryAttendanceServiceTests
     private TheoryAttendanceService NewService(FahrschuleDbContext db)
     {
         var audit = new AuditWriter(db);
-        return new TheoryAttendanceService(db, new StudentProgressService(db, audit), audit);
+        return new TheoryAttendanceService(
+            db, new StudentProgressService(db, audit), new LessonService(db, audit));
     }
 
     private readonly Guid _withClass = Guid.NewGuid();   // has class B → topic applies
@@ -61,7 +62,7 @@ public class TheoryAttendanceServiceTests
     }
 
     private TickTheoryRequest Request(params Guid[] studentIds)
-        => new() { DateOn = Date, CurriculumItemId = _topicId, StudentIds = [.. studentIds] };
+        => new() { DateOn = Date, StartTime = "18:00", CurriculumItemId = _topicId, StudentIds = [.. studentIds] };
 
     private async Task<bool> TopicDoneAsync(Guid studentId)
     {
@@ -133,5 +134,22 @@ public class TheoryAttendanceServiceTests
         await using var db = NewDb();
         await Assert.ThrowsAsync<Fahrschule.Application.Common.AppValidationException>(() =>
             NewService(db).TickAsync(Request(), TestActor));
+    }
+
+    [Fact]
+    public async Task Ticking_records_a_real_theory_lesson()
+    {
+        await SeedAsync();
+        await using (var db = NewDb()) await NewService(db).TickAsync(Request(_withClass), TestActor);
+
+        await using var check = NewDb();
+        var lesson = await check.Lessons.Include(l => l.Items)
+            .FirstOrDefaultAsync(l => l.StudentId == _withClass);
+
+        Assert.NotNull(lesson);
+        Assert.Equal(LessonType.Theory, lesson!.Type);
+        Assert.Equal(new TimeOnly(18, 0), lesson.StartTime);
+        Assert.Equal(90, lesson.DurationMinutes);
+        Assert.Single(lesson.Items); // covers the ticked topic
     }
 }

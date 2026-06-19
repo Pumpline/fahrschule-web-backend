@@ -10,14 +10,18 @@ public class TheoryTopicDto
 }
 
 /// <summary>
-/// Quick "tick a theory topic for several students at once" request (KONZEPT
-/// Stufe 2). This is just a shortcut for manual work - nothing is stored as an
-/// attendance list; the only lasting effect is the topic being ticked in each
-/// student's theory progress.
+/// Quick "record a theory double lesson for several students at once" request
+/// (KONZEPT Stufe 2). For each present student it now records a real theory
+/// lesson covering the chosen topic (the lesson is the source of truth for the
+/// progress), so the topic is ticked AND the lesson shows in the hours list.
 /// </summary>
 public class TickTheoryRequest
 {
     public DateOnly DateOn { get; set; }
+
+    /// <summary>Start time as "HH:mm" (required, e.g. "18:00").</summary>
+    public string StartTime { get; set; } = string.Empty;
+
     /// <summary>The chosen theory topic (a current catalogue item).</summary>
     public Guid CurriculumItemId { get; set; }
     public List<Guid> StudentIds { get; set; } = [];
