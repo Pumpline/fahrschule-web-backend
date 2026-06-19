@@ -27,9 +27,11 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
 # QuestPDF (PDF generation via SkiaSharp) needs fontconfig on Linux, otherwise
-# the Ausbildungsnachweis/-vertrag PDFs fail at runtime.
+# the Ausbildungsnachweis/-vertrag PDFs fail at runtime. tzdata provides the
+# IANA time zones (e.g. "Europe/Berlin") the appointment-reminder job needs to
+# turn German wall-clock times into UTC correctly.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libfontconfig1 \
+    && apt-get install -y --no-install-recommends libfontconfig1 tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /app .
