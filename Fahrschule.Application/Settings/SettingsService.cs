@@ -1,3 +1,4 @@
+using System.Globalization;
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
@@ -76,6 +77,11 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string LessonDurationPresets = "Lesson.DurationPresets";
     public const string DefaultLessonDurationPresets = "45, 90, 135, 180";
 
+    // Default start time for a theory lesson in the "Stunde eintragen" dialog
+    // (editable, rule 3). Stored as "HH:mm"; default 18:00 (typical evening slot).
+    public const string TheoryDefaultStartTime = "Lesson.TheoryDefaultStartTime";
+    public const string DefaultTheoryStartTime = "18:00";
+
     private static readonly StringSettingDefinition[] StringDefinitions =
     [
         new(SchoolName, 200, "Name der Fahrschule"),
@@ -86,6 +92,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(SchoolInstructorNumber, 10, "Fahrlehrer-Nummer (FL) für den Ausbildungsnachweis"),
         new(SchoolInstructorName, 100, "Name des Fahrlehrers (für die Legende „FL 01 = …“)"),
         new(LessonDurationPresets, 200, "Schnell-Auswahl der Stundendauern (Minuten, mit Komma getrennt)"),
+        new(TheoryDefaultStartTime, 5, "Standard-Startzeit für Theoriestunden (HH:mm)"),
     ];
 
     public async Task<AppSettingsDto> GetAsync(CancellationToken ct = default)
@@ -108,6 +115,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             LessonDefaultDurationMinutes = Read(LessonDefaultDurationMinutes),
             // Fall back to the sensible default list when nothing was saved yet.
             LessonDurationPresets = NullIfEmpty(ReadText(LessonDurationPresets)) ?? DefaultLessonDurationPresets,
+            LessonTheoryDefaultStartTime = NullIfEmpty(ReadText(TheoryDefaultStartTime)) ?? DefaultTheoryStartTime,
             SchoolName = ReadText(SchoolName),
             SchoolStreet = ReadText(SchoolStreet),
             SchoolPostalCode = ReadText(SchoolPostalCode),
@@ -159,6 +167,21 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             errors.Add(presetError!);
         }
 
+        // Theory default start time: must be a valid clock time. Empty is allowed
+        // (then GetAsync falls back to 18:00). We store it tidily as "HH:mm".
+        if (string.IsNullOrWhiteSpace(request.LessonTheoryDefaultStartTime))
+        {
+            request.LessonTheoryDefaultStartTime = string.Empty;
+        }
+        else if (TimeOnly.TryParse(request.LessonTheoryDefaultStartTime, CultureInfo.InvariantCulture, out var theoryStart))
+        {
+            request.LessonTheoryDefaultStartTime = theoryStart.ToString("HH\\:mm", CultureInfo.InvariantCulture);
+        }
+        else
+        {
+            errors.Add("Bitte eine gültige Uhrzeit für die Theorie-Startzeit eintragen (z. B. 18:00).");
+        }
+
         // Free-text school data: only a length check (empty is allowed).
         var incomingText = StringValues(request);
         foreach (var def in StringDefinitions)
@@ -201,6 +224,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         [SchoolInstructorNumber] = r.SchoolInstructorNumber,
         [SchoolInstructorName] = r.SchoolInstructorName,
         [LessonDurationPresets] = r.LessonDurationPresets,
+        [TheoryDefaultStartTime] = r.LessonTheoryDefaultStartTime,
     };
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

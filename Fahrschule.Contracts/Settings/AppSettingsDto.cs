@@ -43,6 +43,11 @@ public class AppSettingsDto
     /// (e.g. "45, 90, 135, 180"). Shown as buttons in the lesson dialog.</summary>
     public string LessonDurationPresets { get; set; } = string.Empty;
 
+    /// <summary>Default start time ("HH:mm") pre-filled for a THEORY lesson in the
+    /// "Stunde eintragen" dialog (theory usually starts at a fixed evening time).
+    /// Editable (project rule 3); defaults to "18:00". Practice has no default.</summary>
+    public string LessonTheoryDefaultStartTime { get; set; } = string.Empty;
+
     // --- Driving-school master data (KONZEPT 1b) - shown on the printed
     //     Ausbildungsnachweis. Free text, editable in the admin panel. ---
 
