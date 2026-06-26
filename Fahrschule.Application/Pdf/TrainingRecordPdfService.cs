@@ -250,10 +250,14 @@ public class TrainingRecordDocument(
             .FontSize(8).SemiBold().FontColor(Colors.Grey.Darken2);
     }
 
-    private static void Legend(ColumnDescriptor col)
+    private void Legend(ColumnDescriptor col)
     {
-        col.Item().PaddingTop(4).Text("FL = Fahrlehrer-Nummer")
-            .FontSize(7.5f).FontColor(Colors.Grey.Darken1);
+        // Explain the FL number, naming the instructor behind it when known
+        // ("FL = Fahrlehrer-Nummer (01 = Herr Rätze)").
+        var text = NotBlank(settings.SchoolInstructorName)
+            ? $"FL = Fahrlehrer-Nummer ({InstructorNumber} = {settings.SchoolInstructorName})"
+            : "FL = Fahrlehrer-Nummer";
+        col.Item().PaddingTop(4).Text(text).FontSize(7.5f).FontColor(Colors.Grey.Darken1);
     }
 
     private void Signatures(ColumnDescriptor col)

@@ -67,6 +67,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     // (the owner), so it pre-fills every row; editable (rule 3), default "01".
     public const string SchoolInstructorNumber = "School.InstructorNumber";
     public const string DefaultInstructorNumber = "01";
+    // Name behind the FL number (e.g. "Herr Rätze"), shown in the record's legend.
+    public const string SchoolInstructorName = "School.InstructorName";
 
     // Quick-pick lesson durations (minutes), comma-separated and editable
     // (project rule 3: data, not code). The "Stunde eintragen" dialog shows
@@ -82,6 +84,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(SchoolCity, 100, "Ort"),
         new(SchoolPermitNumber, 100, "Erlaubnisnummer"),
         new(SchoolInstructorNumber, 10, "Fahrlehrer-Nummer (FL) für den Ausbildungsnachweis"),
+        new(SchoolInstructorName, 100, "Name des Fahrlehrers (für die Legende „FL 01 = …“)"),
         new(LessonDurationPresets, 200, "Schnell-Auswahl der Stundendauern (Minuten, mit Komma getrennt)"),
     ];
 
@@ -112,6 +115,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             SchoolPermitNumber = ReadText(SchoolPermitNumber),
             // Falls back to "01" so the FL column is never empty (single instructor).
             SchoolInstructorNumber = NullIfEmpty(ReadText(SchoolInstructorNumber)) ?? DefaultInstructorNumber,
+            SchoolInstructorName = ReadText(SchoolInstructorName),
         };
     }
 
@@ -195,6 +199,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         [SchoolCity] = r.SchoolCity,
         [SchoolPermitNumber] = r.SchoolPermitNumber,
         [SchoolInstructorNumber] = r.SchoolInstructorNumber,
+        [SchoolInstructorName] = r.SchoolInstructorName,
         [LessonDurationPresets] = r.LessonDurationPresets,
     };
 

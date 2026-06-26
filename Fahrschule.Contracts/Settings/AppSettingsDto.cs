@@ -62,4 +62,9 @@ public class AppSettingsDto
     /// record. There is a single instructor (the owner), so this pre-fills every
     /// row. Editable (project rule 3); defaults to "01" when left blank.</summary>
     public string SchoolInstructorNumber { get; set; } = string.Empty;
+
+    /// <summary>Name of the instructor behind the FL number (e.g. "Herr Rätze").
+    /// Printed in the record's legend ("FL 01 = …") so the number is explained.
+    /// Editable; empty means the legend only shows the generic note.</summary>
+    public string SchoolInstructorName { get; set; } = string.Empty;
 }
