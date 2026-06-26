@@ -38,10 +38,24 @@ public class TrainingRecordPdfServiceTests
         await db.SaveChangesAsync();
 
         var audit = new NullAuditWriter();
+        // A theory + a practice lesson so the record tables actually have content.
+        db.Lessons.Add(new Lesson
+        {
+            Id = Guid.NewGuid(), StudentId = studentId, Type = LessonType.Theory, LicenseClassId = null,
+            DateOn = new DateOnly(2026, 5, 2), StartTime = new TimeOnly(18, 0), DurationMinutes = 90,
+            CreatedAtUtc = DateTime.UtcNow,
+        });
+        db.Lessons.Add(new Lesson
+        {
+            Id = Guid.NewGuid(), StudentId = studentId, Type = LessonType.Practice, LicenseClassId = classB,
+            DateOn = new DateOnly(2026, 5, 5), StartTime = new TimeOnly(14, 0), DurationMinutes = 45,
+            Note = "Überlandfahrt", CreatedAtUtc = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
         var service = new TrainingRecordPdfService(
             new StudentService(db, audit),
-            new StudentProgressService(db, audit),
-            new ExamService(db, new SettingsService(db, audit), audit),
+            new LessonService(db, audit),
             new SettingsService(db, audit));
 
         var (content, fileName) = await service.GenerateAsync(studentId);

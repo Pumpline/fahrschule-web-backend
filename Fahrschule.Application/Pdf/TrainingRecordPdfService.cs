@@ -1,3 +1,4 @@
+using System.Globalization;
 using Fahrschule.Application.Settings;
 using Fahrschule.Application.Students;
 using Fahrschule.Contracts.Settings;
@@ -14,17 +15,19 @@ public interface ITrainingRecordPdfService
 }
 
 /// <summary>
-/// Generates the printable Ausbildungsnachweis (training record, KONZEPT 3.3/7)
-/// for a student: the progress per licence class plus the exams. Built with
-/// QuestPDF (Community licence - allowed for this small family business).
+/// Generates the printable Ausbildungsnachweis (training record, KONZEPT 3.3/7):
+/// a record of the student's recorded THEORY and PRACTICAL lessons (date, start
+/// time, minutes, topic), modelled on the official form per § 31 Abs. 1 FahrlG /
+/// § 6 Abs. 2 FahrSchAusbO. It is a content-equivalent of the official paper form
+/// (which is copyrighted) - NOT a copy of its layout.
 ///
-/// It reuses the existing services so the PDF always shows the same numbers as
-/// the screen. Layout lives in <see cref="TrainingRecordDocument"/>.
+/// Built with QuestPDF (Community licence - allowed for this small family
+/// business). Layout lives in <see cref="TrainingRecordDocument"/>. It reuses the
+/// lesson service so the PDF shows exactly the entered lessons.
 /// </summary>
 public class TrainingRecordPdfService(
     IStudentService students,
-    IStudentProgressService progress,
-    IExamService exams,
+    ILessonService lessons,
     ISettingsService settings) : ITrainingRecordPdfService
 {
     static TrainingRecordPdfService()
@@ -36,12 +39,11 @@ public class TrainingRecordPdfService(
     public async Task<(byte[] Content, string FileName)> GenerateAsync(Guid studentId, CancellationToken ct = default)
     {
         var student = await students.GetByIdAsync(studentId, ct);
-        var prog = await progress.GetForStudentAsync(studentId, ct);
-        var examList = await exams.GetForStudentAsync(studentId, ct);
+        var lessonList = await lessons.GetForStudentAsync(studentId, ct);
         var appSettings = await settings.GetAsync(ct);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var bytes = new TrainingRecordDocument(student, prog, examList, appSettings, today).GeneratePdf();
+        var bytes = new TrainingRecordDocument(student, lessonList, appSettings, today).GeneratePdf();
         var fileName = $"Ausbildungsnachweis_{Sanitize(student.LastName)}_{Sanitize(student.FirstName)}.pdf";
         return (bytes, fileName);
     }
@@ -56,103 +58,55 @@ public class TrainingRecordPdfService(
 /// <summary>The QuestPDF layout of the training record (German - it is printed).</summary>
 public class TrainingRecordDocument(
     StudentDetailDto student,
-    StudentProgressDto progress,
-    ExamListDto exams,
+    List<LessonDto> lessons,
     AppSettingsDto settings,
     DateOnly generatedOn) : IDocument
 {
+    private static readonly string Line = new(' ', 20); // a blank "fill-in" line
+
     public void Compose(IDocumentContainer container)
     {
+        var theory = lessons.Where(l => l.Type == "Theory")
+            .OrderBy(l => l.DateOn).ThenBy(l => l.StartTime).ToList();
+        var practice = lessons.Where(l => l.Type == "Practice")
+            .OrderBy(l => l.DateOn).ThenBy(l => l.StartTime).ToList();
+
         container.Page(page =>
         {
             page.Size(PageSizes.A4);
-            page.Margin(40);
-            page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Black));
+            page.Margin(34);
+            page.DefaultTextStyle(x => x.FontSize(9).FontColor(Colors.Black));
 
-            page.Header().Column(col =>
+            page.Header().Column(col => Header(col));
+
+            page.Content().PaddingVertical(8).Column(col =>
             {
-                // Driving-school master data (if filled in) - the document's letterhead.
-                if (!string.IsNullOrWhiteSpace(settings.SchoolName))
-                {
-                    col.Item().Text(settings.SchoolName).FontSize(12).SemiBold().FontColor(Colors.Grey.Darken3);
-                    var address = string.Join(", ", new[]
-                    {
-                        settings.SchoolStreet,
-                        string.Join(" ", new[] { settings.SchoolPostalCode, settings.SchoolCity }.Where(s => !string.IsNullOrWhiteSpace(s))),
-                    }.Where(s => !string.IsNullOrWhiteSpace(s)));
-                    if (!string.IsNullOrWhiteSpace(address))
-                        col.Item().Text(address).FontSize(9).FontColor(Colors.Grey.Darken1);
-                    if (!string.IsNullOrWhiteSpace(settings.SchoolPermitNumber))
-                        col.Item().Text($"Erlaubnisnummer: {settings.SchoolPermitNumber}").FontSize(9).FontColor(Colors.Grey.Darken1);
-                    col.Item().PaddingBottom(6);
-                }
+                col.Spacing(12);
 
-                col.Item().Text("Ausbildungsnachweis").FontSize(18).Bold();
-                col.Item().Text($"{student.FirstName} {student.LastName}").FontSize(12).SemiBold();
-                var dob = student.DateOfBirth is { } d ? d.ToString("dd.MM.yyyy") : "—";
-                col.Item().Text($"Geburtsdatum: {dob}").FontColor(Colors.Grey.Darken1);
-                col.Item().PaddingBottom(6).Text($"Erstellt am {generatedOn:dd.MM.yyyy}").FontColor(Colors.Grey.Darken1);
-                col.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
-            });
+                StudentBlock(col);
 
-            page.Content().PaddingVertical(10).Column(col =>
-            {
-                col.Spacing(14);
+                // --- Theoretical lessons (split: Grundunterricht vs class-specific) ---
+                col.Item().Text("Theoretischer Unterricht").FontSize(11).Bold();
+                var grund = theory.Where(l => l.LicenseClassId is null).ToList();
+                var spez = theory.Where(l => l.LicenseClassId is not null).ToList();
+                col.Item().Text("Grundunterricht (Grundstoff)").SemiBold().FontColor(Colors.Grey.Darken2);
+                TheoryTable(col, grund);
+                col.Item().PaddingTop(2).Text("Klassenspezifischer Unterricht (Zusatzstoff)").SemiBold().FontColor(Colors.Grey.Darken2);
+                TheoryTable(col, spez);
 
-                if (progress.Classes.Count == 0)
-                {
-                    col.Item().Text("Für diesen Schüler ist noch keine Führerscheinklasse eingetragen.")
-                        .Italic().FontColor(Colors.Grey.Darken1);
-                }
+                // --- Practical lessons ---
+                col.Item().PaddingTop(4).Text("Praktische Ausbildung").FontSize(11).Bold();
+                PracticeTable(col, practice);
 
-                foreach (var c in progress.Classes)
-                {
-                    col.Item().Column(classCol =>
-                    {
-                        classCol.Item().PaddingTop(4).Text($"Klasse {c.Code} – Stand: {PhaseLabel(c.Phase)} ({c.DonePercent} % erledigt)")
-                            .FontSize(13).Bold().FontColor(Colors.Blue.Darken2);
-
-                        foreach (var section in c.Sections)
-                        {
-                            classCol.Item().PaddingTop(4).Text(section.Section).SemiBold();
-                            foreach (var item in section.Items)
-                            {
-                                classCol.Item().Row(row =>
-                                {
-                                    row.RelativeItem().Text(BulletLine(item));
-                                    row.ConstantItem(110).AlignRight().Text(StatusText(item))
-                                        .FontColor(item.IsDone ? Colors.Green.Darken1 : Colors.Orange.Darken2);
-                                });
-                            }
-                        }
-                    });
-                }
-
-                // Exams
-                col.Item().PaddingTop(6).Text("Prüfungen").FontSize(13).Bold().FontColor(Colors.Blue.Darken2);
-                if (exams.Exams.Count == 0)
-                {
-                    col.Item().Text("Noch keine Prüfung eingetragen.").Italic().FontColor(Colors.Grey.Darken1);
-                }
-                else
-                {
-                    foreach (var e in exams.Exams)
-                    {
-                        col.Item().Row(row =>
-                        {
-                            var art = ExamArt(e);
-                            var suffix = e.IsPreliminary ? " (Vermerk)" : $" ({e.AttemptNumber}. Versuch)";
-                            row.RelativeItem().Text($"{art}{suffix} – Klasse {e.ClassCode}, {e.DateOn:dd.MM.yyyy}");
-                            row.ConstantItem(110).AlignRight().Text(ExamResultLabel(e.Result))
-                                .FontColor(ExamColor(e.Result));
-                        });
-                    }
-                }
+                Summary(col, theory, practice);
+                Legend(col);
+                Signatures(col);
             });
 
             page.Footer().AlignCenter().Text(text =>
             {
-                text.Span("Maschinell erstellt – ");
+                text.DefaultTextStyle(x => x.FontSize(8).FontColor(Colors.Grey.Darken1));
+                text.Span($"Maschinell erstellt am {generatedOn:dd.MM.yyyy} – Seite ");
                 text.CurrentPageNumber();
                 text.Span(" / ");
                 text.TotalPages();
@@ -160,46 +114,192 @@ public class TrainingRecordDocument(
         });
     }
 
-    private static string BulletLine(ProgressItemDto item)
+    private void Header(ColumnDescriptor col)
     {
-        var line = $"•  {item.Title}";
-        if (item.IsCountable) line += $"  ({item.CurrentCount}/{item.RequiredCount})";
-        return line;
+        if (!string.IsNullOrWhiteSpace(settings.SchoolName))
+        {
+            col.Item().Text(settings.SchoolName).FontSize(11).SemiBold().FontColor(Colors.Grey.Darken3);
+            var address = string.Join(", ", new[]
+            {
+                settings.SchoolStreet,
+                string.Join(" ", new[] { settings.SchoolPostalCode, settings.SchoolCity }.Where(NotBlank)),
+            }.Where(NotBlank));
+            if (NotBlank(address)) col.Item().Text(address).FontSize(8).FontColor(Colors.Grey.Darken1);
+            if (NotBlank(settings.SchoolPermitNumber))
+                col.Item().Text($"Erlaubnisnummer: {settings.SchoolPermitNumber}").FontSize(8).FontColor(Colors.Grey.Darken1);
+            col.Item().PaddingBottom(4);
+        }
+
+        col.Item().Text("Ausbildungsnachweis").FontSize(16).Bold();
+        col.Item().Text("gemäß § 31 Abs. 1 Fahrlehrergesetz und § 6 Abs. 2 Fahrschüler-Ausbildungsordnung")
+            .FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
+        col.Item().PaddingTop(4).LineHorizontal(1).LineColor(Colors.Grey.Lighten1);
     }
 
-    private static string StatusText(ProgressItemDto item)
+    private void StudentBlock(ColumnDescriptor col)
     {
-        if (!item.IsDone) return "offen";
-        return item.CompletedOn is { } d ? $"erledigt {d:dd.MM.yyyy}" : "erledigt";
+        var dob = student.DateOfBirth is { } d ? d.ToString("dd.MM.yyyy") : Line;
+        var classes = student.Classes.Count > 0 ? string.Join(", ", student.Classes.Select(c => c.Code)) : Line;
+
+        col.Item().Row(row =>
+        {
+            row.RelativeItem().Column(left =>
+            {
+                Field(left, "Familienname", student.LastName);
+                Field(left, "Vorname", student.FirstName);
+                Field(left, "Anschrift", NotBlank(student.Address) ? student.Address! : Line);
+                Field(left, "Geburtsdatum", dob);
+            });
+            row.ConstantItem(16);
+            row.RelativeItem().Column(right =>
+            {
+                Field(right, "Schülerverzeichnis-Nr.", Line);
+                Field(right, "Beantragte Klasse(n)", classes);
+                Field(right, "Vorbesitz Klasse(n)", Line);
+            });
+        });
     }
 
-    private static string PhaseLabel(string phase) => phase switch
+    private static void Field(ColumnDescriptor col, string label, string value)
     {
-        "Theory" => "Theorie",
-        "TheoryExam" => "Theorieprüfung",
-        "Practice" => "Praxis",
-        "PracticeExam" => "Praxisprüfung",
-        "Completed" => "Abgeschlossen",
-        _ => phase,
-    };
-
-    private static string ExamArt(ExamDto e)
-    {
-        var baseLabel = e.Kind == "Theory" ? "Theorie" : "Praxis";
-        return e.IsPreliminary ? $"{baseLabel}-Vorprüfung" : $"{baseLabel}prüfung";
+        col.Item().PaddingBottom(2).Text(text =>
+        {
+            text.Span($"{label}: ").FontSize(8).FontColor(Colors.Grey.Darken1);
+            text.Span(value).SemiBold();
+        });
     }
 
-    private static string ExamResultLabel(string result) => result switch
+    private void TheoryTable(ColumnDescriptor col, List<LessonDto> rows)
     {
-        "Passed" => "bestanden",
-        "Failed" => "nicht bestanden",
-        _ => "geplant",
-    };
+        col.Item().Table(table =>
+        {
+            table.ColumnsDefinition(c =>
+            {
+                c.ConstantColumn(64);   // Datum
+                c.RelativeColumn();     // Thema
+                c.ConstantColumn(38);   // Min.
+                c.ConstantColumn(30);   // FL
+            });
+            table.Header(h =>
+            {
+                Head(h.Cell(), "Datum");
+                Head(h.Cell(), "Thema");
+                Head(h.Cell(), "Min.");
+                Head(h.Cell(), "FL");
+            });
 
-    private static string ExamColor(string result) => result switch
+            if (rows.Count == 0)
+            {
+                table.Cell().ColumnSpan(4).Element(Cell).Text("—").FontColor(Colors.Grey.Darken1);
+                return;
+            }
+            foreach (var l in rows)
+            {
+                Body(table.Cell(), l.DateOn.ToString("dd.MM.yyyy"));
+                Body(table.Cell(), Topic(l));
+                Body(table.Cell().AlignRight(), l.DurationMinutes.ToString());
+                Body(table.Cell(), string.Empty); // FL number - filled in by hand
+            }
+        });
+    }
+
+    private void PracticeTable(ColumnDescriptor col, List<LessonDto> rows)
     {
-        "Passed" => Colors.Green.Darken1,
-        "Failed" => Colors.Red.Darken1,
-        _ => Colors.Orange.Darken2,
-    };
+        col.Item().Table(table =>
+        {
+            table.ColumnsDefinition(c =>
+            {
+                c.ConstantColumn(64);   // Datum
+                c.RelativeColumn();     // Art u. Inhalt
+                c.ConstantColumn(44);   // Beginn
+                c.ConstantColumn(38);   // Min.
+                c.ConstantColumn(30);   // FL
+            });
+            table.Header(h =>
+            {
+                Head(h.Cell(), "Datum");
+                Head(h.Cell(), "Art u. Inhalt");
+                Head(h.Cell(), "Beginn");
+                Head(h.Cell(), "Min.");
+                Head(h.Cell(), "FL");
+            });
+
+            if (rows.Count == 0)
+            {
+                table.Cell().ColumnSpan(5).Element(Cell).Text("—").FontColor(Colors.Grey.Darken1);
+                return;
+            }
+            foreach (var l in rows)
+            {
+                Body(table.Cell(), l.DateOn.ToString("dd.MM.yyyy"));
+                Body(table.Cell(), PracticeContent(l));
+                Body(table.Cell(), l.StartTime);
+                Body(table.Cell().AlignRight(), l.DurationMinutes.ToString());
+                Body(table.Cell(), string.Empty);
+            }
+        });
+    }
+
+    private void Summary(ColumnDescriptor col, List<LessonDto> theory, List<LessonDto> practice)
+    {
+        var tMin = theory.Sum(l => l.DurationMinutes);
+        var pMin = practice.Sum(l => l.DurationMinutes);
+        col.Item().PaddingTop(2).Text(
+            $"Summe Theorie: {theory.Count} Einheiten / {tMin} Min.   ·   " +
+            $"Summe Praxis: {practice.Count} Stunden / {pMin} Min.")
+            .FontSize(8).SemiBold().FontColor(Colors.Grey.Darken2);
+    }
+
+    private static void Legend(ColumnDescriptor col)
+    {
+        col.Item().PaddingTop(4).Text("FL = Fahrlehrer (Nummer bitte eintragen)")
+            .FontSize(7.5f).FontColor(Colors.Grey.Darken1);
+    }
+
+    private void Signatures(ColumnDescriptor col)
+    {
+        col.Item().PaddingTop(22).Row(row =>
+        {
+            SignatureLine(row.RelativeItem(), "Ort, Datum");
+            row.ConstantItem(20);
+            SignatureLine(row.RelativeItem(), "Unterschrift Fahrschulinhaber/-in");
+            row.ConstantItem(20);
+            SignatureLine(row.RelativeItem(), "Unterschrift Fahrschüler/-in");
+        });
+    }
+
+    private static void SignatureLine(IContainer container, string label)
+        => container.Column(c =>
+        {
+            c.Item().LineHorizontal(0.8f).LineColor(Colors.Grey.Darken1);
+            c.Item().PaddingTop(2).Text(label).FontSize(8).FontColor(Colors.Grey.Darken1);
+        });
+
+    // --- cell styling + content helpers ---
+
+    private static IContainer Cell(IContainer c)
+        => c.Border(0.5f).BorderColor(Colors.Grey.Lighten1).PaddingVertical(3).PaddingHorizontal(5);
+
+    private static void Head(IContainer c, string text)
+        => Cell(c).Background(Colors.Grey.Lighten3).Text(text).FontSize(8).SemiBold();
+
+    private static void Body(IContainer c, string text)
+        => Cell(c).Text(text).FontSize(8.5f);
+
+    private static string Topic(LessonDto l)
+    {
+        var topics = l.CoveredTitles.Count > 0 ? string.Join(", ", l.CoveredTitles) : null;
+        return topics ?? l.Note ?? "—";
+    }
+
+    /// <summary>The full text entered for a practice lesson (covered topics or the
+    /// free note). The "Art u. Inhalt" column is wide enough to hold it verbatim, so
+    /// we print exactly what was entered instead of guessing a short code.</summary>
+    private static string PracticeContent(LessonDto l)
+    {
+        var topic = l.CoveredTitles.Count > 0 ? string.Join(", ", l.CoveredTitles) : l.Note;
+        return NotBlank(topic) ? topic! : "—";
+    }
+
+    private static bool NotBlank(string? value) => !string.IsNullOrWhiteSpace(value);
 }

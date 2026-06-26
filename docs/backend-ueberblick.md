@@ -326,11 +326,21 @@ Stunde** übernehmen – ohne die Stunde getrennt neu einzutippen:
 
 - **`TrainingRecordPdfService`** erzeugt den druckbaren Ausbildungsnachweis mit
   **QuestPDF** (Community-Lizenz – für Kleinbetriebe kostenlos, einmalig im
-  statischen Konstruktor gesetzt). Es ruft die vorhandenen Services
-  (Schüler/Fortschritt/Prüfungen) ab, sodass das PDF dieselben Zahlen zeigt wie
-  der Bildschirm; das Layout liegt in `TrainingRecordDocument`.
-- Inhalt: Kopf (Name, Geburtsdatum, Erstell-Datum), je Klasse der Stand und die
-  Plan-Punkte (erledigt/offen, zählbare mit x/n), dann die Prüfungen.
+  statischen Konstruktor gesetzt). Es ruft Schüler- und **Stunden**-Service ab,
+  sodass das PDF genau die eingetragenen Theorie- und Praxisstunden auflistet;
+  das Layout liegt in `TrainingRecordDocument`.
+- **Inhaltsgleich zum amtlichen Vordruck** (§ 31 Abs. 1 FahrlG / § 6 Abs. 2
+  FahrSchAusbO), aber **kein Nachbau** des urheberrechtlich geschützten Formulars –
+  eigenes, sauberes Layout mit denselben rechtlich geforderten Feldern/Spalten.
+- Inhalt: Kopf mit Fahrschul-Stammdaten + Schülerblock (Familienname, Vorname,
+  Anschrift, Geburtsdatum, beantragte Klassen; leere Linien für Schülerverzeichnis-
+  Nr. und Vorbesitz). Dann **Theoretischer Unterricht** getrennt nach
+  Grundunterricht (Grundstoff) und klassenspezifischem Unterricht (Zusatzstoff),
+  **Praktische Ausbildung** (Datum / Art u. Inhalt / Beginn / Min.), Summenzeile
+  und Unterschriftsfelder.
+- Die **FL-Spalte** (Fahrlehrer-Nummer) bleibt leer und wird per Hand ausgefüllt –
+  es gibt keine Fahrlehrer-Stammdaten im System. Die „Art u. Inhalt"-Spalte zeigt
+  den eingetragenen Text **vollständig** (kein automatisches Kürzel-Raten).
 - Endpunkt `GET /api/students/{id}/ausbildungsnachweis` → liefert die PDF-Datei.
   Frontend: Button „🖨 Ausbildungsnachweis (PDF)" im Stammdaten-Tab lädt sie über
   HttpClient (damit der Auth-Interceptor das Token erneuern kann).
@@ -338,20 +348,8 @@ Stunde** übernehmen – ohne die Stunde getrennt neu einzutippen:
   aus den Einstellungen, sobald gepflegt (`SettingsService`, String-Settings
   `School.*`).
 
-### Ausbildungsvertrag als PDF (KONZEPT 1a/3a)
-
-- **`TrainingContractPdfService`** erzeugt den druckbaren Ausbildungsvertrag
-  (gleiches QuestPDF-Muster, Layout in `TrainingContractDocument`): Briefkopf
-  (Fahrschul-Stammdaten), Vertragsparteien (Fahrschule + Schüler mit Anschrift/
-  Kontakt), beantragte Klassen, die **Vertragsbedingungen** und Unterschriftsfelder.
-- **Bedingungstext ist editierbar** (Inhaber-Entscheidung): das String-Setting
-  `Contract.Terms` (im Adminpanel als Textfeld pflegbar) wird unverändert ins PDF
-  übernommen – wir **erfinden keine Rechtstexte**. Ist es leer, weist das PDF
-  darauf hin, die Bedingungen zu hinterlegen.
-- Kein neues Datenmodell/keine Migration – nur eine Setting-Zeile. Endpunkt
-  `GET /api/students/{id}/ausbildungsvertrag`. Frontend: Button „📄 Ausbildungs-
-  vertrag (PDF)" im Stammdaten-Tab. Preise sind nicht enthalten (Preis-/Leistungs-
-  modul noch nicht gebaut).
+> Hinweis: Der frühere **Ausbildungsvertrag als PDF** wurde entfernt
+> (Inhaber-Entscheidung) – der Vertrag wird manuell ausgefüllt.
 
 ## DSGVO im Adminpanel (KONZEPT 3.7) – Schritt 8
 

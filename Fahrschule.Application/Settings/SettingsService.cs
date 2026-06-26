@@ -63,9 +63,6 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string SchoolCity = "School.City";
     public const string SchoolPermitNumber = "School.PermitNumber";
 
-    // Document templates (KONZEPT 1b) - free text, shown on generated PDFs.
-    public const string ContractTerms = "Contract.Terms";
-
     // Quick-pick lesson durations (minutes), comma-separated and editable
     // (project rule 3: data, not code). The "Stunde eintragen" dialog shows
     // these as buttons; any other duration can still be typed freely.
@@ -79,7 +76,6 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(SchoolPostalCode, 20, "Postleitzahl"),
         new(SchoolCity, 100, "Ort"),
         new(SchoolPermitNumber, 100, "Erlaubnisnummer"),
-        new(ContractTerms, 20000, "Vertragsbedingungen für den Ausbildungsvertrag"),
         new(LessonDurationPresets, 200, "Schnell-Auswahl der Stundendauern (Minuten, mit Komma getrennt)"),
     ];
 
@@ -108,7 +104,6 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             SchoolPostalCode = ReadText(SchoolPostalCode),
             SchoolCity = ReadText(SchoolCity),
             SchoolPermitNumber = ReadText(SchoolPermitNumber),
-            ContractTerms = ReadText(ContractTerms),
         };
     }
 
@@ -191,7 +186,6 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         [SchoolPostalCode] = r.SchoolPostalCode,
         [SchoolCity] = r.SchoolCity,
         [SchoolPermitNumber] = r.SchoolPermitNumber,
-        [ContractTerms] = r.ContractTerms,
         [LessonDurationPresets] = r.LessonDurationPresets,
     };
 
