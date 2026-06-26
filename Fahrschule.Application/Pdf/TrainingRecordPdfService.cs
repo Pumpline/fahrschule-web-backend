@@ -184,8 +184,8 @@ public class TrainingRecordDocument(
             {
                 Head(h.Cell(), "Datum");
                 Head(h.Cell(), "Thema");
-                Head(h.Cell(), "Min.");
-                Head(h.Cell(), "FL");
+                Head(h.Cell(), "Min.", center: true);
+                Head(h.Cell(), "FL", center: true);
             });
 
             if (rows.Count == 0)
@@ -197,8 +197,8 @@ public class TrainingRecordDocument(
             {
                 Body(table.Cell(), l.DateOn.ToString("dd.MM.yyyy"));
                 Body(table.Cell(), Topic(l));
-                Body(table.Cell().AlignRight(), l.DurationMinutes.ToString());
-                Body(table.Cell(), string.Empty); // FL number - filled in by hand
+                Body(table.Cell(), l.DurationMinutes.ToString(), center: true);
+                Body(table.Cell(), InstructorNumber, center: true);
             }
         });
     }
@@ -219,9 +219,9 @@ public class TrainingRecordDocument(
             {
                 Head(h.Cell(), "Datum");
                 Head(h.Cell(), "Art u. Inhalt");
-                Head(h.Cell(), "Beginn");
-                Head(h.Cell(), "Min.");
-                Head(h.Cell(), "FL");
+                Head(h.Cell(), "Beginn", center: true);
+                Head(h.Cell(), "Min.", center: true);
+                Head(h.Cell(), "FL", center: true);
             });
 
             if (rows.Count == 0)
@@ -233,9 +233,9 @@ public class TrainingRecordDocument(
             {
                 Body(table.Cell(), l.DateOn.ToString("dd.MM.yyyy"));
                 Body(table.Cell(), PracticeContent(l));
-                Body(table.Cell(), l.StartTime);
-                Body(table.Cell().AlignRight(), l.DurationMinutes.ToString());
-                Body(table.Cell(), string.Empty);
+                Body(table.Cell(), l.StartTime, center: true);
+                Body(table.Cell(), l.DurationMinutes.ToString(), center: true);
+                Body(table.Cell(), InstructorNumber, center: true);
             }
         });
     }
@@ -252,7 +252,7 @@ public class TrainingRecordDocument(
 
     private static void Legend(ColumnDescriptor col)
     {
-        col.Item().PaddingTop(4).Text("FL = Fahrlehrer (Nummer bitte eintragen)")
+        col.Item().PaddingTop(4).Text("FL = Fahrlehrer-Nummer")
             .FontSize(7.5f).FontColor(Colors.Grey.Darken1);
     }
 
@@ -280,11 +280,27 @@ public class TrainingRecordDocument(
     private static IContainer Cell(IContainer c)
         => c.Border(0.5f).BorderColor(Colors.Grey.Lighten1).PaddingVertical(3).PaddingHorizontal(5);
 
-    private static void Head(IContainer c, string text)
-        => Cell(c).Background(Colors.Grey.Lighten3).Text(text).FontSize(8).SemiBold();
+    // The alignment is applied to the TEXT inside the full-width, bordered cell
+    // (not to the cell itself) - otherwise the border would shrink onto the text
+    // and the number would look shifted out of its column.
+    private static void Head(IContainer c, string text, bool center = false)
+    {
+        var cell = Cell(c).Background(Colors.Grey.Lighten3);
+        if (center) cell = cell.AlignCenter();
+        cell.Text(text).FontSize(8).SemiBold();
+    }
 
-    private static void Body(IContainer c, string text)
-        => Cell(c).Text(text).FontSize(8.5f);
+    private static void Body(IContainer c, string text, bool center = false)
+    {
+        var cell = Cell(c);
+        if (center) cell = cell.AlignCenter();
+        cell.Text(text).FontSize(8.5f);
+    }
+
+    /// <summary>The instructor number printed in every FL row (single instructor;
+    /// editable in the settings, default "01").</summary>
+    private string InstructorNumber =>
+        NotBlank(settings.SchoolInstructorNumber) ? settings.SchoolInstructorNumber : "01";
 
     private static string Topic(LessonDto l)
     {

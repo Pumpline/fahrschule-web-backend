@@ -63,6 +63,11 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string SchoolCity = "School.City";
     public const string SchoolPermitNumber = "School.PermitNumber";
 
+    // Fahrlehrer number for the training record's "FL" column. One instructor
+    // (the owner), so it pre-fills every row; editable (rule 3), default "01".
+    public const string SchoolInstructorNumber = "School.InstructorNumber";
+    public const string DefaultInstructorNumber = "01";
+
     // Quick-pick lesson durations (minutes), comma-separated and editable
     // (project rule 3: data, not code). The "Stunde eintragen" dialog shows
     // these as buttons; any other duration can still be typed freely.
@@ -76,6 +81,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(SchoolPostalCode, 20, "Postleitzahl"),
         new(SchoolCity, 100, "Ort"),
         new(SchoolPermitNumber, 100, "Erlaubnisnummer"),
+        new(SchoolInstructorNumber, 10, "Fahrlehrer-Nummer (FL) für den Ausbildungsnachweis"),
         new(LessonDurationPresets, 200, "Schnell-Auswahl der Stundendauern (Minuten, mit Komma getrennt)"),
     ];
 
@@ -104,6 +110,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             SchoolPostalCode = ReadText(SchoolPostalCode),
             SchoolCity = ReadText(SchoolCity),
             SchoolPermitNumber = ReadText(SchoolPermitNumber),
+            // Falls back to "01" so the FL column is never empty (single instructor).
+            SchoolInstructorNumber = NullIfEmpty(ReadText(SchoolInstructorNumber)) ?? DefaultInstructorNumber,
         };
     }
 
@@ -186,6 +194,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         [SchoolPostalCode] = r.SchoolPostalCode,
         [SchoolCity] = r.SchoolCity,
         [SchoolPermitNumber] = r.SchoolPermitNumber,
+        [SchoolInstructorNumber] = r.SchoolInstructorNumber,
         [LessonDurationPresets] = r.LessonDurationPresets,
     };
 

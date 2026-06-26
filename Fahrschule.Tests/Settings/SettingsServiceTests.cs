@@ -111,6 +111,7 @@ public class SettingsServiceTests
             SchoolPostalCode = "04109",
             SchoolCity = "Leipzig",
             SchoolPermitNumber = "AB-123",
+            SchoolInstructorNumber = "07",
         }, TestActor);
 
         var reloaded = await service.GetAsync();
@@ -119,6 +120,15 @@ public class SettingsServiceTests
         Assert.Equal("04109", reloaded.SchoolPostalCode);
         Assert.Equal("Leipzig", reloaded.SchoolCity);
         Assert.Equal("AB-123", reloaded.SchoolPermitNumber);
+        Assert.Equal("07", reloaded.SchoolInstructorNumber);
+    }
+
+    [Fact]
+    public async Task Instructor_number_defaults_to_01_when_blank()
+    {
+        await using var db = NewDb();
+        var settings = await NewService(db).GetAsync();
+        Assert.Equal("01", settings.SchoolInstructorNumber);
     }
 
     [Fact]

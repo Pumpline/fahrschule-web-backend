@@ -57,4 +57,9 @@ public class AppSettingsDto
 
     /// <summary>Official permit number (Erlaubnisnummer).</summary>
     public string SchoolPermitNumber { get; set; } = string.Empty;
+
+    /// <summary>Fahrlehrer number printed in the "FL" column of the training
+    /// record. There is a single instructor (the owner), so this pre-fills every
+    /// row. Editable (project rule 3); defaults to "01" when left blank.</summary>
+    public string SchoolInstructorNumber { get; set; } = string.Empty;
 }
