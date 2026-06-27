@@ -60,7 +60,66 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var (expiredIds, expiresOn) = ComputeTheoryExpiry(items, lastTaughtByLesson, validityYears, today);
 
+        // Advance the Stand from the bottom up (sections done + exams passed),
+        // never downwards - so the per-class progress and the list stay in sync.
+        await EnsurePhaseAsync(student, items, expiredIds, ct);
+
         return BuildDto(student, items, coveredIds, expiredIds, expiresOn);
+    }
+
+    /// <summary>
+    /// Raises each class's Stand to the milestone justified by the actual progress
+    /// (all theory items done, theory exam passed, all practice items done,
+    /// practice exam passed) - only ever upwards, so a manually set higher Stand
+    /// is kept. Persisted so the student list (which reads the Stand) follows too.
+    /// No audit entry: the Stand is derived from already-audited lessons/exams.
+    /// </summary>
+    private async Task EnsurePhaseAsync(
+        Student student, List<StudentProgressItem> items, HashSet<Guid> expiredIds, CancellationToken ct)
+    {
+        // Passed real (non-preliminary) exams per kind.
+        var passed = await db.Exams
+            .Where(e => e.StudentId == student.Id && !e.IsPreliminary && e.Result == ExamResult.Passed)
+            .Select(e => new { e.LicenseClassId, e.Kind })
+            .ToListAsync(ct);
+        var theoryPassed = passed.Where(x => x.Kind == ExamKind.Theory).Select(x => x.LicenseClassId).ToHashSet();
+        var practicePassed = passed.Where(x => x.Kind == ExamKind.Practice).Select(x => x.LicenseClassId).ToHashSet();
+
+        var changed = false;
+        foreach (var sc in student.LicenseClasses)
+        {
+            var (theoryDone, practiceDone) = SectionCompletion(items, sc.LicenseClassId, expiredIds);
+            var derived = StudentProgressRules.DerivePhase(
+                theoryDone, theoryPassed.Contains(sc.LicenseClassId),
+                practiceDone, practicePassed.Contains(sc.LicenseClassId));
+            var raised = StudentProgressRules.RaisePhase(sc.Phase, derived);
+            if (raised != sc.Phase) { sc.Phase = raised; changed = true; }
+        }
+
+        if (changed)
+        {
+            student.UpdatedAtUtc = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+    }
+
+    /// <summary>Whether ALL required theory / practice items of a class are
+    /// actually done (item-based, expired theory excluded). Empty section = not
+    /// "done" by items (only an exam/manual Stand can advance past it).</summary>
+    private static (bool TheoryDone, bool PracticeDone) SectionCompletion(
+        List<StudentProgressItem> items, Guid classId, HashSet<Guid> expiredIds)
+    {
+        var required = items
+            .Where(p => StudentProgressRules.AppliesToClass(
+                p.Classes.Select(c => c.LicenseClassId).ToList(), classId))
+            .Where(StudentProgressRules.IsRequired)
+            .ToList();
+
+        bool DoneNow(StudentProgressItem p) => StudentProgressRules.IsDone(p) && !expiredIds.Contains(p.Id);
+        var theory = required.Where(p => StudentProgressRules.IsTheorySection(p.Section)).ToList();
+        var practice = required.Where(p => !StudentProgressRules.IsTheorySection(p.Section)).ToList();
+
+        return (theory.Count > 0 && theory.All(DoneNow), practice.Count > 0 && practice.All(DoneNow));
     }
 
     /// <summary>
@@ -497,11 +556,19 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             .OrderBy(p => p.SortOrder).ThenBy(p => p.Title)
             .ToList();
 
+        // The Stand can make whole sections count as complete (owner's override):
+        // Stand ≥ Theorieprüfung ⇒ theory 100 %, Stand ≥ Praxisprüfung ⇒ practice 100 %.
+        var theoryForced = StudentProgressRules.TheoryCountsComplete(studentClass.Phase);
+        var practiceForced = StudentProgressRules.PracticeCountsComplete(studentClass.Phase);
+        bool ForcedDone(StudentProgressItem p) =>
+            StudentProgressRules.IsTheorySection(p.Section) ? theoryForced : practiceForced;
+
         // Voluntary extra-lesson counters are shown but do not count toward the
         // Pflicht completion (KONZEPT 3.3). An expired theory topic no longer
-        // counts as done until it is taught again.
+        // counts as done until it is taught again - unless the Stand forces it.
         var required = forClass.Where(StudentProgressRules.IsRequired).ToList();
-        var done = required.Count(p => StudentProgressRules.IsDone(p) && !expiredIds.Contains(p.Id));
+        var done = required.Count(p =>
+            ForcedDone(p) || (StudentProgressRules.IsDone(p) && !expiredIds.Contains(p.Id)));
 
         var sections = forClass
             .GroupBy(p => p.Section)
@@ -510,7 +577,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             {
                 Section = g.Key,
                 Items = g.OrderBy(p => p.SortOrder).ThenBy(p => p.Title)
-                    .Select(p => ToItemDto(p, studentClassCount, coveredIds, expiredIds, expiresOn)).ToList(),
+                    .Select(p => ToItemDto(p, studentClassCount, coveredIds, expiredIds, expiresOn, ForcedDone(p))).ToList(),
             })
             .ToList();
 
@@ -529,7 +596,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
 
     private static ProgressItemDto ToItemDto(
         StudentProgressItem p, int studentClassCount, HashSet<Guid> coveredIds,
-        HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn)
+        HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn, bool forcedByPhase)
     {
         var countable = StudentProgressRules.IsCountable(p.RequiredCount);
         // Shared "Grundstoff" = a point with no class restriction (applies to all
@@ -538,7 +605,10 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         var isShared = p.Classes.Count == 0 || p.Classes.Count > 1;
         // An expired theory topic is reported as NOT done (it must be repeated),
         // but we keep its original completion date for the "war erledigt am" hint.
-        var expired = expiredIds.Contains(p.Id);
+        var actuallyDone = StudentProgressRules.IsDone(p);
+        var expired = expiredIds.Contains(p.Id) && !forcedByPhase; // the Stand override wins
+        // Counts as done only because the class Stand was set forward.
+        var completedViaPhase = forcedByPhase && !(actuallyDone && !expiredIds.Contains(p.Id));
 
         return new ProgressItemDto
         {
@@ -547,7 +617,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             RequiredCount = p.RequiredCount,
             IsCountable = countable,
             CurrentCount = p.Entries.Count,
-            IsDone = StudentProgressRules.IsDone(p) && !expired,
+            IsDone = forcedByPhase || (actuallyDone && !expired),
             CompletedOn = p.CompletedOn,
             Note = p.Note,
             // Simple point completed without a lesson covering it = a manual mark.
@@ -555,6 +625,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             CoveredByLesson = coveredIds.Contains(p.Id),
             IsExpired = expired,
             ExpiresOn = expiresOn.GetValueOrDefault(p.Id),
+            CompletedViaPhase = completedViaPhase,
             IsShared = isShared,
             Entries = countable
                 ? p.Entries.OrderBy(e => e.PerformedOn).ThenBy(e => e.CreatedAtUtc)

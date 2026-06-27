@@ -74,6 +74,12 @@ public class ProgressItemDto
     /// after expiry. Null when expiry does not apply.</summary>
     public DateOnly? ExpiresOn { get; set; }
 
+    /// <summary>This point counts as done only because the class Stand was set
+    /// forward (e.g. Stand = Theorieprüfung makes all theory count), not because
+    /// a lesson/tick actually completed it. The UI shows a "über Stand" hint and
+    /// blocks the manual haken (change it via the Stand instead).</summary>
+    public bool CompletedViaPhase { get; set; }
+
     /// <summary>True if this point counts for more than one of the student's
     /// classes (a shared "Grundstoff" point) - the UI hints "zählt für mehrere".</summary>
     public bool IsShared { get; set; }

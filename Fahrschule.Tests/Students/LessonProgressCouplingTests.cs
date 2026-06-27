@@ -47,10 +47,18 @@ public class LessonProgressCouplingTests
             Id = Guid.NewGuid(), ItemKey = Guid.NewGuid(), Version = 1, ValidFromUtc = now,
             Section = "Theorie-Grundstoff", Title = "Thema-1", SortOrder = 1, IsActive = true,
         });
+        // A second theory topic so completing ONE does not finish the whole theory
+        // section (which would auto-raise the Stand and force-complete it - tested
+        // separately). This keeps these tests focused on the lesson↔progress coupling.
         db.CurriculumItems.Add(new CurriculumItem
         {
             Id = Guid.NewGuid(), ItemKey = Guid.NewGuid(), Version = 1, ValidFromUtc = now,
-            Section = "Sonderfahrten", Title = "Überlandfahrt", RequiredCount = 3, SortOrder = 2, IsActive = true,
+            Section = "Theorie-Grundstoff", Title = "Thema-2", SortOrder = 2, IsActive = true,
+        });
+        db.CurriculumItems.Add(new CurriculumItem
+        {
+            Id = Guid.NewGuid(), ItemKey = Guid.NewGuid(), Version = 1, ValidFromUtc = now,
+            Section = "Sonderfahrten", Title = "Überlandfahrt", RequiredCount = 3, SortOrder = 3, IsActive = true,
             Classes = [new CurriculumItemClass { LicenseClassId = _classB }],
         });
         await db.SaveChangesAsync();

@@ -330,6 +330,87 @@ public class StudentProgressServiceTests
         Assert.Equal(1, await check.AuditLogs.CountAsync(a => a.Action == "Abgehakt"));
     }
 
+    [Fact]
+    public async Task Completing_all_theory_auto_advances_the_stand_to_theory_exam()
+    {
+        await SeedAsync();
+
+        // Tick both theory topics that B requires (shared Grundstoff + B-Zusatz).
+        foreach (var title in new[] { "Grundstoff-Thema", "B-Zusatz" })
+        {
+            await using var db = NewDb();
+            var id = ItemByTitle(await NewService(db).GetForStudentAsync(_student), title).Id;
+            await NewService(db).SetItemAsync(_student, id, new SetProgressItemRequest { IsDone = true }, TestActor);
+        }
+
+        await using var check = NewDb();
+        var result = await NewService(check).GetForStudentAsync(_student);
+
+        // Theory complete → Stand raised to Theorieprüfung (bottom-up), not beyond.
+        Assert.Equal("TheoryExam", result.Classes.Single(c => c.Code == "B").Phase);
+        // A1's only required point is the shared theory topic → 100 %.
+        Assert.Equal(100, result.Classes.Single(c => c.Code == "A1").DonePercent);
+    }
+
+    [Fact]
+    public async Task Setting_the_stand_forward_counts_theory_as_complete()
+    {
+        await SeedAsync();
+
+        // No ticking at all - just move B's Stand to Theorieprüfung by hand.
+        await using (var db = NewDb())
+            await new StudentService(db, new NullAuditWriter())
+                .SetPhaseAsync(_student, _classB, StudentPhase.TheoryExam, TestActor);
+
+        await using var check = NewDb();
+        var b = (await NewService(check).GetForStudentAsync(_student)).Classes.Single(c => c.Code == "B");
+
+        // Theory (2 of the 3 required points) counts done via the Stand → 67 %.
+        Assert.Equal(67, b.DonePercent);
+        var theoryItem = b.Sections.SelectMany(s => s.Items).First(i => i.Title == "B-Zusatz");
+        Assert.True(theoryItem.IsDone);
+        Assert.True(theoryItem.CompletedViaPhase); // done only because of the Stand
+        // The practice special drive is NOT forced by Theorieprüfung.
+        Assert.False(b.Sections.SelectMany(s => s.Items).First(i => i.Title == "Überlandfahrt").IsDone);
+    }
+
+    [Fact]
+    public async Task Passing_the_theory_exam_advances_the_stand_to_practice()
+    {
+        await SeedAsync();
+        await using (var db = NewDb())
+        {
+            db.Exams.Add(new Exam
+            {
+                Id = Guid.NewGuid(), StudentId = _student, LicenseClassId = _classB,
+                Kind = ExamKind.Theory, IsPreliminary = false, Result = ExamResult.Passed,
+                DateOn = new DateOnly(2026, 6, 1), CreatedAtUtc = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        await using var check = NewDb();
+        var b = (await NewService(check).GetForStudentAsync(_student)).Classes.Single(c => c.Code == "B");
+        Assert.Equal("Practice", b.Phase);
+    }
+
+    [Fact]
+    public async Task The_stand_never_auto_downgrades()
+    {
+        await SeedAsync();
+
+        // Manually set far ahead although nothing is done.
+        await using (var db = NewDb())
+            await new StudentService(db, new NullAuditWriter())
+                .SetPhaseAsync(_student, _classB, StudentPhase.PracticeExam, TestActor);
+
+        await using var check = NewDb();
+        var b = (await NewService(check).GetForStudentAsync(_student)).Classes.Single(c => c.Code == "B");
+
+        Assert.Equal("PracticeExam", b.Phase);   // kept, not lowered
+        Assert.Equal(100, b.DonePercent);        // theory + practice forced complete
+    }
+
     private static ProgressItemDto ItemByTitle(StudentProgressDto dto, string title)
         => dto.Classes.SelectMany(c => c.Sections).SelectMany(s => s.Items).First(i => i.Title == title);
 

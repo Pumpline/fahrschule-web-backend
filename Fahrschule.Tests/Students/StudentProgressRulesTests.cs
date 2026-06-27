@@ -101,4 +101,40 @@ public class StudentProgressRulesTests
         Assert.False(StudentProgressRules.IsTheoryExpired(new DateOnly(2000, 1, 1), 0, new DateOnly(2026, 1, 1)));
         Assert.False(StudentProgressRules.IsTheoryExpired(null, 2, new DateOnly(2026, 1, 1)));
     }
+
+    [Theory]
+    // theoryDone, theoryExam, practiceDone, practiceExam → expected phase
+    [InlineData(false, false, false, false, StudentPhase.Theory)]
+    [InlineData(true, false, false, false, StudentPhase.TheoryExam)]
+    [InlineData(true, true, false, false, StudentPhase.Practice)]
+    [InlineData(true, true, true, false, StudentPhase.PracticeExam)]
+    [InlineData(true, true, true, true, StudentPhase.Completed)]
+    // a passed final exam means done even if earlier item data is incomplete
+    [InlineData(false, false, false, true, StudentPhase.Completed)]
+    // finished practice drives do NOT advance before the theory exam is passed
+    [InlineData(false, false, true, false, StudentPhase.Theory)]
+    [InlineData(true, false, true, false, StudentPhase.TheoryExam)]
+    public void DerivePhase_picks_the_highest_reached_milestone(
+        bool theoryDone, bool theoryExam, bool practiceDone, bool practiceExam, StudentPhase expected)
+        => Assert.Equal(expected, StudentProgressRules.DerivePhase(theoryDone, theoryExam, practiceDone, practiceExam));
+
+    [Fact]
+    public void RaisePhase_only_ever_moves_up()
+    {
+        Assert.Equal(StudentPhase.Practice, StudentProgressRules.RaisePhase(StudentPhase.Theory, StudentPhase.Practice));
+        // A higher stored (manual) Stand is kept against a lower derived one.
+        Assert.Equal(StudentPhase.PracticeExam, StudentProgressRules.RaisePhase(StudentPhase.PracticeExam, StudentPhase.TheoryExam));
+    }
+
+    [Theory]
+    [InlineData(StudentPhase.Theory, false, false)]
+    [InlineData(StudentPhase.TheoryExam, true, false)]
+    [InlineData(StudentPhase.Practice, true, false)]
+    [InlineData(StudentPhase.PracticeExam, true, true)]
+    [InlineData(StudentPhase.Completed, true, true)]
+    public void Phase_drives_section_completion(StudentPhase phase, bool theory, bool practice)
+    {
+        Assert.Equal(theory, StudentProgressRules.TheoryCountsComplete(phase));
+        Assert.Equal(practice, StudentProgressRules.PracticeCountsComplete(phase));
+    }
 }

@@ -68,4 +68,48 @@ public static class StudentProgressRules
     /// </summary>
     public static bool IsTheoryExpired(DateOnly? lastTaughtOn, int validityYears, DateOnly today)
         => TheoryValidUntil(lastTaughtOn, validityYears) is { } until && until < today;
+
+    // --- phase ("Stand") derivation (KONZEPT 3.3) -----------------------------
+    // The Stand advances automatically from the bottom up - as sections complete
+    // and exams are passed - but is only ever raised, never lowered (manual edits
+    // may raise it further as an override). Setting the Stand forward also makes
+    // the preceding sections count as 100 % complete (the owner's escape hatch
+    // for the bureaucracy that is too detailed to model per class).
+
+    private static StudentPhase Higher(StudentPhase a, StudentPhase b)
+        => (StudentPhase)Math.Max((int)a, (int)b);
+
+    /// <summary>
+    /// The Stand justified by the actual progress, bottom up:
+    ///  - all theory items done ⇒ ≥ Theorieprüfung,
+    ///  - theory exam passed ⇒ ≥ Praxis,
+    ///  - theory exam passed AND all practice items done ⇒ ≥ Praxisprüfung
+    ///    (finished special drives only count once you are in the practice phase),
+    ///  - practice exam passed ⇒ Fertig (a passed final exam means done, even if
+    ///    earlier item data is incomplete).
+    /// Always the HIGHEST milestone reached.
+    /// </summary>
+    public static StudentPhase DerivePhase(
+        bool theoryItemsDone, bool theoryExamPassed, bool practiceItemsDone, bool practiceExamPassed)
+    {
+        var phase = StudentPhase.Theory;
+        if (theoryItemsDone) phase = Higher(phase, StudentPhase.TheoryExam);
+        if (theoryExamPassed) phase = Higher(phase, StudentPhase.Practice);
+        if (theoryExamPassed && practiceItemsDone) phase = Higher(phase, StudentPhase.PracticeExam);
+        if (practiceExamPassed) phase = Higher(phase, StudentPhase.Completed);
+        return phase;
+    }
+
+    /// <summary>The Stand never moves backwards on its own: take the higher of the
+    /// stored and the freshly derived phase.</summary>
+    public static StudentPhase RaisePhase(StudentPhase stored, StudentPhase derived)
+        => Higher(stored, derived);
+
+    /// <summary>Does the Stand make the THEORY section count as complete?
+    /// (Theorieprüfung or later - theory is done once you sit the theory exam.)</summary>
+    public static bool TheoryCountsComplete(StudentPhase phase) => phase >= StudentPhase.TheoryExam;
+
+    /// <summary>Does the Stand make the PRACTICE section count as complete?
+    /// (Praxisprüfung or later.)</summary>
+    public static bool PracticeCountsComplete(StudentPhase phase) => phase >= StudentPhase.PracticeExam;
 }
