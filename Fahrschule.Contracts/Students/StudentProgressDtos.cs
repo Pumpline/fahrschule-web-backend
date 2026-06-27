@@ -64,6 +64,16 @@ public class ProgressItemDto
     /// the manual haken is locked - the point must be changed via the lesson.</summary>
     public bool CoveredByLesson { get; set; }
 
+    /// <summary>True if this is a THEORY topic whose validity has lapsed: it was
+    /// completed more than the configured number of years ago and must be taught
+    /// again. While expired it no longer counts and <see cref="IsDone"/> is false.</summary>
+    public bool IsExpired { get; set; }
+
+    /// <summary>For a completed theory topic with expiry enabled: the date its
+    /// validity ends (last taught + validity years). Lets the UI warn before and
+    /// after expiry. Null when expiry does not apply.</summary>
+    public DateOnly? ExpiresOn { get; set; }
+
     /// <summary>True if this point counts for more than one of the student's
     /// classes (a shared "Grundstoff" point) - the UI hints "zählt für mehrere".</summary>
     public bool IsShared { get; set; }

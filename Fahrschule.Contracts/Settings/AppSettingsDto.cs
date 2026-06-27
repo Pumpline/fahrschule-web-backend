@@ -33,6 +33,14 @@ public class AppSettingsDto
     /// </summary>
     public int RetentionStudentYears { get; set; }
 
+    /// <summary>
+    /// How many YEARS a completed THEORY topic stays valid. After this time the
+    /// topic is considered expired in the progress and must be taught again (it
+    /// no longer counts toward completion). 0 = no expiry. Editable (rule 3),
+    /// default 2.
+    /// </summary>
+    public int TheoryValidityYears { get; set; }
+
     // --- Lesson entry (KONZEPT 3.3) - editable quick durations, project rule 3 ---
 
     /// <summary>The duration pre-selected in the "Stunde eintragen" dialog

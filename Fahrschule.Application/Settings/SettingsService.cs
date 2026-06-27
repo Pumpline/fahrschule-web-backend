@@ -42,6 +42,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string ExamLockPracticeLessonsForShortening = "ExamLock.PracticeLessonsForShortening";
     public const string RetentionStudentYears = "Retention.StudentYears";
     public const string LessonDefaultDurationMinutes = "Lesson.DefaultDurationMinutes";
+    public const string TheoryValidityYears = "Theory.ValidityYears";
 
     private static readonly SettingDefinition[] Definitions =
     [
@@ -51,6 +52,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(ExamLockShortenedWeeks, 1, 0, 12, "Verkürzte Sperre mit Zusatzstunden (Wochen)"),
         new(ExamLockPracticeLessonsForShortening, 2, 0, 20, "Zusatzstunden für die verkürzte Sperre"),
         new(LessonDefaultDurationMinutes, 90, 5, 600, "Vorausgewählte Dauer beim Stunden-Eintragen (Minuten)"),
+        // Validity of a completed theory topic (years). 0 = never expires.
+        new(TheoryValidityYears, 2, 0, 10, "Gültigkeit eines Theorie-Themas in Jahren (0 = unbegrenzt)"),
         // § 31 Abs. 3 FahrlG: 5 years after the end of the training year. Range
         // 1-30 leaves room should the law change; default 5 is the current value.
         new(RetentionStudentYears, 5, 1, 30, "Aufbewahrungsfrist für Schüler-Daten nach Ausbildungsende (Jahre, § 31 FahrlG)"),
@@ -113,6 +116,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             ExamLockPracticeLessonsForShortening = Read(ExamLockPracticeLessonsForShortening),
             RetentionStudentYears = Read(RetentionStudentYears),
             LessonDefaultDurationMinutes = Read(LessonDefaultDurationMinutes),
+            TheoryValidityYears = Read(TheoryValidityYears),
             // Fall back to the sensible default list when nothing was saved yet.
             LessonDurationPresets = NullIfEmpty(ReadText(LessonDurationPresets)) ?? DefaultLessonDurationPresets,
             LessonTheoryDefaultStartTime = NullIfEmpty(ReadText(TheoryDefaultStartTime)) ?? DefaultTheoryStartTime,
@@ -138,6 +142,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             [ExamLockPracticeLessonsForShortening] = request.ExamLockPracticeLessonsForShortening,
             [RetentionStudentYears] = request.RetentionStudentYears,
             [LessonDefaultDurationMinutes] = request.LessonDefaultDurationMinutes,
+            [TheoryValidityYears] = request.TheoryValidityYears,
         };
 
         // Validate every value against its allowed range first (all-or-nothing).

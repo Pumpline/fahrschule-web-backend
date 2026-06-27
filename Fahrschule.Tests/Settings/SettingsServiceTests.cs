@@ -39,6 +39,7 @@ public class SettingsServiceTests
         Assert.Equal(2, settings.ExamLockPracticeLessonsForShortening);
         Assert.Equal(5, settings.RetentionStudentYears);
         Assert.Equal("18:00", settings.LessonTheoryDefaultStartTime);
+        Assert.Equal(2, settings.TheoryValidityYears);
     }
 
     [Fact]
@@ -58,11 +59,13 @@ public class SettingsServiceTests
             LessonDefaultDurationMinutes = 45,
             LessonDurationPresets = "45, 90",
             LessonTheoryDefaultStartTime = "9:00", // stored tidily as "09:00"
+            TheoryValidityYears = 3,
         }, TestActor);
 
         var reloaded = await service.GetAsync();
         Assert.Equal(14, reloaded.DocumentExpiryReminderDays);
         Assert.Equal("09:00", reloaded.LessonTheoryDefaultStartTime);
+        Assert.Equal(3, reloaded.TheoryValidityYears);
         Assert.Equal(60, reloaded.AppointmentReminderLeadMinutes);
         Assert.Equal(3, reloaded.ExamLockNormalWeeks);
         Assert.Equal(4, reloaded.ExamLockPracticeLessonsForShortening);

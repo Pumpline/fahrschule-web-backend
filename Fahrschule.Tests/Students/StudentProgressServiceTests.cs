@@ -263,6 +263,54 @@ public class StudentProgressServiceTests
     }
 
     [Fact]
+    public async Task Theory_topic_completed_long_ago_is_reported_as_expired()
+    {
+        await SeedAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        Guid topicId;
+        await using (var db = NewDb())
+            topicId = ItemByTitle(await NewService(db).GetForStudentAsync(_student), "Grundstoff-Thema").Id;
+
+        // Completed just over 3 years ago → past the default 2-year validity.
+        await using (var db = NewDb())
+            await NewService(db).SetItemAsync(_student, topicId,
+                new SetProgressItemRequest { IsDone = true, CompletedOn = today.AddYears(-3) }, TestActor);
+
+        await using var db2 = NewDb();
+        var result = await NewService(db2).GetForStudentAsync(_student);
+        var item = ItemByTitle(result, "Grundstoff-Thema");
+
+        Assert.True(item.IsExpired);
+        Assert.False(item.IsDone);                 // expired → no longer credited
+        Assert.NotNull(item.CompletedOn);          // original date kept for the hint
+        Assert.Equal(today.AddYears(-3).AddYears(2), item.ExpiresOn);
+        // A1 only has this one (now expired) topic → 0 % done.
+        Assert.Equal(0, result.Classes.Single(c => c.Code == "A1").DonePercent);
+    }
+
+    [Fact]
+    public async Task Recently_completed_theory_topic_still_counts()
+    {
+        await SeedAsync();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        Guid topicId;
+        await using (var db = NewDb())
+            topicId = ItemByTitle(await NewService(db).GetForStudentAsync(_student), "Grundstoff-Thema").Id;
+
+        await using (var db = NewDb())
+            await NewService(db).SetItemAsync(_student, topicId,
+                new SetProgressItemRequest { IsDone = true, CompletedOn = today.AddDays(-30) }, TestActor);
+
+        await using var db2 = NewDb();
+        var item = ItemByTitle(await NewService(db2).GetForStudentAsync(_student), "Grundstoff-Thema");
+
+        Assert.False(item.IsExpired);
+        Assert.True(item.IsDone);
+    }
+
+    [Fact]
     public async Task Re_setting_a_point_to_the_same_state_writes_no_extra_audit()
     {
         await SeedAsync();

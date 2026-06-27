@@ -72,4 +72,33 @@ public class StudentProgressRulesTests
     [InlineData(4, 4, 100)]
     public void Percent_rounds_the_share(int done, int total, int expected)
         => Assert.Equal(expected, StudentProgressRules.Percent(done, total));
+
+    [Theory]
+    [InlineData("Theorie-Grundstoff", true)]
+    [InlineData("Theorie-Zusatzstoff", true)]
+    [InlineData("Praxis", false)]
+    [InlineData("Sonstiges", false)]
+    public void IsTheorySection_matches_the_theorie_prefix(string section, bool expected)
+        => Assert.Equal(expected, StudentProgressRules.IsTheorySection(section));
+
+    [Fact]
+    public void Theory_topic_expires_after_the_validity_period()
+    {
+        var taught = new DateOnly(2024, 6, 1);
+        // 2-year validity: valid until 2026-06-01.
+        Assert.Equal(new DateOnly(2026, 6, 1), StudentProgressRules.TheoryValidUntil(taught, 2));
+
+        // Still valid the day before, expired the day after.
+        Assert.False(StudentProgressRules.IsTheoryExpired(taught, 2, new DateOnly(2026, 5, 31)));
+        Assert.True(StudentProgressRules.IsTheoryExpired(taught, 2, new DateOnly(2026, 6, 2)));
+    }
+
+    [Fact]
+    public void Theory_expiry_is_off_when_validity_is_zero_or_no_date()
+    {
+        Assert.Null(StudentProgressRules.TheoryValidUntil(new DateOnly(2020, 1, 1), 0));
+        Assert.Null(StudentProgressRules.TheoryValidUntil(null, 2));
+        Assert.False(StudentProgressRules.IsTheoryExpired(new DateOnly(2000, 1, 1), 0, new DateOnly(2026, 1, 1)));
+        Assert.False(StudentProgressRules.IsTheoryExpired(null, 2, new DateOnly(2026, 1, 1)));
+    }
 }

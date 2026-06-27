@@ -46,4 +46,26 @@ public static class StudentProgressRules
     /// <summary>Completed share in percent (0..100); 0 when there are no points.</summary>
     public static int Percent(int done, int total)
         => total <= 0 ? 0 : (int)Math.Round(done * 100.0 / total);
+
+    /// <summary>A section counts as theory when its name starts with "Theorie"
+    /// (e.g. "Theorie-Grundstoff"); everything else is practice. Mirrors the
+    /// frontend grouping and the lesson-type derivation.</summary>
+    public static bool IsTheorySection(string section)
+        => section.TrimStart().StartsWith("Theorie", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// The date a completed THEORY topic stays valid until: the last time it was
+    /// taught plus the configured number of years. Null when expiry is off
+    /// (<paramref name="validityYears"/> &lt;= 0) or the topic was never taught.
+    /// </summary>
+    public static DateOnly? TheoryValidUntil(DateOnly? lastTaughtOn, int validityYears)
+        => validityYears > 0 && lastTaughtOn is { } d ? d.AddYears(validityYears) : null;
+
+    /// <summary>
+    /// Has a completed theory topic's validity lapsed as of <paramref name="today"/>?
+    /// Expired means the last time it was taught is more than the configured years
+    /// ago (KONZEPT: "nach 2 Jahren muss ein Theoriethema wiederholt werden").
+    /// </summary>
+    public static bool IsTheoryExpired(DateOnly? lastTaughtOn, int validityYears, DateOnly today)
+        => TheoryValidUntil(lastTaughtOn, validityYears) is { } until && until < today;
 }

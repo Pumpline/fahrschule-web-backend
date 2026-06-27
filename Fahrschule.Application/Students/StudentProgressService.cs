@@ -41,13 +41,56 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         await EnsureSnapshotAsync(student, ct);
 
         var items = await LoadProgressAsync(studentId, ct);
-        // Which points a (non-deleted) lesson covers - drives the "covered by
-        // lesson" lock and the "manuell" hint in the UI.
-        var coveredIds = (await db.Set<LessonItem>()
+        // Which points a (non-deleted) lesson covers, and the LATEST date each was
+        // taught. The covered set drives the "covered by lesson" lock and the
+        // "manuell" hint; the latest date drives the theory-expiry check below.
+        var coverage = await db.Set<LessonItem>()
             .Where(li => li.Lesson!.StudentId == studentId && !li.Lesson!.IsDeleted)
-            .Select(li => li.StudentProgressItemId)
-            .Distinct().ToListAsync(ct)).ToHashSet();
-        return BuildDto(student, items, coveredIds);
+            .Select(li => new { li.StudentProgressItemId, li.Lesson!.DateOn })
+            .ToListAsync(ct);
+        var coveredIds = coverage.Select(c => c.StudentProgressItemId).ToHashSet();
+        var lastTaughtByLesson = coverage
+            .GroupBy(c => c.StudentProgressItemId)
+            .ToDictionary(g => g.Key, g => g.Max(x => x.DateOn));
+
+        // Theory topics expire after a configurable number of years (KONZEPT:
+        // "nach 2 Jahren muss ein Theoriethema wiederholt werden"). Computed at
+        // read time because it depends on today's date, not on any stored flag.
+        var validityYears = await TheoryValidityYearsAsync(ct);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var (expiredIds, expiresOn) = ComputeTheoryExpiry(items, lastTaughtByLesson, validityYears, today);
+
+        return BuildDto(student, items, coveredIds, expiredIds, expiresOn);
+    }
+
+    /// <summary>
+    /// Works out which completed THEORY topics have lapsed. The reference date is
+    /// the last time the topic was taught: the most recent counted session for a
+    /// countable point, otherwise the latest covering lesson (or the manual
+    /// completion date for an Anrechnung). Returns the expired ids plus, per
+    /// completed theory topic, the date its validity ends (for the UI).
+    /// </summary>
+    private static (HashSet<Guid> ExpiredIds, Dictionary<Guid, DateOnly?> ExpiresOn) ComputeTheoryExpiry(
+        List<StudentProgressItem> items, Dictionary<Guid, DateOnly> lastTaughtByLesson, int validityYears, DateOnly today)
+    {
+        var expired = new HashSet<Guid>();
+        var expiresOn = new Dictionary<Guid, DateOnly?>();
+        if (validityYears <= 0) return (expired, expiresOn);
+
+        foreach (var p in items)
+        {
+            // Only completed theory topics can lapse; an open topic is just "offen".
+            if (!StudentProgressRules.IsTheorySection(p.Section) || !StudentProgressRules.IsDone(p)) continue;
+
+            DateOnly? lastTaught = StudentProgressRules.IsCountable(p.RequiredCount)
+                ? (p.Entries.Count > 0 ? p.Entries.Max(e => e.PerformedOn) : null)
+                : (lastTaughtByLesson.TryGetValue(p.Id, out var d) ? d : p.CompletedOn);
+
+            expiresOn[p.Id] = StudentProgressRules.TheoryValidUntil(lastTaught, validityYears);
+            if (StudentProgressRules.IsTheoryExpired(lastTaught, validityYears, today)) expired.Add(p.Id);
+        }
+
+        return (expired, expiresOn);
     }
 
     public async Task<StudentProgressDto> SetItemAsync(
@@ -429,20 +472,23 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
 
     // --- DTO building ---
 
-    private static StudentProgressDto BuildDto(Student student, List<StudentProgressItem> items, HashSet<Guid> coveredIds)
+    private static StudentProgressDto BuildDto(
+        Student student, List<StudentProgressItem> items, HashSet<Guid> coveredIds,
+        HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn)
     {
         var studentClassCount = student.LicenseClasses.Count;
         var classes = student.LicenseClasses
             .Where(lc => lc.LicenseClass != null)
             .OrderBy(lc => lc.LicenseClass!.SortOrder)
-            .Select(lc => BuildClassProgress(lc, items, studentClassCount, coveredIds))
+            .Select(lc => BuildClassProgress(lc, items, studentClassCount, coveredIds, expiredIds, expiresOn))
             .ToList();
 
         return new StudentProgressDto { Classes = classes };
     }
 
     private static ClassProgressDto BuildClassProgress(
-        StudentLicenseClass studentClass, List<StudentProgressItem> items, int studentClassCount, HashSet<Guid> coveredIds)
+        StudentLicenseClass studentClass, List<StudentProgressItem> items, int studentClassCount,
+        HashSet<Guid> coveredIds, HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn)
     {
         // Points that count for this class (its own + shared).
         var forClass = items
@@ -452,9 +498,10 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             .ToList();
 
         // Voluntary extra-lesson counters are shown but do not count toward the
-        // Pflicht completion (KONZEPT 3.3).
+        // Pflicht completion (KONZEPT 3.3). An expired theory topic no longer
+        // counts as done until it is taught again.
         var required = forClass.Where(StudentProgressRules.IsRequired).ToList();
-        var done = required.Count(StudentProgressRules.IsDone);
+        var done = required.Count(p => StudentProgressRules.IsDone(p) && !expiredIds.Contains(p.Id));
 
         var sections = forClass
             .GroupBy(p => p.Section)
@@ -463,7 +510,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             {
                 Section = g.Key,
                 Items = g.OrderBy(p => p.SortOrder).ThenBy(p => p.Title)
-                    .Select(p => ToItemDto(p, studentClassCount, coveredIds)).ToList(),
+                    .Select(p => ToItemDto(p, studentClassCount, coveredIds, expiredIds, expiresOn)).ToList(),
             })
             .ToList();
 
@@ -480,13 +527,18 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         };
     }
 
-    private static ProgressItemDto ToItemDto(StudentProgressItem p, int studentClassCount, HashSet<Guid> coveredIds)
+    private static ProgressItemDto ToItemDto(
+        StudentProgressItem p, int studentClassCount, HashSet<Guid> coveredIds,
+        HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn)
     {
         var countable = StudentProgressRules.IsCountable(p.RequiredCount);
         // Shared "Grundstoff" = a point with no class restriction (applies to all
         // of the student's classes). Shown once in its own card, even when the
         // student currently has a single class (matches the design mockup).
         var isShared = p.Classes.Count == 0 || p.Classes.Count > 1;
+        // An expired theory topic is reported as NOT done (it must be repeated),
+        // but we keep its original completion date for the "war erledigt am" hint.
+        var expired = expiredIds.Contains(p.Id);
 
         return new ProgressItemDto
         {
@@ -495,12 +547,14 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             RequiredCount = p.RequiredCount,
             IsCountable = countable,
             CurrentCount = p.Entries.Count,
-            IsDone = StudentProgressRules.IsDone(p),
+            IsDone = StudentProgressRules.IsDone(p) && !expired,
             CompletedOn = p.CompletedOn,
             Note = p.Note,
             // Simple point completed without a lesson covering it = a manual mark.
             CompletedManually = !countable && p.ManuallyCompleted && !coveredIds.Contains(p.Id),
             CoveredByLesson = coveredIds.Contains(p.Id),
+            IsExpired = expired,
+            ExpiresOn = expiresOn.GetValueOrDefault(p.Id),
             IsShared = isShared,
             Entries = countable
                 ? p.Entries.OrderBy(e => e.PerformedOn).ThenBy(e => e.CreatedAtUtc)
@@ -540,11 +594,9 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         }
     }
 
-    /// <summary>A section counts as theory when its name starts with "Theorie"
-    /// (e.g. "Theorie-Grundstoff"); everything else is practice. Mirrors the
-    /// frontend grouping.</summary>
-    private static bool IsTheorySection(string section)
-        => section.TrimStart().StartsWith("Theorie", StringComparison.OrdinalIgnoreCase);
+    /// <summary>A section counts as theory when its name starts with "Theorie".
+    /// Delegates to the shared rule so service and tests agree.</summary>
+    private static bool IsTheorySection(string section) => StudentProgressRules.IsTheorySection(section);
 
     /// <summary>The pre-selected lesson duration from the settings (data, not
     /// code - project rule 3); falls back to 90 minutes.</summary>
@@ -554,6 +606,16 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             .Where(s => s.Key == Settings.SettingsService.LessonDefaultDurationMinutes)
             .Select(s => s.Value).FirstOrDefaultAsync(ct);
         return int.TryParse(raw, out var minutes) && minutes > 0 ? minutes : 90;
+    }
+
+    /// <summary>The configured theory validity in years (data, not code - rule 3);
+    /// falls back to 2. 0 means theory topics never expire.</summary>
+    private async Task<int> TheoryValidityYearsAsync(CancellationToken ct)
+    {
+        var raw = await db.Settings
+            .Where(s => s.Key == Settings.SettingsService.TheoryValidityYears)
+            .Select(s => s.Value).FirstOrDefaultAsync(ct);
+        return int.TryParse(raw, out var years) && years >= 0 ? years : 2;
     }
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
