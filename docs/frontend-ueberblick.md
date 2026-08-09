@@ -131,13 +131,20 @@ Das erste große Fachmodul mit eigener Liste und Detailseite:
   braucht und die ohnehin auf dem Ausbildungsnachweis steht. Darunter die
   Führerscheinklassen mit **Status pro Klasse** (Phasen-Auswahl), Klasse
   hinzufügen (mit Mindestalter-Prüfung) / entfernen, und Löschen (Soft-Delete).
-- **Vorbesitz-Karte** (im Stammdaten-Tab): Klassen-Chips zum Ein-/Austragen
-  (wirken sofort), ein Freitextfeld für Fahrerlaubnisse außerhalb der eigenen
-  Klassenliste und – eingeklappt unter „Abweichende Zahl festlegen" – die
-  Übersteuerung samt Begründung. Eine Box zeigt jederzeit, wie viele
-  Grundstoff-Doppelstunden aktuell gefordert sind und **warum** (verkürzt wegen
-  Vorbesitz / von Hand festgelegt). Klassen, die der Schüler gerade macht, sind
-  nicht wählbar.
+- **Vorbesitz-Karte** „Hat der Schüler schon einen Führerschein?" (im
+  Stammdaten-Tab). Bewusst nach Projektregel 2 gebaut, nachdem eine erste Fassung
+  daran scheiterte:
+  - **Nichts eingeklappt** – der Sonderfall („Wenn es im Einzelfall anders ist")
+    steht offen da. Ein `<details>`-Aufklapper wäre ein verstecktes Menü.
+  - **Ein Speichern-Knopf** für die ganze Karte. Die erste Fassung ließ die
+    Klassen-Chips sofort wirken, Freitext und Zahl aber über einen Knopf in einer
+    *anderen* Karte – zwei Regeln nebeneinander. Jetzt ändert ein Chip-Klick nur
+    das lokale Modell; gespeichert wird alles gemeinsam.
+  - **Klartext statt Paragraphen**: „Nötige Doppelstunden" mit Platzhalter
+    „leer = selbst rechnen" statt „Übersteuerung/automatisch".
+  - Eine grüne Zeile sagt in einem ganzen Satz, was gilt, und rechnet **live**
+    mit (`hasAnyPrior()`), noch bevor gespeichert wird.
+  - Klassen, die der Schüler gerade macht, sind nicht wählbar.
 - **StudentDocuments** (eingebettet in die Akte): die aus dem Katalog
   abgeleitete Unterlagen-Liste mit Häkchen „liegt vor", Vorgelegt-/Ablaufdatum,
   Hervorhebung bald ablaufender Unterlagen und Erzwingung der Ablaufdatum-Pflicht.

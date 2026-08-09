@@ -69,6 +69,19 @@ public class StudentPriorLicenseTests
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Saves the Vorbesitz the way the file does: as part of the normal
+    /// master-data save (one save button for everything, project rule 2).</summary>
+    private async Task SetPriorClassesAsync(FahrschuleDbContext db, params Guid[] classIds)
+    {
+        var service = Students(db);
+        var akte = await service.GetAkteAsync(_student);
+        await service.UpdateAsync(_student, new UpdateStudentRequest
+        {
+            FirstName = akte.FirstName, LastName = akte.LastName, Version = akte.Version,
+            PriorLicenseClassIds = [.. classIds],
+        }, TestActor);
+    }
+
     private static ProgressSectionDto BasicSection(StudentProgressDto progress)
         => progress.Classes.Single().Sections.Single(s => s.Section == "Theorie-Grundstoff");
 
@@ -103,7 +116,7 @@ public class StudentPriorLicenseTests
         await SeedAsync();
         await using (var db = NewDb())
         {
-            await Students(db).AddPriorLicenseClassAsync(_student, _classA1, TestActor);
+            await SetPriorClassesAsync(db, _classA1);
         }
 
         await using var check = NewDb();
@@ -120,7 +133,7 @@ public class StudentPriorLicenseTests
         await SeedAsync();
         await using (var db = NewDb())
         {
-            await Students(db).AddPriorLicenseClassAsync(_student, _classA1, TestActor);
+            await SetPriorClassesAsync(db, _classA1);
         }
 
         await CompleteBasicTopicsAsync(6);
@@ -170,7 +183,7 @@ public class StudentPriorLicenseTests
         await SeedAsync();
         await using (var db = NewDb())
         {
-            await Students(db).AddPriorLicenseClassAsync(_student, _classA1, TestActor);
+            await SetPriorClassesAsync(db, _classA1);
         }
 
         // Eight of twelve although only six are owed.
@@ -213,7 +226,7 @@ public class StudentPriorLicenseTests
         await SeedAsync();
         await using (var db = NewDb())
         {
-            await Students(db).AddPriorLicenseClassAsync(_student, _classA1, TestActor);
+            await SetPriorClassesAsync(db, _classA1);
         }
 
         await using (var db = NewDb())
@@ -240,9 +253,47 @@ public class StudentPriorLicenseTests
         await using var db = NewDb();
 
         var error = await Assert.ThrowsAsync<Fahrschule.Application.Common.AppValidationException>(
-            () => Students(db).AddPriorLicenseClassAsync(_student, _classB, TestActor));
+            () => SetPriorClassesAsync(db, _classB));
 
         Assert.Contains("ausgebildet", error.Message);
+    }
+
+    [Fact]
+    public async Task Omitting_the_field_leaves_the_Vorbesitz_untouched()
+    {
+        await SeedAsync();
+        await using (var db = NewDb()) await SetPriorClassesAsync(db, _classA1);
+
+        // A save that does not send the list at all (null) must not wipe it -
+        // otherwise any other edit would silently undo the Vorbesitz.
+        await using (var db = NewDb())
+        {
+            var service = Students(db);
+            var akte = await service.GetAkteAsync(_student);
+            await service.UpdateAsync(_student, new UpdateStudentRequest
+            {
+                FirstName = "Max", LastName = "Muster", Version = akte.Version,
+            }, TestActor);
+        }
+
+        await using var check = NewDb();
+        var after = await Students(check).GetAkteAsync(_student);
+        Assert.Single(after.PriorLicense.Classes);
+        Assert.Equal("A1", after.PriorLicense.Classes[0].Code);
+    }
+
+    [Fact]
+    public async Task Clearing_the_list_removes_the_Vorbesitz_again()
+    {
+        await SeedAsync();
+        await using (var db = NewDb()) await SetPriorClassesAsync(db, _classA1);
+        await using (var db = NewDb()) await SetPriorClassesAsync(db); // empty list
+
+        await using var check = NewDb();
+        var after = await Students(check).GetAkteAsync(_student);
+        Assert.Empty(after.PriorLicense.Classes);
+        Assert.False(after.PriorLicense.HasPriorLicense);
+        Assert.Equal(12, after.PriorLicense.RequiredBasicTheoryLessons);
     }
 
     private sealed class NullAudit : IAuditWriter

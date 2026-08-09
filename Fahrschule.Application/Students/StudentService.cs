@@ -39,10 +39,6 @@ public interface IStudentService
     Task<StudentAkteDto> AddLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
     Task<StudentAkteDto> RemoveLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
 
-    /// <summary>Record a licence the student ALREADY holds ("Vorbesitz") - it
-    /// shortens the Grundstoff (§ 4 Abs. 3 FahrschAusbO).</summary>
-    Task<StudentAkteDto> AddPriorLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
-    Task<StudentAkteDto> RemovePriorLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
     Task<StudentAkteDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default);
 
     /// <summary>Students marked for deletion ("Zur Löschung vorgemerkt", KONZEPT 3.7).</summary>
@@ -175,6 +171,7 @@ public class StudentService(
         await EnsureJournalNumberIsFreeAsync(journalNumber, id, ct);
 
         var oldSnapshot = Snapshot(student);
+        var priorChange = await ApplyPriorLicenseClassesAsync(student, request.PriorLicenseClassIds, ct);
 
         // Name and journal number are always editable (they are never hidden).
         // The sensitive fields are only overwritten when the client actually
@@ -201,7 +198,7 @@ public class StudentService(
         // entry (only actual changes are logged; reading/revealing a field stays
         // audited). Saving identical values must not produce a "Geändert" entry.
         var newSnapshot = Snapshot(student);
-        if (newSnapshot == oldSnapshot)
+        if (newSnapshot == oldSnapshot && priorChange is null)
         {
             return await ToAkteDtoAsync(student, ct);
         }
@@ -211,7 +208,8 @@ public class StudentService(
         await db.SaveChangesAsync(ct);
 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Geändert",
-            "Schüler", student.Id.ToString(), oldSnapshot, newSnapshot, ct);
+            "Schüler", student.Id.ToString(),
+            AppendPrior(oldSnapshot, priorChange?.Before), AppendPrior(newSnapshot, priorChange?.After), ct);
 
         return await ToAkteDtoAsync(student, ct);
     }
@@ -313,60 +311,6 @@ public class StudentService(
         return await ToAkteDtoAsync(await LoadAsync(id, ct), ct);
     }
 
-    public async Task<StudentAkteDto> AddPriorLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
-    {
-        var student = await LoadAsync(id, ct);
-
-        if (student.PriorLicenseClasses.Any(pc => pc.LicenseClassId == licenseClassId))
-        {
-            throw new AppValidationException("Diese Klasse ist beim Vorbesitz bereits eingetragen.");
-        }
-
-        var licenseClass = await db.LicenseClasses.FirstOrDefaultAsync(c => c.Id == licenseClassId, ct)
-            ?? throw new AppValidationException("Diese Führerscheinklasse existiert nicht (mehr).");
-
-        // A class the student is TRAINING for cannot at the same time be one they
-        // already hold - that would be a data-entry slip, and it would silently
-        // shorten their own Grundstoff.
-        if (student.LicenseClasses.Any(lc => lc.LicenseClassId == licenseClassId))
-        {
-            throw new AppValidationException(
-                $"Die Klasse {licenseClass.Code} wird gerade ausgebildet und kann nicht gleichzeitig als Vorbesitz eingetragen werden.");
-        }
-
-        student.PriorLicenseClasses.Add(new StudentPriorLicenseClass
-        {
-            StudentId = student.Id,
-            LicenseClassId = licenseClassId,
-            AddedAtUtc = DateTime.UtcNow,
-        });
-        student.UpdatedAtUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
-
-        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Geändert",
-            "Schüler", student.Id.ToString(),
-            newValuesJson: $"{{\"VorbesitzHinzugefügt\":\"{licenseClass.Code}\"}}", cancellationToken: ct);
-
-        return await ToAkteDtoAsync(await LoadAsync(id, ct), ct);
-    }
-
-    public async Task<StudentAkteDto> RemovePriorLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
-    {
-        var student = await LoadAsync(id, ct);
-        var entry = student.PriorLicenseClasses.FirstOrDefault(pc => pc.LicenseClassId == licenseClassId)
-            ?? throw new NotFoundException("Diese Klasse ist beim Vorbesitz nicht eingetragen.");
-
-        var code = entry.LicenseClass?.Code ?? licenseClassId.ToString();
-        student.PriorLicenseClasses.Remove(entry);
-        student.UpdatedAtUtc = DateTime.UtcNow;
-        await db.SaveChangesAsync(ct);
-
-        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Geändert",
-            "Schüler", student.Id.ToString(),
-            oldValuesJson: $"{{\"VorbesitzEntfernt\":\"{code}\"}}", cancellationToken: ct);
-
-        return await ToAkteDtoAsync(await LoadAsync(id, ct), ct);
-    }
 
     public async Task<StudentAkteDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default)
     {
@@ -438,6 +382,70 @@ public class StudentService(
         else if (lastName.Length > StudentRules.MaxNameLength) errors.Add("Der Nachname ist zu lang.");
         if (errors.Count > 0) throw new AppValidationException(string.Join(" ", errors));
     }
+
+    /// <summary>What the Vorbesitz looked like before and after a save (codes,
+    /// for the audit log). null when nothing changed.</summary>
+    private record PriorLicenseChange(string Before, string After);
+
+    /// <summary>
+    /// Sets the Vorbesitz to exactly the given classes. null = the client did not
+    /// send the field, so the current list is kept untouched (an old client must
+    /// never wipe it). Returns what changed, or null when it is the same set.
+    /// </summary>
+    private async Task<PriorLicenseChange?> ApplyPriorLicenseClassesAsync(
+        Student student, List<Guid>? wanted, CancellationToken ct)
+    {
+        if (wanted is null) return null;
+
+        var target = wanted.Distinct().ToList();
+        var current = student.PriorLicenseClasses.Select(pc => pc.LicenseClassId).ToHashSet();
+        if (current.SetEquals(target)) return null;
+
+        var classes = await db.LicenseClasses
+            .Where(c => target.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Code, ct);
+
+        foreach (var id in target)
+        {
+            if (!classes.ContainsKey(id))
+            {
+                throw new AppValidationException("Eine gewählte Führerscheinklasse existiert nicht (mehr). Bitte die Seite neu laden.");
+            }
+            // A class the student is TRAINING for cannot at the same time be one
+            // they already hold - that would be a data-entry slip, and it would
+            // silently shorten their own Grundstoff.
+            if (student.LicenseClasses.Any(lc => lc.LicenseClassId == id))
+            {
+                throw new AppValidationException(
+                    $"Die Klasse {classes[id]} wird gerade ausgebildet. Sie kann nicht gleichzeitig als bereits vorhandener Führerschein eingetragen werden.");
+            }
+        }
+
+        var before = CodesOf(student);
+        student.PriorLicenseClasses.RemoveAll(pc => !target.Contains(pc.LicenseClassId));
+        foreach (var id in target.Where(id => !current.Contains(id)))
+        {
+            student.PriorLicenseClasses.Add(new StudentPriorLicenseClass
+            {
+                StudentId = student.Id,
+                LicenseClassId = id,
+                AddedAtUtc = DateTime.UtcNow,
+            });
+        }
+
+        var after = string.Join(", ", target.Select(id => classes[id]).OrderBy(c => c));
+        return new PriorLicenseChange(before, after);
+    }
+
+    private static string CodesOf(Student s)
+        => string.Join(", ", s.PriorLicenseClasses
+            .Where(pc => pc.LicenseClass != null)
+            .Select(pc => pc.LicenseClass!.Code).OrderBy(c => c));
+
+    /// <summary>Adds the Vorbesitz codes to an audit snapshot when they changed,
+    /// so the owner sees them in the same before/after entry.</summary>
+    private static string AppendPrior(string snapshot, string? codes)
+        => codes is null ? snapshot : snapshot[..^1] + $",\"Vorbesitz\":\"{codes}\"}}";
 
     private static void ValidateJournalNumber(string? journalNumber)
     {

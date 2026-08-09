@@ -44,6 +44,15 @@ public class UpdateStudentRequest
     /// Applied like the name - it is never hidden.</summary>
     public string? PriorLicenseNote { get; set; }
 
+    /// <summary>
+    /// The licence classes the student already holds, as the COMPLETE list -
+    /// whatever is missing here is removed. null means "not sent, leave alone",
+    /// so an old client or a partial request can never wipe the Vorbesitz.
+    /// Sent with the rest of the file so one save button covers everything
+    /// (project rule 2: the operators are older, one place, one step).
+    /// </summary>
+    public List<Guid>? PriorLicenseClassIds { get; set; }
+
     /// <summary>Overrides the derived Grundstoff requirement for this student
     /// (null/0 = derive it). For the cases § 4 FahrschAusbO leaves open.</summary>
     public int? RequiredBasicTheoryLessonsOverride { get; set; }

@@ -66,16 +66,8 @@ public class StudentsController(IStudentService service) : ControllerBase
     public async Task<ActionResult<StudentAkteDto>> RemoveClass(Guid id, Guid licenseClassId, CancellationToken ct)
         => Ok(await service.RemoveLicenseClassAsync(id, licenseClassId, GetActor(), ct));
 
-    // Vorbesitz: licences the student ALREADY holds (§ 4 Abs. 3 FahrschAusbO).
-    // Its own route, not a flag on /classes - a prior licence is documentation,
-    // not training.
-    [HttpPost("{id:guid}/vorbesitz")]
-    public async Task<ActionResult<StudentAkteDto>> AddPriorClass(Guid id, AddStudentLicenseClassRequest request, CancellationToken ct)
-        => Ok(await service.AddPriorLicenseClassAsync(id, request.LicenseClassId, GetActor(), ct));
-
-    [HttpDelete("{id:guid}/vorbesitz/{licenseClassId:guid}")]
-    public async Task<ActionResult<StudentAkteDto>> RemovePriorClass(Guid id, Guid licenseClassId, CancellationToken ct)
-        => Ok(await service.RemovePriorLicenseClassAsync(id, licenseClassId, GetActor(), ct));
+    // Vorbesitz (licences the student already holds) travels with the normal
+    // master-data PUT - one save button for the whole file (project rule 2).
 
     [HttpPut("{id:guid}/classes/{licenseClassId:guid}/phase")]
     public async Task<ActionResult<StudentAkteDto>> SetPhase(Guid id, Guid licenseClassId, SetStudentPhaseRequest request, CancellationToken ct)
