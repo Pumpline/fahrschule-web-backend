@@ -66,8 +66,12 @@ public class StudentsController(IStudentService service) : ControllerBase
     public async Task<ActionResult<StudentAkteDto>> RemoveClass(Guid id, Guid licenseClassId, CancellationToken ct)
         => Ok(await service.RemoveLicenseClassAsync(id, licenseClassId, GetActor(), ct));
 
-    // Vorbesitz (licences the student already holds) travels with the normal
-    // master-data PUT - one save button for the whole file (project rule 2).
+    // Vorbesitz: edited in the progress tab next to the training classes, so it
+    // has its own endpoint - one call sets the whole block.
+    [HttpPut("{id:guid}/vorbesitz")]
+    public async Task<ActionResult<StudentAkteDto>> SetPriorLicense(
+        Guid id, SetStudentPriorLicenseRequest request, CancellationToken ct)
+        => Ok(await service.SetPriorLicenseAsync(id, request, GetActor(), ct));
 
     [HttpPut("{id:guid}/classes/{licenseClassId:guid}/phase")]
     public async Task<ActionResult<StudentAkteDto>> SetPhase(Guid id, Guid licenseClassId, SetStudentPhaseRequest request, CancellationToken ct)

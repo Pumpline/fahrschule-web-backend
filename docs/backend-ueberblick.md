@@ -198,13 +198,13 @@ werden auditiert.
 - **Vorbesitz** (`StudentPriorLicenseClass` + `Student.PriorLicenseNote`): welche
   Fahrerlaubnis der Schüler **schon hat**. Eigene Verknüpfungstabelle statt eines
   Schalters an `StudentLicenseClass` – ein Vorbesitz ist keine Ausbildung, er hat
-  weder Phase noch Fortschritt. Gespeichert wird er **zusammen mit den Stammdaten**
-  (`UpdateStudentRequest.PriorLicenseClassIds` = die *vollständige* Liste), damit
-  die Akte **einen einzigen Speichern-Knopf** hat (Projektregel 2: die Bediener
-  sind älter – ein Ort, ein Schritt; eigene Endpunkte gab es kurzzeitig, sie
-  führten zu zwei Speicher-Verhalten in derselben Karte). `null` heißt „nicht
-  mitgeschickt → unverändert lassen", damit ein anderer Speichervorgang den
-  Vorbesitz nie stillschweigend löscht. Eine Klasse, die gerade ausgebildet
+  weder Phase noch Fortschritt. Gesetzt wird der **ganze Block auf einmal**:
+  `PUT /api/students/{id}/vorbesitz` mit `SetStudentPriorLicenseRequest`
+  (vollständige Klassenliste, Freitext, feste Doppelstundenzahl + Begründung).
+  Ein eigener Endpunkt, weil die Eingabe im **Ausbildungsfortschritt** sitzt –
+  dort, wo sie etwas bewirkt – und dieser Tab die Stammdaten gar nicht kennt.
+  Umgekehrt fasst das Stammdaten-Update den Vorbesitz nicht an, kann ihn also
+  auch nicht versehentlich löschen. Eine Klasse, die gerade ausgebildet
   wird, kann nicht gleichzeitig Vorbesitz sein (Tippfehler-Schutz). Der Freitext
   fängt Fälle außerhalb der eigenen Klassenliste ab (z. B. ausländischer
   Führerschein) und zählt genauso als Vorbesitz. Steht auf dem Ausbildungsnachweis

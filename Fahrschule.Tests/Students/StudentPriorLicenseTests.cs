@@ -69,18 +69,11 @@ public class StudentPriorLicenseTests
         await db.SaveChangesAsync();
     }
 
-    /// <summary>Saves the Vorbesitz the way the file does: as part of the normal
-    /// master-data save (one save button for everything, project rule 2).</summary>
-    private async Task SetPriorClassesAsync(FahrschuleDbContext db, params Guid[] classIds)
-    {
-        var service = Students(db);
-        var akte = await service.GetAkteAsync(_student);
-        await service.UpdateAsync(_student, new UpdateStudentRequest
-        {
-            FirstName = akte.FirstName, LastName = akte.LastName, Version = akte.Version,
-            PriorLicenseClassIds = [.. classIds],
-        }, TestActor);
-    }
+    /// <summary>Saves the Vorbesitz the way the progress tab does: one call that
+    /// sets the whole block.</summary>
+    private Task SetPriorClassesAsync(FahrschuleDbContext db, params Guid[] classIds)
+        => Students(db).SetPriorLicenseAsync(_student,
+            new SetStudentPriorLicenseRequest { LicenseClassIds = [.. classIds] }, TestActor);
 
     private static ProgressSectionDto BasicSection(StudentProgressDto progress)
         => progress.Classes.Single().Sections.Single(s => s.Section == "Theorie-Grundstoff");
@@ -208,11 +201,9 @@ public class StudentPriorLicenseTests
         // § 4 only asks whether a Fahrerlaubnis exists at all.
         await using (var db = NewDb())
         {
-            var akte = await Students(db).GetAkteAsync(_student);
-            await Students(db).UpdateAsync(_student, new UpdateStudentRequest
+            await Students(db).SetPriorLicenseAsync(_student, new SetStudentPriorLicenseRequest
             {
-                FirstName = "Max", LastName = "Muster", Version = akte.Version,
-                PriorLicenseNote = "Führerschein Klasse B (Polen)",
+                Note = "Führerschein Klasse B (Polen)",
             }, TestActor);
         }
 
@@ -231,10 +222,9 @@ public class StudentPriorLicenseTests
 
         await using (var db = NewDb())
         {
-            var akte = await Students(db).GetAkteAsync(_student);
-            await Students(db).UpdateAsync(_student, new UpdateStudentRequest
+            await Students(db).SetPriorLicenseAsync(_student, new SetStudentPriorLicenseRequest
             {
-                FirstName = "Max", LastName = "Muster", Version = akte.Version,
+                LicenseClassIds = [_classA1],
                 RequiredBasicTheoryLessonsOverride = 12,
                 RequiredBasicTheoryLessonsOverrideReason = "Mofa-Prüfbescheinigung ist keine Fahrerlaubnis",
             }, TestActor);
@@ -294,6 +284,50 @@ public class StudentPriorLicenseTests
         Assert.Empty(after.PriorLicense.Classes);
         Assert.False(after.PriorLicense.HasPriorLicense);
         Assert.Equal(12, after.PriorLicense.RequiredBasicTheoryLessons);
+    }
+
+    [Fact]
+    public async Task A_brand_new_student_gets_the_reduced_Grundstoff_from_the_first_class_on()
+    {
+        // The path that has not been walked by hand yet: create a student, record
+        // the Vorbesitz, THEN add the class. The plan snapshot is only built when
+        // the progress is first read, so the reduced target has to survive that.
+        await SeedAsync();
+
+        Guid newStudent;
+        await using (var db = NewDb())
+        {
+            var created = await Students(db).CreateAsync(new CreateStudentRequest
+            {
+                FirstName = "Nina", LastName = "Neu", DateOfBirth = new DateOnly(2006, 3, 1),
+            }, TestActor);
+            newStudent = created.Id;
+        }
+
+        await using (var db = NewDb())
+        {
+            var service = Students(db);
+            await service.SetPriorLicenseAsync(newStudent,
+                new SetStudentPriorLicenseRequest { LicenseClassIds = [_classA1] }, TestActor);
+
+            // Even before any class is added, the file must state the right number
+            // (there is no plan snapshot yet - it falls back to the current plan).
+            var withPrior = await service.GetAkteAsync(newStudent);
+            Assert.Equal(6, withPrior.PriorLicense.RequiredBasicTheoryLessons);
+        }
+
+        await using (var db = NewDb())
+        {
+            await Students(db).AddLicenseClassAsync(newStudent, _classB, TestActor);
+        }
+
+        await using var check = NewDb();
+        var progress = await Progress(check).GetForStudentAsync(newStudent);
+        var section = progress.Classes.Single().Sections.Single(s => s.Section == "Theorie-Grundstoff");
+
+        Assert.Equal(6, section.RequiredDoneCount);
+        Assert.True(section.ReducedByPriorLicense);
+        Assert.Equal(12, section.Items.Count);
     }
 
     private sealed class NullAudit : IAuditWriter
