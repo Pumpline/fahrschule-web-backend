@@ -352,8 +352,8 @@ Stunde** übernehmen – ohne die Stunde getrennt neu einzutippen:
 - **Abschnitt „Prüfungen"** (Datum / Art / Klasse / Versuch / Ergebnis): zeigt die
   **echten** Theorie- und Praxisprüfungen chronologisch, mit Versuchsnummer und
   Ergebnis (bestanden / nicht bestanden / geplant). **Vorprüfungen** stehen bewusst
-  **nicht** darin – sie sind interne Proben ohne Prüfungsversuch; hat der Schüler
-  welche, erklärt das eine kleine Fußnote, damit nichts stillschweigend fehlt.
+  **nicht** darin – sie sind interne Proben ohne Prüfungsversuch und gehören nicht
+  auf den amtlichen Nachweis.
 - Felder ohne Wert (z. B. noch keine Journalnummer) bleiben als **leere Linie** zum
   Ausfüllen von Hand stehen; ein leerer Prüfungs-Abschnitt zeigt „—".
 - Die **FL-Spalte** (Fahrlehrer-Nummer) zeigt die in den Einstellungen gepflegte

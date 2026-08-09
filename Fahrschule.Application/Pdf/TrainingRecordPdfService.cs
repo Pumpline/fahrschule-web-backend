@@ -253,8 +253,7 @@ public class TrainingRecordDocument(
     /// <summary>
     /// The exams taken (KONZEPT 3.4). Only REAL exams appear here: a "Vorprüfung"
     /// is an internal rehearsal, counts as no attempt and has no place on the
-    /// official record - a footnote says so when the student has any, so nothing
-    /// looks silently dropped.
+    /// official record.
     /// </summary>
     private void ExamTable(ColumnDescriptor col)
     {
@@ -294,13 +293,6 @@ public class TrainingRecordDocument(
                 Body(table.Cell(), ExamResultLabel(e.Result));
             }
         });
-
-        if (exams.Any(e => e.IsPreliminary))
-        {
-            col.Item().PaddingTop(2).Text(
-                "Interne Vorprüfungen sind hier nicht aufgeführt – sie zählen nicht als Prüfungsversuch.")
-                .FontSize(7.5f).FontColor(Colors.Grey.Darken1);
-        }
     }
 
     /// <summary>German label for the exam kind ("Theory"/"Practice" from the API).</summary>
