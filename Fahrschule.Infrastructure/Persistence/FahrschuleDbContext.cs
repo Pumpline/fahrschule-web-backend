@@ -152,12 +152,17 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
         {
             student.Property(x => x.FirstName).HasMaxLength(100);
             student.Property(x => x.LastName).HasMaxLength(100);
+            student.Property(x => x.JournalNumber).HasMaxLength(30);
             student.Property(x => x.Email).HasMaxLength(256);
             student.Property(x => x.Phone).HasMaxLength(50);
             student.Property(x => x.Address).HasMaxLength(400);
             student.Property(x => x.Notes).HasMaxLength(2000);
 
             student.HasIndex(x => x.LastName);
+            // The list can be searched by the journal number - index it, but NOT
+            // unique: the check runs in the service (case-insensitive, and only
+            // against students that are not soft-deleted).
+            student.HasIndex(x => x.JournalNumber);
             student.HasQueryFilter(x => !x.IsDeleted);
             student.Property<uint>("xmin").IsRowVersion();
         });

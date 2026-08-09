@@ -16,6 +16,14 @@ public class Student : ISoftDeletable
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
 
+    /// <summary>
+    /// The driving school's own record number for this student ("Journalnummer" /
+    /// Schülerverzeichnis-Nr.). It links the digital file to the paper journal and
+    /// is printed on the documents, so it is NOT hidden behind the reveal button:
+    /// the office needs it at a glance. Free text (numbers, letters, "2026/014").
+    /// </summary>
+    public string? JournalNumber { get; set; }
+
     /// <summary>Date of birth - needed to check the minimum age per licence class.</summary>
     public DateOnly? DateOfBirth { get; set; }
 

@@ -65,13 +65,16 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             .Include(s => s.LicenseClasses).ThenInclude(lc => lc.LicenseClass)
             .AsQueryable();
 
-        // Name search (first or last name contains the term, case-insensitive).
+        // Search: first name, last name or the record number ("Journalnummer")
+        // contains the term, case-insensitive. The number is included so the
+        // office can go straight from the paper journal to the file.
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var term = query.Search.Trim();
             students = students.Where(s =>
                 EF.Functions.ILike(s.FirstName, $"%{term}%") ||
-                EF.Functions.ILike(s.LastName, $"%{term}%"));
+                EF.Functions.ILike(s.LastName, $"%{term}%") ||
+                (s.JournalNumber != null && EF.Functions.ILike(s.JournalNumber, $"%{term}%")));
         }
 
         // Filter: has a registration for this class.
@@ -103,6 +106,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             {
                 Id = s.Id,
                 FullName = $"{s.FirstName} {s.LastName}".Trim(),
+                JournalNumber = s.JournalNumber,
                 ClassCodes = [.. s.LicenseClasses
                     .Where(lc => lc.LicenseClass != null)
                     .Select(lc => lc.LicenseClass!.Code)
@@ -121,12 +125,17 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         var lastName = Clean(request.LastName);
         ValidateNames(firstName, lastName);
 
+        var journalNumber = NullIfEmpty(request.JournalNumber);
+        ValidateJournalNumber(journalNumber);
+        await EnsureJournalNumberIsFreeAsync(journalNumber, null, ct);
+
         var now = DateTime.UtcNow;
         var student = new Student
         {
             Id = Guid.NewGuid(),
             FirstName = firstName!,
             LastName = lastName!,
+            JournalNumber = journalNumber,
             DateOfBirth = request.DateOfBirth,
             Email = NullIfEmpty(request.Email),
             Phone = NullIfEmpty(request.Phone),
@@ -152,13 +161,19 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         var lastName = Clean(request.LastName);
         ValidateNames(firstName, lastName);
 
+        var journalNumber = NullIfEmpty(request.JournalNumber);
+        ValidateJournalNumber(journalNumber);
+        await EnsureJournalNumberIsFreeAsync(journalNumber, id, ct);
+
         var oldSnapshot = Snapshot(student);
 
-        // The name is always editable. The sensitive fields are only overwritten
-        // when the client actually loaded/edited them (EditableFields) - otherwise
-        // an unrevealed field would be wiped on save (lazy-load safety).
+        // Name and journal number are always editable (they are never hidden).
+        // The sensitive fields are only overwritten when the client actually
+        // loaded/edited them (EditableFields) - otherwise an unrevealed field
+        // would be wiped on save (lazy-load safety).
         student.FirstName = firstName!;
         student.LastName = lastName!;
+        student.JournalNumber = journalNumber;
         var editable = request.EditableFields ?? [];
         if (editable.Contains("dateOfBirth")) student.DateOfBirth = request.DateOfBirth;
         if (editable.Contains("email")) student.Email = NullIfEmpty(request.Email);
@@ -352,11 +367,47 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         if (errors.Count > 0) throw new AppValidationException(string.Join(" ", errors));
     }
 
+    private static void ValidateJournalNumber(string? journalNumber)
+    {
+        if (journalNumber is not null && journalNumber.Length > StudentRules.MaxJournalNumberLength)
+        {
+            throw new AppValidationException(
+                $"Die Journalnummer darf höchstens {StudentRules.MaxJournalNumberLength} Zeichen lang sein.");
+        }
+    }
+
+    /// <summary>
+    /// A journal number identifies exactly one student on the printed documents,
+    /// so the same number must not sit on two files. Compared case-insensitively
+    /// against the students that are still in the list; a number of a student
+    /// marked for deletion stays blocked as long as that record exists (it can be
+    /// restored). <paramref name="ownId"/> excludes the student being edited.
+    /// </summary>
+    private async Task EnsureJournalNumberIsFreeAsync(string? journalNumber, Guid? ownId, CancellationToken ct)
+    {
+        if (journalNumber is null) return;
+
+        // Stored numbers are already trimmed, so upper-casing both sides is enough
+        // for the comparison - and it translates to SQL (upper(...)).
+        var normalized = StudentRules.NormalizeJournalNumber(journalNumber);
+        var clash = await db.Students.IgnoreQueryFilters()
+            .Where(s => s.Id != ownId && s.JournalNumber != null && s.JournalNumber.ToUpper() == normalized)
+            .Select(s => new { s.IsDeleted })
+            .FirstOrDefaultAsync(ct);
+        if (clash is null) return;
+
+        throw new AppValidationException(clash.IsDeleted
+            ? $"Die Journalnummer „{journalNumber}\" gehört zu einem Schüler, der zur Löschung vorgemerkt ist. " +
+              "Bitte eine andere Nummer verwenden."
+            : $"Die Journalnummer „{journalNumber}\" ist bereits bei einem anderen Schüler eingetragen.");
+    }
+
     private StudentDetailDto ToDetailDto(Student s) => new()
     {
         Id = s.Id,
         FirstName = s.FirstName,
         LastName = s.LastName,
+        JournalNumber = s.JournalNumber,
         DateOfBirth = s.DateOfBirth,
         Email = s.Email,
         Phone = s.Phone,
@@ -373,6 +424,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         Id = s.Id,
         FirstName = s.FirstName,
         LastName = s.LastName,
+        JournalNumber = s.JournalNumber,
         Classes = ClassDtos(s),
         Version = db.Entry(s).Property<uint>("xmin").CurrentValue,
         Fields =
@@ -404,7 +456,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
     /// but never special categories, as we don't store any.</summary>
     private static string Snapshot(Student s) => JsonSerializer.Serialize(new
     {
-        s.FirstName, s.LastName, s.DateOfBirth, s.Email, s.Phone, s.Address, s.Notes,
+        s.FirstName, s.LastName, s.JournalNumber, s.DateOfBirth, s.Email, s.Phone, s.Address, s.Notes,
     });
 
     private static string? Clean(string? value) => value?.Trim();

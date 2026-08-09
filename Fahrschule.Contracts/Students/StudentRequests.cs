@@ -11,6 +11,9 @@ public class CreateStudentRequest
     [Required(ErrorMessage = "Bitte den Nachnamen eintragen.")]
     public string LastName { get; set; } = string.Empty;
 
+    /// <summary>The record number ("Journalnummer"), optional.</summary>
+    public string? JournalNumber { get; set; }
+
     public DateOnly? DateOfBirth { get; set; }
     public string? Email { get; set; }
     public string? Phone { get; set; }
@@ -26,6 +29,10 @@ public class UpdateStudentRequest
 
     [Required(ErrorMessage = "Bitte den Nachnamen eintragen.")]
     public string LastName { get; set; } = string.Empty;
+
+    /// <summary>The record number ("Journalnummer"). Like the name it is always
+    /// applied - it is never hidden, so it is never sent blank by accident.</summary>
+    public string? JournalNumber { get; set; }
 
     public DateOnly? DateOfBirth { get; set; }
     public string? Email { get; set; }

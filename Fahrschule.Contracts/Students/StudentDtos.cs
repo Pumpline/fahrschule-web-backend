@@ -18,6 +18,10 @@ public class StudentListItemDto
 {
     public Guid Id { get; set; }
     public string FullName { get; set; } = string.Empty;
+
+    /// <summary>The driving school's own record number ("Journalnummer"), so the
+    /// list can be matched against the paper journal.</summary>
+    public string? JournalNumber { get; set; }
     /// <summary>Codes of the active licence classes, e.g. ["B", "A1"].</summary>
     public string[] ClassCodes { get; set; } = [];
     /// <summary>Aggregated progress in percent (phase-based stand-in until step 4).</summary>
@@ -43,6 +47,7 @@ public class StudentDetailDto
     public Guid Id { get; set; }
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
+    public string? JournalNumber { get; set; }
     public DateOnly? DateOfBirth { get; set; }
     public string? Email { get; set; }
     public string? Phone { get; set; }
@@ -65,6 +70,12 @@ public class StudentAkteDto
     public Guid Id { get; set; }
     public string FirstName { get; set; } = string.Empty;
     public string LastName { get; set; } = string.Empty;
+
+    /// <summary>The record number ("Journalnummer"). Like the name it is shown
+    /// openly: it is an internal file number the office needs constantly, and it
+    /// is printed on the documents anyway.</summary>
+    public string? JournalNumber { get; set; }
+
     public List<StudentLicenseClassDto> Classes { get; set; } = [];
     public uint Version { get; set; }
 

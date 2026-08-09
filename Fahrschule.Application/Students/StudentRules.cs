@@ -9,6 +9,17 @@ public static class StudentRules
 {
     public const int MaxNameLength = 100;
 
+    /// <summary>Maximum length of the record number ("Journalnummer") - matches
+    /// the database column.</summary>
+    public const int MaxJournalNumberLength = 30;
+
+    /// <summary>
+    /// The comparison form of a journal number: trimmed and upper-cased, so
+    /// "2026/014" and " 2026/014 " - or "a12" and "A12" - count as the same
+    /// number when checking that it is only used once.
+    /// </summary>
+    public static string NormalizeJournalNumber(string value) => value.Trim().ToUpperInvariant();
+
     /// <summary>Full age in years at <paramref name="onDate"/> for the given
     /// birth date (handles the birthday-not-yet-reached case).</summary>
     public static int AgeInYears(DateOnly birthDate, DateOnly onDate)

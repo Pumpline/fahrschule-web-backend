@@ -1,4 +1,5 @@
 using Fahrschule.Application.Audit;
+using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
 using Fahrschule.Application.Students;
 using Fahrschule.Contracts.Students;
@@ -32,7 +33,7 @@ public class StudentMasterDataTests
         await using var db = NewDb();
         db.Students.Add(new Student
         {
-            Id = _id, FirstName = "Lisa", LastName = "Wagner",
+            Id = _id, FirstName = "Lisa", LastName = "Wagner", JournalNumber = "2026/014",
             DateOfBirth = new DateOnly(2006, 5, 1),
             Email = "lisa@example.com", Phone = null, Address = "Hauptstr. 1", Notes = null,
             CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow,
@@ -86,7 +87,7 @@ public class StudentMasterDataTests
         {
             await NewService(db).UpdateAsync(_id, new UpdateStudentRequest
             {
-                FirstName = "Lisa", LastName = "Wagner", Version = version,
+                FirstName = "Lisa", LastName = "Wagner", JournalNumber = "2026/014", Version = version,
                 DateOfBirth = new DateOnly(2006, 5, 1), Email = "lisa@example.com",
                 Phone = null, Address = "Hauptstr. 1", Notes = null,
                 EditableFields = ["dateOfBirth", "email", "phone", "address", "notes"],
@@ -96,6 +97,54 @@ public class StudentMasterDataTests
         await using (var db = NewDb())
         {
             Assert.False(await db.AuditLogs.AnyAsync(a => a.Action == "Geändert" && a.EntityType == "Schüler"));
+        }
+    }
+
+    [Fact]
+    public async Task Journal_number_is_visible_in_the_akte_like_the_name()
+    {
+        await SeedAsync();
+        await using var db = NewDb();
+        var akte = await NewService(db).GetAkteAsync(_id);
+
+        // It is a file number the office needs at a glance, so it is NOT one of
+        // the hidden fields behind the reveal button - it comes with the Akte.
+        Assert.Equal("2026/014", akte.JournalNumber);
+        Assert.DoesNotContain(akte.Fields, f => f.Key == "journalNumber");
+    }
+
+    [Fact]
+    public async Task The_same_journal_number_cannot_be_used_twice()
+    {
+        await SeedAsync();
+        await using var db = NewDb();
+
+        // Different spelling, same number - the check ignores case and spaces.
+        var error = await Assert.ThrowsAsync<AppValidationException>(() =>
+            NewService(db).CreateAsync(new CreateStudentRequest
+            {
+                FirstName = "Tom", LastName = "Berger", JournalNumber = " 2026/014 ",
+            }, TestActor));
+
+        Assert.Contains("bereits", error.Message);
+    }
+
+    [Fact]
+    public async Task A_student_may_keep_their_own_journal_number_when_saving()
+    {
+        await SeedAsync();
+
+        uint version;
+        await using (var db = NewDb()) version = (await NewService(db).GetAkteAsync(_id)).Version;
+
+        await using (var db = NewDb())
+        {
+            var akte = await NewService(db).UpdateAsync(_id, new UpdateStudentRequest
+            {
+                FirstName = "Lisa", LastName = "Wagner", JournalNumber = "2026/014", Version = version,
+            }, TestActor);
+
+            Assert.Equal("2026/014", akte.JournalNumber);
         }
     }
 
@@ -113,7 +162,7 @@ public class StudentMasterDataTests
         {
             await NewService(db).UpdateAsync(_id, new UpdateStudentRequest
             {
-                FirstName = "Lisa", LastName = "Wagner", Version = version,
+                FirstName = "Lisa", LastName = "Wagner", JournalNumber = "2026/014", Version = version,
                 Phone = "0123 456", Email = null,
                 EditableFields = ["phone"],
             }, TestActor);

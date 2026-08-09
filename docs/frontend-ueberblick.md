@@ -111,9 +111,11 @@ Benutzer (Name, Rollen) aus den API-Antworten.
 
 Das erste große Fachmodul mit eigener Liste und Detailseite:
 
-- **StudentsListPage**: Namenssuche, Klassen-Filter (ein Chip) und Stand-Filter
-  (mehrere Phase-Chips), Fortschrittsbalken je Zeile, Paging, „Neuer Schüler"-
-  Dialog. Datensparsamkeit: die Liste zeigt nur den aggregierten Fortschritt.
+- **StudentsListPage**: Suche über **Name oder Journalnummer**, Klassen-Filter
+  (ein Chip) und Stand-Filter (mehrere Phase-Chips), Spalte „Journalnr.",
+  Fortschrittsbalken je Zeile, Paging, „Neuer Schüler"-Dialog (mit optionaler
+  Journalnummer). Datensparsamkeit: die Liste zeigt nur den aggregierten
+  Fortschritt.
 - **StudentDetailPage** (die „Akte"): Stammdaten mit **bedarfsgesteuerter
   Augen-Enthüllung pro Feld** (Datensparsamkeit, KONZEPT 3.1 / DSGVO): Die Akte
   wird **ohne** die sensiblen Werte geladen – das Backend meldet nur, *welche*
@@ -123,7 +125,10 @@ Das erste große Fachmodul mit eigener Liste und Detailseite:
   Felder werden direkt bearbeitbar angezeigt (kein Auge – es gibt nichts zu
   schützen). Adresse ist **ein** Freitextfeld (Straße/PLZ/Ort zusammengefasst).
   Gespeichert werden nur die aufgedeckten/leeren Felder (`editableFields`), damit
-  ein verdeckter Wert nie versehentlich überschrieben wird. Darunter die
+  ein verdeckter Wert nie versehentlich überschrieben wird. **Name und
+  Journalnummer** stehen dagegen offen da (und die Journalnummer zusätzlich unter
+  der Überschrift): Die Nummer ist eine interne Aktennummer, die das Büro ständig
+  braucht und die ohnehin auf dem Ausbildungsnachweis steht. Darunter die
   Führerscheinklassen mit **Status pro Klasse** (Phasen-Auswahl), Klasse
   hinzufügen (mit Mindestalter-Prüfung) / entfernen, und Löschen (Soft-Delete).
 - **StudentDocuments** (eingebettet in die Akte): die aus dem Katalog

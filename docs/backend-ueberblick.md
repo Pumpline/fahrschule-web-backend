@@ -184,12 +184,22 @@ werden auditiert.
 - **Student** (Stammdaten, Soft-Delete, xmin) + **StudentLicenseClass**:
   die Phase liegt **pro Klasse** (Theory → TheoryExam → Practice →
   PracticeExam → Completed), nicht pro Schüler.
-- **Datensparsamkeit**: nur Vertragsdaten (Name, Geburtsdatum, Kontakt,
-  Adresse, Notiz) – keine besonderen Kategorien.
+- **Datensparsamkeit**: nur Vertragsdaten (Name, Journalnummer, Geburtsdatum,
+  Kontakt, Adresse, Notiz) – keine besonderen Kategorien.
+- **Journalnummer** (`Student.JournalNumber`, max. 30 Zeichen, optional): die
+  eigene Aktennummer der Fahrschule („Schülerverzeichnis-Nr."), die die digitale
+  Akte mit dem Papier-Journal verbindet. Sie steht auf dem Ausbildungsnachweis
+  und ist – anders als Geburtsdatum/Kontakt – **nicht** hinter dem 👁 versteckt:
+  sie kommt wie der Name direkt mit der Akte (`StudentAkteDto.JournalNumber`) und
+  steht auch in der Liste. Beim Speichern prüft `StudentService`, dass die Nummer
+  **nur einmal** vergeben ist (Vergleich ohne Groß-/Kleinschreibung und
+  Leerzeichen, `StudentRules.NormalizeJournalNumber`); Nummern von zur Löschung
+  vorgemerkten Schülern bleiben blockiert, solange diese wiederherstellbar sind.
 - `StudentService`: Liste mit **Suche + Klassen-/Phasen-Filter + Paging**,
-  CRUD, Klasse hinzufügen/entfernen, Phase setzen. Beim Hinzufügen einer
-  Klasse prüft `StudentRules.CheckMinimumAge` das Mindestalter gegen die
-  Klasse (Ausbildung darf bis zu 1 Jahr vor dem Mindestalter beginnen).
+  CRUD, Klasse hinzufügen/entfernen, Phase setzen. Die Suche greift auf Vorname,
+  Nachname **und Journalnummer** (so kommt man vom Papierordner zur Akte). Beim
+  Hinzufügen einer Klasse prüft `StudentRules.CheckMinimumAge` das Mindestalter
+  gegen die Klasse (Ausbildung darf bis zu 1 Jahr vor dem Mindestalter beginnen).
 - **Fortschritt %**: vorerst aus der Phase abgeleitet (`StudentRules`),
   bis die echte Stunden-/Prüfungserfassung kommt (Schritt 4).
 - Gleiches Muster wie überall: Audit-Log, Soft-Delete, xmin-Konfliktschutz.
@@ -326,21 +336,30 @@ Stunde** übernehmen – ohne die Stunde getrennt neu einzutippen:
 
 - **`TrainingRecordPdfService`** erzeugt den druckbaren Ausbildungsnachweis mit
   **QuestPDF** (Community-Lizenz – für Kleinbetriebe kostenlos, einmalig im
-  statischen Konstruktor gesetzt). Es ruft Schüler- und **Stunden**-Service ab,
-  sodass das PDF genau die eingetragenen Theorie- und Praxisstunden auflistet;
-  das Layout liegt in `TrainingRecordDocument`.
+  statischen Konstruktor gesetzt). Es ruft Schüler-, **Stunden**- und
+  **Prüfungs**-Service ab, sodass das PDF genau die eingetragenen Theorie- und
+  Praxisstunden sowie die Prüfungen auflistet; das Layout liegt in
+  `TrainingRecordDocument`.
 - **Inhaltsgleich zum amtlichen Vordruck** (§ 31 Abs. 1 FahrlG / § 6 Abs. 2
   FahrSchAusbO), aber **kein Nachbau** des urheberrechtlich geschützten Formulars –
   eigenes, sauberes Layout mit denselben rechtlich geforderten Feldern/Spalten.
 - Inhalt: Kopf mit Fahrschul-Stammdaten + Schülerblock (Familienname, Vorname,
-  Anschrift, Geburtsdatum, beantragte Klassen; leere Linien für Schülerverzeichnis-
-  Nr. und Vorbesitz). Dann **Theoretischer Unterricht** getrennt nach
-  Grundunterricht (Grundstoff) und klassenspezifischem Unterricht (Zusatzstoff),
-  **Praktische Ausbildung** (Datum / Art u. Inhalt / Beginn / Min.), Summenzeile
-  und Unterschriftsfelder.
-- Die **FL-Spalte** (Fahrlehrer-Nummer) bleibt leer und wird per Hand ausgefüllt –
-  es gibt keine Fahrlehrer-Stammdaten im System. Die „Art u. Inhalt"-Spalte zeigt
-  den eingetragenen Text **vollständig** (kein automatisches Kürzel-Raten).
+  Anschrift, Geburtsdatum, beantragte Klassen, **Schülerverzeichnis-Nr.
+  (Journalnummer)**; leere Linie für Vorbesitz). Dann **Theoretischer Unterricht**
+  getrennt nach Grundunterricht (Grundstoff) und klassenspezifischem Unterricht
+  (Zusatzstoff), **Praktische Ausbildung** (Datum / Art u. Inhalt / Beginn / Min.),
+  Summenzeile, **Prüfungen** und Unterschriftsfelder.
+- **Abschnitt „Prüfungen"** (Datum / Art / Klasse / Versuch / Ergebnis): zeigt die
+  **echten** Theorie- und Praxisprüfungen chronologisch, mit Versuchsnummer und
+  Ergebnis (bestanden / nicht bestanden / geplant). **Vorprüfungen** stehen bewusst
+  **nicht** darin – sie sind interne Proben ohne Prüfungsversuch; hat der Schüler
+  welche, erklärt das eine kleine Fußnote, damit nichts stillschweigend fehlt.
+- Felder ohne Wert (z. B. noch keine Journalnummer) bleiben als **leere Linie** zum
+  Ausfüllen von Hand stehen; ein leerer Prüfungs-Abschnitt zeigt „—".
+- Die **FL-Spalte** (Fahrlehrer-Nummer) zeigt die in den Einstellungen gepflegte
+  Nummer (Standard „01"), die Legende nennt dazu den Namen des Fahrlehrers. Die
+  „Art u. Inhalt"-Spalte zeigt den eingetragenen Text **vollständig** (kein
+  automatisches Kürzel-Raten).
 - Endpunkt `GET /api/students/{id}/ausbildungsnachweis` → liefert die PDF-Datei.
   Frontend: Button „🖨 Ausbildungsnachweis (PDF)" im Stammdaten-Tab lädt sie über
   HttpClient (damit der Auth-Interceptor das Token erneuern kann).

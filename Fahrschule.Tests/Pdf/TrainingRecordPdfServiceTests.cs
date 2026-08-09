@@ -10,7 +10,9 @@ namespace Fahrschule.Tests.Pdf;
 
 /// <summary>
 /// Smoke test for the training-record PDF (KONZEPT 3.3/7): it should produce a
-/// non-trivial, valid PDF for a seeded student. In-memory provider.
+/// non-trivial, valid PDF for a seeded student. The seed deliberately covers
+/// every section - theory + practice lessons, a real and a preliminary exam - so
+/// a broken layout (QuestPDF throws on those) fails here. In-memory provider.
 /// </summary>
 public class TrainingRecordPdfServiceTests
 {
@@ -28,6 +30,7 @@ public class TrainingRecordPdfServiceTests
         db.Students.Add(new Student
         {
             Id = studentId, FirstName = "Lisa", LastName = "Wagner", DateOfBirth = new DateOnly(2007, 9, 2),
+            JournalNumber = "2026/014",
             LicenseClasses = { new StudentLicenseClass { LicenseClassId = classB, Phase = StudentPhase.Practice } },
         });
         db.CurriculumItems.Add(new CurriculumItem
@@ -51,12 +54,27 @@ public class TrainingRecordPdfServiceTests
             DateOn = new DateOnly(2026, 5, 5), StartTime = new TimeOnly(14, 0), DurationMinutes = 45,
             Note = "Überlandfahrt", CreatedAtUtc = DateTime.UtcNow,
         });
+        // A real (listed) and a preliminary exam (only noted, not listed).
+        db.Exams.Add(new Exam
+        {
+            Id = Guid.NewGuid(), StudentId = studentId, LicenseClassId = classB,
+            Kind = ExamKind.Theory, IsPreliminary = false,
+            DateOn = new DateOnly(2026, 5, 12), Result = ExamResult.Passed, CreatedAtUtc = DateTime.UtcNow,
+        });
+        db.Exams.Add(new Exam
+        {
+            Id = Guid.NewGuid(), StudentId = studentId, LicenseClassId = classB,
+            Kind = ExamKind.Theory, IsPreliminary = true,
+            DateOn = new DateOnly(2026, 5, 4), Result = ExamResult.Passed, CreatedAtUtc = DateTime.UtcNow,
+        });
         await db.SaveChangesAsync();
 
+        var settings = new SettingsService(db, audit);
         var service = new TrainingRecordPdfService(
             new StudentService(db, audit),
             new LessonService(db, audit),
-            new SettingsService(db, audit));
+            new ExamService(db, settings, audit),
+            settings);
 
         var (content, fileName) = await service.GenerateAsync(studentId);
 

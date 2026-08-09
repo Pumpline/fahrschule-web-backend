@@ -17,17 +17,18 @@ public interface ITrainingRecordPdfService
 /// <summary>
 /// Generates the printable Ausbildungsnachweis (training record, KONZEPT 3.3/7):
 /// a record of the student's recorded THEORY and PRACTICAL lessons (date, start
-/// time, minutes, topic), modelled on the official form per § 31 Abs. 1 FahrlG /
-/// § 6 Abs. 2 FahrSchAusbO. It is a content-equivalent of the official paper form
-/// (which is copyrighted) - NOT a copy of its layout.
+/// time, minutes, topic) plus the exams taken, modelled on the official form per
+/// § 31 Abs. 1 FahrlG / § 6 Abs. 2 FahrSchAusbO. It is a content-equivalent of
+/// the official paper form (which is copyrighted) - NOT a copy of its layout.
 ///
 /// Built with QuestPDF (Community licence - allowed for this small family
 /// business). Layout lives in <see cref="TrainingRecordDocument"/>. It reuses the
-/// lesson service so the PDF shows exactly the entered lessons.
+/// lesson and exam services so the PDF shows exactly what was entered.
 /// </summary>
 public class TrainingRecordPdfService(
     IStudentService students,
     ILessonService lessons,
+    IExamService exams,
     ISettingsService settings) : ITrainingRecordPdfService
 {
     static TrainingRecordPdfService()
@@ -40,10 +41,11 @@ public class TrainingRecordPdfService(
     {
         var student = await students.GetByIdAsync(studentId, ct);
         var lessonList = await lessons.GetForStudentAsync(studentId, ct);
+        var examList = await exams.GetForStudentAsync(studentId, ct);
         var appSettings = await settings.GetAsync(ct);
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-        var bytes = new TrainingRecordDocument(student, lessonList, appSettings, today).GeneratePdf();
+        var bytes = new TrainingRecordDocument(student, lessonList, examList.Exams, appSettings, today).GeneratePdf();
         var fileName = $"Ausbildungsnachweis_{Sanitize(student.LastName)}_{Sanitize(student.FirstName)}.pdf";
         return (bytes, fileName);
     }
@@ -59,6 +61,7 @@ public class TrainingRecordPdfService(
 public class TrainingRecordDocument(
     StudentDetailDto student,
     List<LessonDto> lessons,
+    List<ExamDto> exams,
     AppSettingsDto settings,
     DateOnly generatedOn) : IDocument
 {
@@ -99,6 +102,11 @@ public class TrainingRecordDocument(
                 PracticeTable(col, practice);
 
                 Summary(col, theory, practice);
+
+                // --- Exams (KONZEPT 3.4) ---
+                col.Item().PaddingTop(4).Text("Prüfungen").FontSize(11).Bold();
+                ExamTable(col);
+
                 Legend(col);
                 Signatures(col);
             });
@@ -140,6 +148,8 @@ public class TrainingRecordDocument(
     {
         var dob = student.DateOfBirth is { } d ? d.ToString("dd.MM.yyyy") : Line;
         var classes = student.Classes.Count > 0 ? string.Join(", ", student.Classes.Select(c => c.Code)) : Line;
+        // The school's own record number; still a blank line when not entered yet.
+        var journalNumber = NotBlank(student.JournalNumber) ? student.JournalNumber! : Line;
 
         col.Item().Row(row =>
         {
@@ -153,7 +163,7 @@ public class TrainingRecordDocument(
             row.ConstantItem(16);
             row.RelativeItem().Column(right =>
             {
-                Field(right, "Schülerverzeichnis-Nr.", Line);
+                Field(right, "Schülerverzeichnis-Nr. (Journalnummer)", journalNumber);
                 Field(right, "Beantragte Klasse(n)", classes);
                 Field(right, "Vorbesitz Klasse(n)", Line);
             });
@@ -239,6 +249,76 @@ public class TrainingRecordDocument(
             }
         });
     }
+
+    /// <summary>
+    /// The exams taken (KONZEPT 3.4). Only REAL exams appear here: a "Vorprüfung"
+    /// is an internal rehearsal, counts as no attempt and has no place on the
+    /// official record - a footnote says so when the student has any, so nothing
+    /// looks silently dropped.
+    /// </summary>
+    private void ExamTable(ColumnDescriptor col)
+    {
+        var real = exams.Where(e => !e.IsPreliminary)
+            .OrderBy(e => e.DateOn).ThenBy(e => e.AttemptNumber ?? 0).ToList();
+
+        col.Item().Table(table =>
+        {
+            table.ColumnsDefinition(c =>
+            {
+                c.ConstantColumn(64);   // Datum
+                c.RelativeColumn();     // Art
+                c.ConstantColumn(50);   // Klasse
+                c.ConstantColumn(50);   // Versuch
+                c.ConstantColumn(84);   // Ergebnis
+            });
+            table.Header(h =>
+            {
+                Head(h.Cell(), "Datum");
+                Head(h.Cell(), "Art");
+                Head(h.Cell(), "Klasse", center: true);
+                Head(h.Cell(), "Versuch", center: true);
+                Head(h.Cell(), "Ergebnis");
+            });
+
+            if (real.Count == 0)
+            {
+                table.Cell().ColumnSpan(5).Element(Cell).Text("—").FontColor(Colors.Grey.Darken1);
+                return;
+            }
+            foreach (var e in real)
+            {
+                Body(table.Cell(), e.DateOn.ToString("dd.MM.yyyy"));
+                Body(table.Cell(), ExamKindLabel(e));
+                Body(table.Cell(), NotBlank(e.ClassCode) ? e.ClassCode : "—", center: true);
+                Body(table.Cell(), e.AttemptNumber is { } n ? $"{n}." : "—", center: true);
+                Body(table.Cell(), ExamResultLabel(e.Result));
+            }
+        });
+
+        if (exams.Any(e => e.IsPreliminary))
+        {
+            col.Item().PaddingTop(2).Text(
+                "Interne Vorprüfungen sind hier nicht aufgeführt – sie zählen nicht als Prüfungsversuch.")
+                .FontSize(7.5f).FontColor(Colors.Grey.Darken1);
+        }
+    }
+
+    /// <summary>German label for the exam kind ("Theory"/"Practice" from the API).</summary>
+    private static string ExamKindLabel(ExamDto exam) => exam.Kind switch
+    {
+        "Theory" => "Theoretische Prüfung",
+        "Practice" => "Praktische Prüfung",
+        _ => exam.Kind,
+    };
+
+    /// <summary>German label for the exam result ("Planned"/"Passed"/"Failed").</summary>
+    private static string ExamResultLabel(string result) => result switch
+    {
+        "Passed" => "bestanden",
+        "Failed" => "nicht bestanden",
+        "Planned" => "geplant",
+        _ => result,
+    };
 
     private void Summary(ColumnDescriptor col, List<LessonDto> theory, List<LessonDto> practice)
     {
