@@ -41,6 +41,21 @@ public class AppSettingsDto
     /// </summary>
     public int TheoryValidityYears { get; set; }
 
+    /// <summary>
+    /// Grundstoff double lessons required for a FIRST licence (§ 4 Abs. 3
+    /// FahrschAusbO: "mindestens zwölf Doppelstunden"). Default 12. Class-
+    /// independent - the regulation makes no distinction here, which is why this
+    /// is a setting and not a per-class number like the Zusatzstoff.
+    /// </summary>
+    public int TheoryBasicDoubleLessons { get; set; }
+
+    /// <summary>
+    /// Grundstoff double lessons when the student ALREADY holds a licence
+    /// ("Besitzt der Fahrschüler bereits eine Fahrerlaubnis, so beträgt der Umfang
+    /// mindestens sechs Doppelstunden"). Default 6.
+    /// </summary>
+    public int TheoryBasicDoubleLessonsWithPriorLicense { get; set; }
+
     // --- Lesson entry (KONZEPT 3.3) - editable quick durations, project rule 3 ---
 
     /// <summary>The duration pre-selected in the "Stunde eintragen" dialog

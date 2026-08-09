@@ -2,6 +2,7 @@ using System.Text.Json;
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
+using Fahrschule.Application.Settings;
 using Fahrschule.Contracts.Admin;
 using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
@@ -37,6 +38,11 @@ public interface IStudentService
     Task DeleteAsync(Guid id, Actor actor, CancellationToken ct = default);
     Task<StudentAkteDto> AddLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
     Task<StudentAkteDto> RemoveLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
+
+    /// <summary>Record a licence the student ALREADY holds ("Vorbesitz") - it
+    /// shortens the Grundstoff (§ 4 Abs. 3 FahrschAusbO).</summary>
+    Task<StudentAkteDto> AddPriorLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
+    Task<StudentAkteDto> RemovePriorLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default);
     Task<StudentAkteDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default);
 
     /// <summary>Students marked for deletion ("Zur Löschung vorgemerkt", KONZEPT 3.7).</summary>
@@ -52,7 +58,10 @@ public interface IStudentService
 /// The status lives per licence class (StudentLicenseClass.Phase), not per
 /// student. Adding a class checks the minimum age against the class.
 /// </summary>
-public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : IStudentService
+public class StudentService(
+    FahrschuleDbContext db,
+    ISettingsService settingsService,
+    IAuditWriter auditWriter) : IStudentService
 {
     private const int MaxPageSize = 100;
 
@@ -117,7 +126,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
     }
 
     public async Task<StudentDetailDto> GetByIdAsync(Guid id, CancellationToken ct = default)
-        => ToDetailDto(await LoadAsync(id, ct));
+        => await ToDetailDtoAsync(await LoadAsync(id, ct), ct);
 
     public async Task<StudentAkteDto> CreateAsync(CreateStudentRequest request, Actor actor, CancellationToken ct = default)
     {
@@ -151,7 +160,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Angelegt",
             "Schüler", student.Id.ToString(), newValuesJson: Snapshot(student), cancellationToken: ct);
 
-        return ToAkteDto(await LoadAsync(student.Id, ct));
+        return await ToAkteDtoAsync(await LoadAsync(student.Id, ct), ct);
     }
 
     public async Task<StudentAkteDto> UpdateAsync(Guid id, UpdateStudentRequest request, Actor actor, CancellationToken ct = default)
@@ -174,6 +183,13 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         student.FirstName = firstName!;
         student.LastName = lastName!;
         student.JournalNumber = journalNumber;
+        student.PriorLicenseNote = NullIfEmpty(request.PriorLicenseNote);
+        student.RequiredBasicTheoryLessonsOverride =
+            request.RequiredBasicTheoryLessonsOverride is > 0 ? request.RequiredBasicTheoryLessonsOverride : null;
+        student.RequiredBasicTheoryLessonsOverrideReason =
+            student.RequiredBasicTheoryLessonsOverride is null
+                ? null // no override → no dangling reason
+                : NullIfEmpty(request.RequiredBasicTheoryLessonsOverrideReason);
         var editable = request.EditableFields ?? [];
         if (editable.Contains("dateOfBirth")) student.DateOfBirth = request.DateOfBirth;
         if (editable.Contains("email")) student.Email = NullIfEmpty(request.Email);
@@ -187,7 +203,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         var newSnapshot = Snapshot(student);
         if (newSnapshot == oldSnapshot)
         {
-            return ToAkteDto(student);
+            return await ToAkteDtoAsync(student, ct);
         }
 
         student.UpdatedAtUtc = DateTime.UtcNow;
@@ -197,11 +213,11 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Geändert",
             "Schüler", student.Id.ToString(), oldSnapshot, newSnapshot, ct);
 
-        return ToAkteDto(student);
+        return await ToAkteDtoAsync(student, ct);
     }
 
     public async Task<StudentAkteDto> GetAkteAsync(Guid id, CancellationToken ct = default)
-        => ToAkteDto(await LoadAsync(id, ct));
+        => await ToAkteDtoAsync(await LoadAsync(id, ct), ct);
 
     public async Task<StudentFieldValueDto> GetFieldAsync(Guid id, string field, Actor actor, CancellationToken ct = default)
     {
@@ -276,7 +292,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             "Schüler", student.Id.ToString(),
             newValuesJson: $"{{\"KlasseHinzugefügt\":\"{licenseClass.Code}\"}}", cancellationToken: ct);
 
-        return ToAkteDto(await LoadAsync(id, ct));
+        return await ToAkteDtoAsync(await LoadAsync(id, ct), ct);
     }
 
     public async Task<StudentAkteDto> RemoveLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
@@ -294,7 +310,62 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             "Schüler", student.Id.ToString(),
             oldValuesJson: $"{{\"KlasseEntfernt\":\"{code}\"}}", cancellationToken: ct);
 
-        return ToAkteDto(await LoadAsync(id, ct));
+        return await ToAkteDtoAsync(await LoadAsync(id, ct), ct);
+    }
+
+    public async Task<StudentAkteDto> AddPriorLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
+    {
+        var student = await LoadAsync(id, ct);
+
+        if (student.PriorLicenseClasses.Any(pc => pc.LicenseClassId == licenseClassId))
+        {
+            throw new AppValidationException("Diese Klasse ist beim Vorbesitz bereits eingetragen.");
+        }
+
+        var licenseClass = await db.LicenseClasses.FirstOrDefaultAsync(c => c.Id == licenseClassId, ct)
+            ?? throw new AppValidationException("Diese Führerscheinklasse existiert nicht (mehr).");
+
+        // A class the student is TRAINING for cannot at the same time be one they
+        // already hold - that would be a data-entry slip, and it would silently
+        // shorten their own Grundstoff.
+        if (student.LicenseClasses.Any(lc => lc.LicenseClassId == licenseClassId))
+        {
+            throw new AppValidationException(
+                $"Die Klasse {licenseClass.Code} wird gerade ausgebildet und kann nicht gleichzeitig als Vorbesitz eingetragen werden.");
+        }
+
+        student.PriorLicenseClasses.Add(new StudentPriorLicenseClass
+        {
+            StudentId = student.Id,
+            LicenseClassId = licenseClassId,
+            AddedAtUtc = DateTime.UtcNow,
+        });
+        student.UpdatedAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Geändert",
+            "Schüler", student.Id.ToString(),
+            newValuesJson: $"{{\"VorbesitzHinzugefügt\":\"{licenseClass.Code}\"}}", cancellationToken: ct);
+
+        return await ToAkteDtoAsync(await LoadAsync(id, ct), ct);
+    }
+
+    public async Task<StudentAkteDto> RemovePriorLicenseClassAsync(Guid id, Guid licenseClassId, Actor actor, CancellationToken ct = default)
+    {
+        var student = await LoadAsync(id, ct);
+        var entry = student.PriorLicenseClasses.FirstOrDefault(pc => pc.LicenseClassId == licenseClassId)
+            ?? throw new NotFoundException("Diese Klasse ist beim Vorbesitz nicht eingetragen.");
+
+        var code = entry.LicenseClass?.Code ?? licenseClassId.ToString();
+        student.PriorLicenseClasses.Remove(entry);
+        student.UpdatedAtUtc = DateTime.UtcNow;
+        await db.SaveChangesAsync(ct);
+
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Geändert",
+            "Schüler", student.Id.ToString(),
+            oldValuesJson: $"{{\"VorbesitzEntfernt\":\"{code}\"}}", cancellationToken: ct);
+
+        return await ToAkteDtoAsync(await LoadAsync(id, ct), ct);
     }
 
     public async Task<StudentAkteDto> SetPhaseAsync(Guid id, Guid licenseClassId, StudentPhase phase, Actor actor, CancellationToken ct = default)
@@ -313,7 +384,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             oldValuesJson: $"{{\"Phase\":\"{oldPhase}\"}}",
             newValuesJson: $"{{\"Phase\":\"{phase}\"}}", cancellationToken: ct);
 
-        return ToAkteDto(student);
+        return await ToAkteDtoAsync(student, ct);
     }
 
     public async Task<List<DeletedStudentDto>> GetDeletedAsync(CancellationToken ct = default)
@@ -354,6 +425,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
     private async Task<Student> LoadAsync(Guid id, CancellationToken ct)
         => await db.Students
             .Include(s => s.LicenseClasses).ThenInclude(lc => lc.LicenseClass)
+            .Include(s => s.PriorLicenseClasses).ThenInclude(pc => pc.LicenseClass)
             .FirstOrDefaultAsync(s => s.Id == id, ct)
             ?? throw new NotFoundException("Dieser Schüler wurde nicht gefunden. Vielleicht wurde er gerade gelöscht – bitte Liste neu laden.");
 
@@ -402,7 +474,71 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
             : $"Die Journalnummer „{journalNumber}\" ist bereits bei einem anderen Schüler eingetragen.");
     }
 
-    private StudentDetailDto ToDetailDto(Student s) => new()
+    /// <summary>
+    /// The Vorbesitz block plus the Grundstoff requirement that follows from it
+    /// (§ 4 Abs. 3 FahrschAusbO). Built here AND in the progress service from the
+    /// same pure rule, so the file and the progress can never disagree.
+    /// </summary>
+    private async Task<StudentPriorLicenseDto> BuildPriorLicenseAsync(Student s, CancellationToken ct)
+    {
+        var settings = await settingsService.GetAsync(ct);
+
+        // How many Grundstoff topics the student's personal plan actually holds -
+        // the requirement can never exceed that (see the rule). Loaded rather than
+        // counted in SQL so the SAME rule decides what a Grundstoff item is.
+        var planItems = await db.StudentProgressItems
+            .Include(p => p.Classes)
+            .Where(p => p.StudentId == s.Id)
+            .ToListAsync(ct);
+        var availableTopics = planItems.Count(StudentProgressRules.IsBasicTheory);
+
+        // A student whose progress has never been opened has no snapshot yet (it
+        // is created lazily on the first read). Fall back to the CURRENT plan -
+        // that is exactly what they will get - so the file never claims "0 owed".
+        if (planItems.Count == 0)
+        {
+            var current = await db.CurriculumItems
+                .Where(x => x.SupersededAtUtc == null && x.IsActive)
+                .Select(x => new { x.Section, ClassCount = x.Classes.Count, x.RequiredCount })
+                .ToListAsync(ct);
+            availableTopics = current.Count(x =>
+                StudentProgressRules.IsBasicTheory(x.Section, x.ClassCount, x.RequiredCount));
+        }
+
+        var hasPrior = s.PriorLicenseClasses.Count > 0 || !string.IsNullOrWhiteSpace(s.PriorLicenseNote);
+
+        return new StudentPriorLicenseDto
+        {
+            Classes =
+            [
+                .. s.PriorLicenseClasses
+                    .Where(pc => pc.LicenseClass != null)
+                    .OrderBy(pc => pc.LicenseClass!.SortOrder)
+                    .Select(pc => new StudentPriorLicenseClassDto
+                    {
+                        LicenseClassId = pc.LicenseClassId,
+                        Code = pc.LicenseClass!.Code,
+                        Description = pc.LicenseClass!.Description,
+                    }),
+            ],
+            Note = s.PriorLicenseNote,
+            HasPriorLicense = hasPrior,
+            RequiredBasicTheoryLessons = StudentProgressRules.RequiredBasicTheoryLessons(
+                hasPrior, s.RequiredBasicTheoryLessonsOverride,
+                settings.TheoryBasicDoubleLessons, settings.TheoryBasicDoubleLessonsWithPriorLicense,
+                availableTopics),
+            RequiredBasicTheoryLessonsOverride = s.RequiredBasicTheoryLessonsOverride,
+            RequiredBasicTheoryLessonsOverrideReason = s.RequiredBasicTheoryLessonsOverrideReason,
+        };
+    }
+
+    private async Task<StudentDetailDto> ToDetailDtoAsync(Student s, CancellationToken ct)
+        => ToDetailDto(s, await BuildPriorLicenseAsync(s, ct));
+
+    private async Task<StudentAkteDto> ToAkteDtoAsync(Student s, CancellationToken ct)
+        => ToAkteDto(s, await BuildPriorLicenseAsync(s, ct));
+
+    private StudentDetailDto ToDetailDto(Student s, StudentPriorLicenseDto prior) => new()
     {
         Id = s.Id,
         FirstName = s.FirstName,
@@ -414,18 +550,20 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
         Address = s.Address,
         Notes = s.Notes,
         Classes = ClassDtos(s),
+        PriorLicense = prior,
         Version = db.Entry(s).Property<uint>("xmin").CurrentValue,
     };
 
     /// <summary>The lightweight Akte: name, classes, version and which sensitive
     /// fields are filled - but NOT their values (data minimisation).</summary>
-    private StudentAkteDto ToAkteDto(Student s) => new()
+    private StudentAkteDto ToAkteDto(Student s, StudentPriorLicenseDto prior) => new()
     {
         Id = s.Id,
         FirstName = s.FirstName,
         LastName = s.LastName,
         JournalNumber = s.JournalNumber,
         Classes = ClassDtos(s),
+        PriorLicense = prior,
         Version = db.Entry(s).Property<uint>("xmin").CurrentValue,
         Fields =
         [
@@ -457,6 +595,7 @@ public class StudentService(FahrschuleDbContext db, IAuditWriter auditWriter) : 
     private static string Snapshot(Student s) => JsonSerializer.Serialize(new
     {
         s.FirstName, s.LastName, s.JournalNumber, s.DateOfBirth, s.Email, s.Phone, s.Address, s.Notes,
+        s.PriorLicenseNote, s.RequiredBasicTheoryLessonsOverride, s.RequiredBasicTheoryLessonsOverrideReason,
     });
 
     private static string? Clean(string? value) => value?.Trim();

@@ -40,6 +40,9 @@ public class SettingsServiceTests
         Assert.Equal(5, settings.RetentionStudentYears);
         Assert.Equal("18:00", settings.LessonTheoryDefaultStartTime);
         Assert.Equal(2, settings.TheoryValidityYears);
+        // § 4 Abs. 3 FahrschAusbO: 12 Doppelstunden Grundstoff, 6 bei Vorbesitz.
+        Assert.Equal(12, settings.TheoryBasicDoubleLessons);
+        Assert.Equal(6, settings.TheoryBasicDoubleLessonsWithPriorLicense);
     }
 
     [Fact]
@@ -60,6 +63,8 @@ public class SettingsServiceTests
             LessonDurationPresets = "45, 90",
             LessonTheoryDefaultStartTime = "9:00", // stored tidily as "09:00"
             TheoryValidityYears = 3,
+            TheoryBasicDoubleLessons = 12,
+            TheoryBasicDoubleLessonsWithPriorLicense = 6,
         }, TestActor);
 
         var reloaded = await service.GetAsync();
@@ -112,6 +117,8 @@ public class SettingsServiceTests
             RetentionStudentYears = 5,
             LessonDefaultDurationMinutes = 90,
             LessonDurationPresets = "45, 90",
+            TheoryBasicDoubleLessons = 12,
+            TheoryBasicDoubleLessonsWithPriorLicense = 6,
             SchoolName = "Fahrschule Muster",
             SchoolStreet = "Hauptstr. 1",
             SchoolPostalCode = "04109",
@@ -184,9 +191,13 @@ public class SettingsServiceTests
         public int RetentionStudentYears { get; init; } = 5;
         public int LessonDefaultDurationMinutes { get; init; } = 90;
         public string LessonDurationPresets { get; init; } = "45, 90, 135, 180";
+        public int TheoryBasicDoubleLessons { get; init; } = 12;
+        public int TheoryBasicDoubleLessonsWithPriorLicense { get; init; } = 6;
 
         public static implicit operator AppSettingsDto(AppSettingsRecord r) => new()
         {
+            TheoryBasicDoubleLessons = r.TheoryBasicDoubleLessons,
+            TheoryBasicDoubleLessonsWithPriorLicense = r.TheoryBasicDoubleLessonsWithPriorLicense,
             DocumentExpiryReminderDays = r.DocumentExpiryReminderDays,
             AppointmentReminderLeadMinutes = r.AppointmentReminderLeadMinutes,
             ExamLockNormalWeeks = r.ExamLockNormalWeeks,

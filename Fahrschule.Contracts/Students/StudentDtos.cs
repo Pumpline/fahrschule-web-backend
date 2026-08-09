@@ -10,6 +10,41 @@ public class StudentLicenseClassDto
     public string Phase { get; set; } = string.Empty;
 }
 
+/// <summary>A licence class the student already holds ("Vorbesitz").</summary>
+public class StudentPriorLicenseClassDto
+{
+    public Guid LicenseClassId { get; set; }
+    public string Code { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// What the student brings along and what that means for the Grundstoff
+/// (§ 4 Abs. 3 FahrschAusbO). Bundled so the file and the PDF read the same
+/// numbers instead of each deriving them again.
+/// </summary>
+public class StudentPriorLicenseDto
+{
+    /// <summary>Classes out of the school's list that the student already holds.</summary>
+    public List<StudentPriorLicenseClassDto> Classes { get; set; } = [];
+
+    /// <summary>Free text for prior licences outside that list (e.g. foreign).</summary>
+    public string? Note { get; set; }
+
+    /// <summary>True when anything is recorded - the condition the regulation
+    /// actually asks about ("besitzt bereits eine Fahrerlaubnis").</summary>
+    public bool HasPriorLicense { get; set; }
+
+    /// <summary>Grundstoff double lessons required for this student, after the
+    /// Vorbesitz and any override have been applied.</summary>
+    public int RequiredBasicTheoryLessons { get; set; }
+
+    /// <summary>Set when the instructor overrode the derived number.</summary>
+    public int? RequiredBasicTheoryLessonsOverride { get; set; }
+
+    public string? RequiredBasicTheoryLessonsOverrideReason { get; set; }
+}
+
 /// <summary>
 /// A row in the student list. Data minimisation: only the aggregated progress
 /// is shown here, never the details (KONZEPT 3.1).
@@ -55,6 +90,9 @@ public class StudentDetailDto
     public string? Notes { get; set; }
     public List<StudentLicenseClassDto> Classes { get; set; } = [];
 
+    /// <summary>Prior licences and the resulting Grundstoff requirement.</summary>
+    public StudentPriorLicenseDto PriorLicense { get; set; } = new();
+
     /// <summary>Version marker against mutual overwrites (PostgreSQL xmin).</summary>
     public uint Version { get; set; }
 }
@@ -77,6 +115,11 @@ public class StudentAkteDto
     public string? JournalNumber { get; set; }
 
     public List<StudentLicenseClassDto> Classes { get; set; } = [];
+
+    /// <summary>Prior licences and the resulting Grundstoff requirement. Training
+    /// data like the classes themselves, so it is shown openly (not behind the 👁).</summary>
+    public StudentPriorLicenseDto PriorLicense { get; set; } = new();
+
     public uint Version { get; set; }
 
     /// <summary>The sensitive master-data fields, each marked filled or empty

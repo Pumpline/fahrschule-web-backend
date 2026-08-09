@@ -43,6 +43,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string RetentionStudentYears = "Retention.StudentYears";
     public const string LessonDefaultDurationMinutes = "Lesson.DefaultDurationMinutes";
     public const string TheoryValidityYears = "Theory.ValidityYears";
+    public const string TheoryBasicDoubleLessons = "Theory.BasicDoubleLessons";
+    public const string TheoryBasicDoubleLessonsWithPriorLicense = "Theory.BasicDoubleLessonsWithPriorLicense";
 
     private static readonly SettingDefinition[] Definitions =
     [
@@ -54,6 +56,12 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(LessonDefaultDurationMinutes, 90, 5, 600, "Vorausgewählte Dauer beim Stunden-Eintragen (Minuten)"),
         // Validity of a completed theory topic (years). 0 = never expires.
         new(TheoryValidityYears, 2, 0, 10, "Gültigkeit eines Theorie-Themas in Jahren (0 = unbegrenzt)"),
+        // § 4 Abs. 3 FahrschAusbO: 12 Doppelstunden Grundstoff beim Ersterwerb,
+        // 6 wenn der Fahrschüler bereits eine Fahrerlaubnis besitzt. Beides sind
+        // MINDEST-Werte und klassenunabhängig (der Zusatzstoff dagegen steht je
+        // Klasse an der Führerscheinklasse). Range großzügig, falls sich das Recht ändert.
+        new(TheoryBasicDoubleLessons, 12, 1, 40, "Grundstoff-Doppelstunden beim Ersterwerb (§ 4 Abs. 3 FahrschAusbO)"),
+        new(TheoryBasicDoubleLessonsWithPriorLicense, 6, 1, 40, "Grundstoff-Doppelstunden bei Vorbesitz einer Fahrerlaubnis"),
         // § 31 Abs. 3 FahrlG: 5 years after the end of the training year. Range
         // 1-30 leaves room should the law change; default 5 is the current value.
         new(RetentionStudentYears, 5, 1, 30, "Aufbewahrungsfrist für Schüler-Daten nach Ausbildungsende (Jahre, § 31 FahrlG)"),
@@ -117,6 +125,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             RetentionStudentYears = Read(RetentionStudentYears),
             LessonDefaultDurationMinutes = Read(LessonDefaultDurationMinutes),
             TheoryValidityYears = Read(TheoryValidityYears),
+            TheoryBasicDoubleLessons = Read(TheoryBasicDoubleLessons),
+            TheoryBasicDoubleLessonsWithPriorLicense = Read(TheoryBasicDoubleLessonsWithPriorLicense),
             // Fall back to the sensible default list when nothing was saved yet.
             LessonDurationPresets = NullIfEmpty(ReadText(LessonDurationPresets)) ?? DefaultLessonDurationPresets,
             LessonTheoryDefaultStartTime = NullIfEmpty(ReadText(TheoryDefaultStartTime)) ?? DefaultTheoryStartTime,
@@ -143,6 +153,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             [RetentionStudentYears] = request.RetentionStudentYears,
             [LessonDefaultDurationMinutes] = request.LessonDefaultDurationMinutes,
             [TheoryValidityYears] = request.TheoryValidityYears,
+            [TheoryBasicDoubleLessons] = request.TheoryBasicDoubleLessons,
+            [TheoryBasicDoubleLessonsWithPriorLicense] = request.TheoryBasicDoubleLessonsWithPriorLicense,
         };
 
         // Validate every value against its allowed range first (all-or-nothing).
@@ -159,6 +171,11 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         if (request.ExamLockShortenedWeeks > request.ExamLockNormalWeeks)
         {
             errors.Add("Die verkürzte Sperre darf nicht länger als die normale Sperre sein.");
+        }
+        // Same idea for the Grundstoff: the Vorbesitz value is the REDUCED one.
+        if (request.TheoryBasicDoubleLessonsWithPriorLicense > request.TheoryBasicDoubleLessons)
+        {
+            errors.Add("Der Grundstoff bei Vorbesitz darf nicht größer sein als beim Ersterwerb.");
         }
 
         // Lesson duration presets: parse + normalise the comma-separated list.

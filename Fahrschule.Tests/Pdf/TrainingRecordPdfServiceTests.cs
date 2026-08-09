@@ -71,7 +71,7 @@ public class TrainingRecordPdfServiceTests
 
         var settings = new SettingsService(db, audit);
         var service = new TrainingRecordPdfService(
-            new StudentService(db, audit),
+            new StudentService(db, settings, audit),
             new LessonService(db, audit),
             new ExamService(db, settings, audit),
             settings);

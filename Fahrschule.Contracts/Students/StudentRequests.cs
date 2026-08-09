@@ -40,6 +40,16 @@ public class UpdateStudentRequest
     public string? Address { get; set; }
     public string? Notes { get; set; }
 
+    /// <summary>Free text for prior licences outside the school's class list.
+    /// Applied like the name - it is never hidden.</summary>
+    public string? PriorLicenseNote { get; set; }
+
+    /// <summary>Overrides the derived Grundstoff requirement for this student
+    /// (null/0 = derive it). For the cases § 4 FahrschAusbO leaves open.</summary>
+    public int? RequiredBasicTheoryLessonsOverride { get; set; }
+
+    public string? RequiredBasicTheoryLessonsOverrideReason { get; set; }
+
     /// <summary>Which sensitive fields the client actually loaded/edited and is
     /// therefore allowed to overwrite. Fields not listed are left unchanged - this
     /// is what makes the lazy "reveal only what you need" approach safe to save.

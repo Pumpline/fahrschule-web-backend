@@ -150,6 +150,11 @@ public class TrainingRecordDocument(
         var classes = student.Classes.Count > 0 ? string.Join(", ", student.Classes.Select(c => c.Code)) : Line;
         // The school's own record number; still a blank line when not entered yet.
         var journalNumber = NotBlank(student.JournalNumber) ? student.JournalNumber! : Line;
+        // Vorbesitz (§ 4 Abs. 3 FahrschAusbO): the recorded classes plus the free
+        // text for anything outside the school's class list.
+        var priorParts = student.PriorLicense.Classes.Select(c => c.Code).ToList();
+        if (NotBlank(student.PriorLicense.Note)) priorParts.Add(student.PriorLicense.Note!);
+        var priorLicense = priorParts.Count > 0 ? string.Join(", ", priorParts) : Line;
 
         col.Item().Row(row =>
         {
@@ -165,7 +170,7 @@ public class TrainingRecordDocument(
             {
                 Field(right, "Schülerverzeichnis-Nr. (Journalnummer)", journalNumber);
                 Field(right, "Beantragte Klasse(n)", classes);
-                Field(right, "Vorbesitz Klasse(n)", Line);
+                Field(right, "Vorbesitz Klasse(n)", priorLicense);
             });
         });
     }

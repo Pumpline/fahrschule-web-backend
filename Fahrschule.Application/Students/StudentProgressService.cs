@@ -60,11 +60,16 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var (expiredIds, expiresOn) = ComputeTheoryExpiry(items, lastTaughtByLesson, validityYears, today);
 
+        // How much Grundstoff this student owes - 12, or 6 with a prior licence
+        // (§ 4 Abs. 3 FahrschAusbO), or whatever the instructor overrode.
+        var requiredBasic = await RequiredBasicTheoryAsync(student, items, ct);
+        var basicReduced = requiredBasic < items.Count(StudentProgressRules.IsBasicTheory);
+
         // Advance the Stand from the bottom up (sections done + exams passed),
         // never downwards - so the per-class progress and the list stay in sync.
-        await EnsurePhaseAsync(student, items, expiredIds, ct);
+        await EnsurePhaseAsync(student, items, expiredIds, requiredBasic, ct);
 
-        return BuildDto(student, items, coveredIds, expiredIds, expiresOn);
+        return BuildDto(student, items, coveredIds, expiredIds, expiresOn, requiredBasic, basicReduced);
     }
 
     /// <summary>
@@ -75,7 +80,8 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
     /// No audit entry: the Stand is derived from already-audited lessons/exams.
     /// </summary>
     private async Task EnsurePhaseAsync(
-        Student student, List<StudentProgressItem> items, HashSet<Guid> expiredIds, CancellationToken ct)
+        Student student, List<StudentProgressItem> items, HashSet<Guid> expiredIds,
+        int requiredBasic, CancellationToken ct)
     {
         // Passed real (non-preliminary) exams per kind.
         var passed = await db.Exams
@@ -88,7 +94,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         var changed = false;
         foreach (var sc in student.LicenseClasses)
         {
-            var (theoryDone, practiceDone) = SectionCompletion(items, sc.LicenseClassId, expiredIds);
+            var (theoryDone, practiceDone) = SectionCompletion(items, sc.LicenseClassId, expiredIds, requiredBasic);
             var derived = StudentProgressRules.DerivePhase(
                 theoryDone, theoryPassed.Contains(sc.LicenseClassId),
                 practiceDone, practicePassed.Contains(sc.LicenseClassId));
@@ -103,11 +109,14 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         }
     }
 
-    /// <summary>Whether ALL required theory / practice items of a class are
+    /// <summary>Whether the required theory / practice items of a class are
     /// actually done (item-based, expired theory excluded). Empty section = not
-    /// "done" by items (only an exam/manual Stand can advance past it).</summary>
+    /// "done" by items (only an exam/manual Stand can advance past it).
+    /// The Grundstoff is the exception: it needs <paramref name="requiredBasic"/>
+    /// topics, not all of them (§ 4 Abs. 3 FahrschAusbO counts double lessons, and
+    /// with a prior licence six of them are enough).</summary>
     private static (bool TheoryDone, bool PracticeDone) SectionCompletion(
-        List<StudentProgressItem> items, Guid classId, HashSet<Guid> expiredIds)
+        List<StudentProgressItem> items, Guid classId, HashSet<Guid> expiredIds, int requiredBasic)
     {
         var required = items
             .Where(p => StudentProgressRules.AppliesToClass(
@@ -119,7 +128,13 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         var theory = required.Where(p => StudentProgressRules.IsTheorySection(p.Section)).ToList();
         var practice = required.Where(p => !StudentProgressRules.IsTheorySection(p.Section)).ToList();
 
-        return (theory.Count > 0 && theory.All(DoneNow), practice.Count > 0 && practice.All(DoneNow));
+        var basic = theory.Where(StudentProgressRules.IsBasicTheory).ToList();
+        var otherTheory = theory.Except(basic).ToList();
+        var theoryDone = theory.Count > 0
+            && basic.Count(DoneNow) >= requiredBasic
+            && otherTheory.All(DoneNow);
+
+        return (theoryDone, practice.Count > 0 && practice.All(DoneNow));
     }
 
     /// <summary>
@@ -533,13 +548,15 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
 
     private static StudentProgressDto BuildDto(
         Student student, List<StudentProgressItem> items, HashSet<Guid> coveredIds,
-        HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn)
+        HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn,
+        int requiredBasic, bool basicReduced)
     {
         var studentClassCount = student.LicenseClasses.Count;
         var classes = student.LicenseClasses
             .Where(lc => lc.LicenseClass != null)
             .OrderBy(lc => lc.LicenseClass!.SortOrder)
-            .Select(lc => BuildClassProgress(lc, items, studentClassCount, coveredIds, expiredIds, expiresOn))
+            .Select(lc => BuildClassProgress(
+                lc, items, studentClassCount, coveredIds, expiredIds, expiresOn, requiredBasic, basicReduced))
             .ToList();
 
         return new StudentProgressDto { Classes = classes };
@@ -547,7 +564,8 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
 
     private static ClassProgressDto BuildClassProgress(
         StudentLicenseClass studentClass, List<StudentProgressItem> items, int studentClassCount,
-        HashSet<Guid> coveredIds, HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn)
+        HashSet<Guid> coveredIds, HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn,
+        int requiredBasic, bool basicReduced)
     {
         // Points that count for this class (its own + shared).
         var forClass = items
@@ -567,18 +585,24 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         // Pflicht completion (KONZEPT 3.3). An expired theory topic no longer
         // counts as done until it is taught again - unless the Stand forces it.
         var required = forClass.Where(StudentProgressRules.IsRequired).ToList();
-        var done = required.Count(p =>
-            ForcedDone(p) || (StudentProgressRules.IsDone(p) && !expiredIds.Contains(p.Id)));
+        bool DoneNow(StudentProgressItem p) =>
+            ForcedDone(p) || (StudentProgressRules.IsDone(p) && !expiredIds.Contains(p.Id));
+
+        // The Grundstoff counts against its own target instead of "all of them":
+        // only `requiredBasic` topics are owed, and doing extra ones must not push
+        // the class beyond 100 % - hence the cap on both sides of the fraction.
+        var basic = required.Where(StudentProgressRules.IsBasicTheory).ToList();
+        var rest = required.Except(basic).ToList();
+        var basicDone = Math.Min(basic.Count(DoneNow), requiredBasic);
+        var done = basicDone + rest.Count(DoneNow);
+        var total = requiredBasic + rest.Count;
 
         var sections = forClass
             .GroupBy(p => p.Section)
             .OrderBy(g => g.Min(p => p.SortOrder)).ThenBy(g => g.Key)
-            .Select(g => new ProgressSectionDto
-            {
-                Section = g.Key,
-                Items = g.OrderBy(p => p.SortOrder).ThenBy(p => p.Title)
-                    .Select(p => ToItemDto(p, studentClassCount, coveredIds, expiredIds, expiresOn, ForcedDone(p))).ToList(),
-            })
+            .Select(g => BuildSection(
+                g, studentClassCount, coveredIds, expiredIds, expiresOn, ForcedDone, DoneNow,
+                requiredBasic, basicReduced))
             .ToList();
 
         return new ClassProgressDto
@@ -588,9 +612,37 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             Description = studentClass.LicenseClass!.Description,
             Phase = studentClass.Phase.ToString(),
             DoneCount = done,
-            TotalCount = required.Count,
-            DonePercent = StudentProgressRules.Percent(done, required.Count),
+            TotalCount = total,
+            DonePercent = StudentProgressRules.Percent(done, total),
             Sections = sections,
+        };
+    }
+
+    /// <summary>
+    /// One section of the plan. A section made up entirely of Grundstoff topics
+    /// carries the reduced target ("4 von 6"); every other section simply needs
+    /// all of its points, which is signalled by leaving RequiredDoneCount null.
+    /// </summary>
+    private static ProgressSectionDto BuildSection(
+        IGrouping<string, StudentProgressItem> group, int studentClassCount,
+        HashSet<Guid> coveredIds, HashSet<Guid> expiredIds, Dictionary<Guid, DateOnly?> expiresOn,
+        Func<StudentProgressItem, bool> forcedDone, Func<StudentProgressItem, bool> doneNow,
+        int requiredBasic, bool basicReduced)
+    {
+        var items = group.OrderBy(p => p.SortOrder).ThenBy(p => p.Title).ToList();
+        var isBasicSection = items.Count > 0 && items.All(StudentProgressRules.IsBasicTheory);
+        var doneInSection = items.Count(doneNow);
+
+        return new ProgressSectionDto
+        {
+            Section = group.Key,
+            RequiredDoneCount = isBasicSection ? requiredBasic : null,
+            // Capped for the Grundstoff so the header never reads "8 von 6";
+            // the individual ticks still show everything that was taught.
+            DoneCount = isBasicSection ? Math.Min(doneInSection, requiredBasic) : doneInSection,
+            ReducedByPriorLicense = isBasicSection && basicReduced,
+            Items = [.. items.Select(p => ToItemDto(
+                p, studentClassCount, coveredIds, expiredIds, expiresOn, forcedDone(p)))],
         };
     }
 
@@ -640,6 +692,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
     private async Task<Student> LoadStudentAsync(Guid studentId, CancellationToken ct)
         => await db.Students
             .Include(s => s.LicenseClasses).ThenInclude(lc => lc.LicenseClass)
+            .Include(s => s.PriorLicenseClasses)
             .FirstOrDefaultAsync(s => s.Id == studentId, ct)
             ?? throw new NotFoundException("Dieser Schüler wurde nicht gefunden. Bitte die Liste neu laden.");
 
@@ -687,6 +740,30 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
             .Where(s => s.Key == Settings.SettingsService.TheoryValidityYears)
             .Select(s => s.Value).FirstOrDefaultAsync(ct);
         return int.TryParse(raw, out var years) && years >= 0 ? years : 2;
+    }
+
+    /// <summary>
+    /// How many Grundstoff topics this student must complete (§ 4 Abs. 3
+    /// FahrschAusbO). Reads the two configured numbers, asks the pure rule, and
+    /// caps at the topics the student's own plan holds.
+    /// </summary>
+    private async Task<int> RequiredBasicTheoryAsync(Student student, List<StudentProgressItem> items, CancellationToken ct)
+    {
+        var standard = await ReadSettingAsync(Settings.SettingsService.TheoryBasicDoubleLessons, 12, ct);
+        var reduced = await ReadSettingAsync(Settings.SettingsService.TheoryBasicDoubleLessonsWithPriorLicense, 6, ct);
+
+        var hasPrior = student.PriorLicenseClasses.Count > 0
+            || !string.IsNullOrWhiteSpace(student.PriorLicenseNote);
+
+        return StudentProgressRules.RequiredBasicTheoryLessons(
+            hasPrior, student.RequiredBasicTheoryLessonsOverride, standard, reduced,
+            items.Count(StudentProgressRules.IsBasicTheory));
+    }
+
+    private async Task<int> ReadSettingAsync(string key, int fallback, CancellationToken ct)
+    {
+        var raw = await db.Settings.Where(s => s.Key == key).Select(s => s.Value).FirstOrDefaultAsync(ct);
+        return int.TryParse(raw, out var value) && value > 0 ? value : fallback;
     }
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -43,20 +43,20 @@ public class DsgvoServiceTests
     {
         await SeedStudentAsync();
 
-        await using (var db = NewDb()) await new StudentService(db, new NullAuditWriter()).DeleteAsync(_student, TestActor);
+        await using (var db = NewDb()) await new StudentService(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter()).DeleteAsync(_student, TestActor);
 
         await using (var db = NewDb())
         {
-            var deleted = await new StudentService(db, new NullAuditWriter()).GetDeletedAsync();
+            var deleted = await new StudentService(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter()).GetDeletedAsync();
             Assert.Single(deleted);
             Assert.Equal("Lisa Wagner", deleted[0].FullName);
         }
 
-        await using (var db = NewDb()) await new StudentService(db, new NullAuditWriter()).RestoreAsync(_student, TestActor);
+        await using (var db = NewDb()) await new StudentService(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter()).RestoreAsync(_student, TestActor);
 
         await using (var db = NewDb())
         {
-            var service = new StudentService(db, new NullAuditWriter());
+            var service = new StudentService(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter());
             Assert.Empty(await service.GetDeletedAsync());
             // Restored → visible again to normal queries.
             var detail = await service.GetByIdAsync(_student);
@@ -100,7 +100,7 @@ public class DsgvoServiceTests
         var audit = new NullAuditWriter();
         var service = new StudentExportService(
             db,
-            new StudentService(db, audit),
+            new StudentService(db, new SettingsService(db, audit), audit),
             new StudentProgressService(db, audit),
             new StudentDocumentService(db, new SettingsService(db, audit), audit),
             new ExamService(db, new SettingsService(db, audit), audit),

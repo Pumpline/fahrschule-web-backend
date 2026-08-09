@@ -157,6 +157,8 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
             student.Property(x => x.Phone).HasMaxLength(50);
             student.Property(x => x.Address).HasMaxLength(400);
             student.Property(x => x.Notes).HasMaxLength(2000);
+            student.Property(x => x.PriorLicenseNote).HasMaxLength(200);
+            student.Property(x => x.RequiredBasicTheoryLessonsOverrideReason).HasMaxLength(300);
 
             student.HasIndex(x => x.LastName);
             // The list can be searched by the journal number - index it, but NOT
@@ -186,6 +188,26 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Mirror the student's soft-delete filter (EF requires this).
+            link.HasQueryFilter(x => !x.Student!.IsDeleted);
+        });
+
+        builder.Entity<StudentPriorLicenseClass>(link =>
+        {
+            // Composite key: a class is held at most once ("Vorbesitz").
+            link.HasKey(x => new { x.StudentId, x.LicenseClassId });
+
+            link.HasOne(x => x.Student)
+                .WithMany(x => x.PriorLicenseClasses)
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Same reasoning as above: classes are only soft-deleted, so a hard
+            // delete must never drag a student's Vorbesitz along (Restrict).
+            link.HasOne(x => x.LicenseClass)
+                .WithMany()
+                .HasForeignKey(x => x.LicenseClassId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             link.HasQueryFilter(x => !x.Student!.IsDeleted);
         });
 

@@ -1,6 +1,7 @@
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
+using Fahrschule.Application.Settings;
 using Fahrschule.Application.Students;
 using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
@@ -359,7 +360,7 @@ public class StudentProgressServiceTests
 
         // No ticking at all - just move B's Stand to Theorieprüfung by hand.
         await using (var db = NewDb())
-            await new StudentService(db, new NullAuditWriter())
+            await new StudentService(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter())
                 .SetPhaseAsync(_student, _classB, StudentPhase.TheoryExam, TestActor);
 
         await using var check = NewDb();
@@ -401,7 +402,7 @@ public class StudentProgressServiceTests
 
         // Manually set far ahead although nothing is done.
         await using (var db = NewDb())
-            await new StudentService(db, new NullAuditWriter())
+            await new StudentService(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter())
                 .SetPhaseAsync(_student, _classB, StudentPhase.PracticeExam, TestActor);
 
         await using var check = NewDb();

@@ -195,6 +195,15 @@ werden auditiert.
   **nur einmal** vergeben ist (Vergleich ohne Groß-/Kleinschreibung und
   Leerzeichen, `StudentRules.NormalizeJournalNumber`); Nummern von zur Löschung
   vorgemerkten Schülern bleiben blockiert, solange diese wiederherstellbar sind.
+- **Vorbesitz** (`StudentPriorLicenseClass` + `Student.PriorLicenseNote`): welche
+  Fahrerlaubnis der Schüler **schon hat**. Eigene Verknüpfungstabelle statt eines
+  Schalters an `StudentLicenseClass` – ein Vorbesitz ist keine Ausbildung, er hat
+  weder Phase noch Fortschritt. Endpunkte `POST/DELETE
+  /api/students/{id}/vorbesitz[/{classId}]`; eine Klasse, die gerade ausgebildet
+  wird, kann nicht gleichzeitig Vorbesitz sein (Tippfehler-Schutz). Der Freitext
+  fängt Fälle außerhalb der eigenen Klassenliste ab (z. B. ausländischer
+  Führerschein) und zählt genauso als Vorbesitz. Steht auf dem Ausbildungsnachweis
+  in der Zeile „Vorbesitz Klasse(n)".
 - `StudentService`: Liste mit **Suche + Klassen-/Phasen-Filter + Paging**,
   CRUD, Klasse hinzufügen/entfernen, Phase setzen. Die Suche greift auf Vorname,
   Nachname **und Journalnummer** (so kommt man vom Papierordner zur Akte). Beim
@@ -212,6 +221,42 @@ werden auditiert.
 
 ## Ausbildungsfortschritt (KONZEPT 3.3 / 3.3a) – Schritt 4a
 
+### Grundstoff-Soll bei Vorbesitz (§ 4 Abs. 3 FahrschAusbO)
+
+> „Der Umfang des allgemeinen Teils (Grundstoff) beträgt mindestens **zwölf**
+> Doppelstunden (90 Minuten); [...] Besitzt der Fahrschüler bereits eine
+> Fahrerlaubnis, so beträgt der Umfang mindestens **sechs** Doppelstunden."
+
+Zwei Dinge aus dem Wortlaut prägen das Modell:
+
+- Die Bedingung ist ein **Ja/Nein am Schüler** – es kommt weder darauf an, *welche*
+  Klasse er besitzt, noch welche er beantragt. Deshalb genügt ein abgeleiteter
+  Schalter (`PriorLicenseClasses` nicht leer **oder** Freitext gefüllt); eine
+  Regeltabelle „Vorbesitz X + beantragt Y" wäre Überbau.
+- Der **Zusatzstoff** (§ 4 Abs. 4 + Anlage 2.8) wird **nicht** reduziert. Er bleibt
+  die Pflichtzahl je Klasse (`LicenseClass.RequiredTheoryDoubleLessons`, B = 2).
+
+Umsetzung:
+
+- Die beiden Zahlen sind **Einstellungen**, nicht Klassen-Felder – der Grundstoff
+  ist klassenunabhängig: `Theory.BasicDoubleLessons` (12) und
+  `Theory.BasicDoubleLessonsWithPriorLicense` (6), im Adminpanel änderbar
+  (Projektregel 3). Beim Speichern wird geprüft, dass der Vorbesitz-Wert nicht
+  größer ist als der Ersterwerb-Wert.
+- `StudentProgressRules.RequiredBasicTheoryLessons` entscheidet (reine Funktion,
+  getestet): **Übersteuerung** des Fahrlehrers > abgeleitet aus Vorbesitz >
+  Ersterwerb – und nie mehr, als der Plan an Themen hergibt (sonst wäre 100 %
+  unerreichbar).
+- Die **Themenliste bleibt vollständig** stehen; erfüllt ist der Grundstoff, sobald
+  *irgendwelche* `n` Themen erledigt sind (`IsBasicTheory` = Theorie-Abschnitt,
+  keine Klassenbindung, kein Zähler). `ProgressSectionDto` liefert dafür
+  `RequiredDoneCount`/`DoneCount`, die Oberfläche zeigt „4 von 6". Mehr als das
+  Soll abzuhaken schiebt die Klasse nicht über 100 % (beide Seiten des Bruchs
+  gedeckelt).
+- **Übersteuerung pro Schüler** (`RequiredBasicTheoryLessonsOverride` + Begründung)
+  für das, was § 4 offenlässt: eine Mofa-Prüfbescheinigung ist keine Fahrerlaubnis,
+  und zu ausländischen Fahrerlaubnissen sagt die Vorschrift nichts. Diese Fälle
+  entscheidet der Fahrlehrer – bewusst **nicht** der Code.
 - **Persönliche Checkliste als Snapshot**: `StudentProgressItem` ist eine
   **Kopie** der Ausbildungsplan-Punkte, die zum Zeitpunkt der Anmeldung galten
   (Titel, Abschnitt, Soll-Anzahl und die kopierte Version). Spätere Änderungen

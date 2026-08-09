@@ -1,6 +1,7 @@
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
+using Fahrschule.Application.Settings;
 using Fahrschule.Application.Students;
 using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
@@ -24,7 +25,8 @@ public class StudentMasterDataTests
             .Options;
 
     private FahrschuleDbContext NewDb() => new(_options);
-    private StudentService NewService(FahrschuleDbContext db) => new(db, new AuditWriter(db));
+    private StudentService NewService(FahrschuleDbContext db)
+        => new(db, new SettingsService(db, new AuditWriter(db)), new AuditWriter(db));
 
     private readonly Guid _id = Guid.NewGuid();
 

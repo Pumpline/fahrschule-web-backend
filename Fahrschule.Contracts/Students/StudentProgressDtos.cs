@@ -32,6 +32,21 @@ public class ProgressSectionDto
 {
     public string Section { get; set; } = string.Empty;
     public List<ProgressItemDto> Items { get; set; } = [];
+
+    /// <summary>
+    /// How many points of this section must be done. Normally null = all of them.
+    /// The Grundstoff sets a number here: § 4 Abs. 3 FahrschAusbO asks for a
+    /// COUNT of double lessons (12, or 6 with a prior licence), not for specific
+    /// topics - so any of them count and the UI shows "4 von 6".
+    /// </summary>
+    public int? RequiredDoneCount { get; set; }
+
+    /// <summary>How many points of this section are currently done.</summary>
+    public int DoneCount { get; set; }
+
+    /// <summary>Set when <see cref="RequiredDoneCount"/> is reduced because the
+    /// student already holds a licence - the UI explains why it says 6, not 12.</summary>
+    public bool ReducedByPriorLicense { get; set; }
 }
 
 /// <summary>One point of the student's personal checklist.</summary>

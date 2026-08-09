@@ -203,6 +203,8 @@ public class RetentionServiceTests
                 RetentionStudentYears = 1,
                 LessonDefaultDurationMinutes = 90,
                 LessonDurationPresets = "45, 90, 135, 180",
+                TheoryBasicDoubleLessons = 12,
+                TheoryBasicDoubleLessonsWithPriorLicense = 6,
             }, TestActor);
         }
 

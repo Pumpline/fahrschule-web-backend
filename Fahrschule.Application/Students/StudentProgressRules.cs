@@ -47,6 +47,47 @@ public static class StudentProgressRules
     public static int Percent(int done, int total)
         => total <= 0 ? 0 : (int)Math.Round(done * 100.0 / total);
 
+    // --- Grundstoff requirement (§ 4 Abs. 3 FahrschAusbO) ---------------------
+    // "Der Umfang des allgemeinen Teils (Grundstoff) beträgt mindestens zwölf
+    // Doppelstunden (90 Minuten); [...] Besitzt der Fahrschüler bereits eine
+    // Fahrerlaubnis, so beträgt der Umfang mindestens sechs Doppelstunden."
+    //
+    // Two things follow, and they shape the whole model:
+    //  - the condition is a plain YES/NO about the student, not a table of
+    //    "prior class X + applied-for class Y", so one flag is enough;
+    //  - the Zusatzstoff (§ 4 Abs. 4 + Anlage 2.8) is NOT reduced - it stays at
+    //    the per-class number (B = 2), which is why nothing here touches it.
+    // The numbers themselves live in the settings (project rule 3), never here.
+
+    /// <summary>
+    /// Is a Grundstoff item, i.e. a shared theory topic: theory section, no class
+    /// restriction (counts for every class) and a simple check-off. That is the
+    /// structural definition the snapshot already uses - more robust than matching
+    /// the section's name, which the owner may rename.
+    /// </summary>
+    public static bool IsBasicTheory(StudentProgressItem item)
+        => IsBasicTheory(item.Section, item.Classes.Count, item.RequiredCount);
+
+    /// <summary>The same test on the raw fields, so the CURRICULUM side (which
+    /// has its own item type) can ask it without duplicating the definition.</summary>
+    public static bool IsBasicTheory(string section, int classCount, int? requiredCount)
+        => IsTheorySection(section) && classCount == 0 && !IsCountable(requiredCount);
+
+    /// <summary>
+    /// How many Grundstoff topics this student must complete. Precedence:
+    /// an instructor's override wins, otherwise the Vorbesitz decides between the
+    /// two configured numbers. Never asks for more topics than the plan actually
+    /// holds - otherwise a plan with fewer topics than the target could never be
+    /// completed. A negative or zero override falls back to the derived value.
+    /// </summary>
+    public static int RequiredBasicTheoryLessons(
+        bool hasPriorLicense, int? instructorOverride, int standard, int reduced, int availableTopics)
+    {
+        var derived = hasPriorLicense ? reduced : standard;
+        var wanted = instructorOverride is > 0 ? instructorOverride.Value : derived;
+        return Math.Max(0, Math.Min(wanted, availableTopics));
+    }
+
     /// <summary>A section counts as theory when its name starts with "Theorie"
     /// (e.g. "Theorie-Grundstoff"); everything else is practice. Mirrors the
     /// frontend grouping and the lesson-type derivation.</summary>

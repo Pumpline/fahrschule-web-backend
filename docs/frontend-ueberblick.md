@@ -131,6 +131,13 @@ Das erste große Fachmodul mit eigener Liste und Detailseite:
   braucht und die ohnehin auf dem Ausbildungsnachweis steht. Darunter die
   Führerscheinklassen mit **Status pro Klasse** (Phasen-Auswahl), Klasse
   hinzufügen (mit Mindestalter-Prüfung) / entfernen, und Löschen (Soft-Delete).
+- **Vorbesitz-Karte** (im Stammdaten-Tab): Klassen-Chips zum Ein-/Austragen
+  (wirken sofort), ein Freitextfeld für Fahrerlaubnisse außerhalb der eigenen
+  Klassenliste und – eingeklappt unter „Abweichende Zahl festlegen" – die
+  Übersteuerung samt Begründung. Eine Box zeigt jederzeit, wie viele
+  Grundstoff-Doppelstunden aktuell gefordert sind und **warum** (verkürzt wegen
+  Vorbesitz / von Hand festgelegt). Klassen, die der Schüler gerade macht, sind
+  nicht wählbar.
 - **StudentDocuments** (eingebettet in die Akte): die aus dem Katalog
   abgeleitete Unterlagen-Liste mit Häkchen „liegt vor", Vorgelegt-/Ablaufdatum,
   Hervorhebung bald ablaufender Unterlagen und Erzwingung der Ablaufdatum-Pflicht.

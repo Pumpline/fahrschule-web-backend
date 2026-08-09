@@ -40,6 +40,33 @@ public class Student : ISoftDeletable
     /// own phase (KONZEPT: status per class, not per student).</summary>
     public List<StudentLicenseClass> LicenseClasses { get; set; } = [];
 
+    // --- Vorbesitz: licences the student ALREADY holds (§ 4 Abs. 3 FahrschAusbO) ---
+    // "Besitzt der Fahrschüler bereits eine Fahrerlaubnis, so beträgt der Umfang
+    // [des Grundstoffs] mindestens sechs Doppelstunden" (instead of twelve). Note
+    // what the wording does NOT say: it does not matter WHICH class is held or
+    // which is applied for - it is a plain yes/no. So this is a documented list
+    // plus a derived flag, not a rule matrix.
+
+    /// <summary>Licence classes the student already holds, out of the classes the
+    /// school maintains. Also printed as "Vorbesitz Klasse(n)" on the record.</summary>
+    public List<StudentPriorLicenseClass> PriorLicenseClasses { get; set; } = [];
+
+    /// <summary>Free text for prior licences that are not in the school's class
+    /// list (e.g. a foreign licence). Counts as Vorbesitz just like a picked class.</summary>
+    public string? PriorLicenseNote { get; set; }
+
+    /// <summary>
+    /// Overrides the required number of Grundstoff double lessons for THIS student
+    /// (null = derive it from the Vorbesitz and the settings). The escape hatch for
+    /// the cases the regulation leaves open - a Mofa-Prüfbescheinigung is no
+    /// Fahrerlaubnis, and § 4 says nothing about foreign licences - so the
+    /// instructor decides instead of the code guessing.
+    /// </summary>
+    public int? RequiredBasicTheoryLessonsOverride { get; set; }
+
+    /// <summary>Why the override was set (shown in the file, kept for the audit).</summary>
+    public string? RequiredBasicTheoryLessonsOverrideReason { get; set; }
+
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
 
@@ -63,6 +90,24 @@ public class StudentLicenseClass
     public LicenseClass? LicenseClass { get; set; }
 
     public StudentPhase Phase { get; set; } = StudentPhase.Theory;
+
+    public DateTime AddedAtUtc { get; set; }
+}
+
+/// <summary>
+/// A licence class the student ALREADY holds ("Vorbesitz"). Deliberately its own
+/// link table rather than a flag on <see cref="StudentLicenseClass"/>: a prior
+/// licence is not part of the training - it has no phase and no progress, it only
+/// documents what the student brings along and shortens the Grundstoff
+/// (§ 4 Abs. 3 FahrschAusbO).
+/// </summary>
+public class StudentPriorLicenseClass
+{
+    public Guid StudentId { get; set; }
+    public Student? Student { get; set; }
+
+    public Guid LicenseClassId { get; set; }
+    public LicenseClass? LicenseClass { get; set; }
 
     public DateTime AddedAtUtc { get; set; }
 }

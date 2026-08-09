@@ -24,6 +24,59 @@ public class StudentProgressRulesTests
         Assert.False(StudentProgressRules.IsRequired(item)); // optional → off the percentage
     }
 
+    // --- Grundstoff requirement (§ 4 Abs. 3 FahrschAusbO) ---
+
+    [Fact]
+    public void Grundstoff_is_twelve_lessons_and_six_with_a_prior_licence()
+    {
+        // "Der Umfang des allgemeinen Teils (Grundstoff) beträgt mindestens zwölf
+        // Doppelstunden [...] Besitzt der Fahrschüler bereits eine Fahrerlaubnis,
+        // so beträgt der Umfang mindestens sechs Doppelstunden."
+        Assert.Equal(12, StudentProgressRules.RequiredBasicTheoryLessons(
+            hasPriorLicense: false, instructorOverride: null, standard: 12, reduced: 6, availableTopics: 12));
+        Assert.Equal(6, StudentProgressRules.RequiredBasicTheoryLessons(
+            hasPriorLicense: true, instructorOverride: null, standard: 12, reduced: 6, availableTopics: 12));
+    }
+
+    [Fact]
+    public void An_instructor_override_wins_over_the_derived_number()
+    {
+        // The escape hatch for what § 4 leaves open (Mofa, foreign licences).
+        Assert.Equal(8, StudentProgressRules.RequiredBasicTheoryLessons(
+            hasPriorLicense: true, instructorOverride: 8, standard: 12, reduced: 6, availableTopics: 12));
+        // 0 or negative is treated as "not set" - the derived value applies.
+        Assert.Equal(6, StudentProgressRules.RequiredBasicTheoryLessons(
+            hasPriorLicense: true, instructorOverride: 0, standard: 12, reduced: 6, availableTopics: 12));
+    }
+
+    [Fact]
+    public void The_requirement_never_exceeds_the_topics_the_plan_holds()
+    {
+        // Otherwise a plan with fewer topics than the target could never be
+        // completed and the student would be stuck below 100 %.
+        Assert.Equal(9, StudentProgressRules.RequiredBasicTheoryLessons(
+            hasPriorLicense: false, instructorOverride: null, standard: 12, reduced: 6, availableTopics: 9));
+    }
+
+    [Fact]
+    public void IsBasicTheory_only_for_shared_theory_check_off_topics()
+    {
+        var grundstoff = new StudentProgressItem { Section = "Theorie-Grundstoff", RequiredCount = null };
+        Assert.True(StudentProgressRules.IsBasicTheory(grundstoff));
+
+        // Zusatzstoff belongs to a class → not Grundstoff (and § 4 Abs. 4 does
+        // not reduce it, so it must never be caught by this rule).
+        var zusatzstoff = new StudentProgressItem { Section = "Theorie-Zusatzstoff", RequiredCount = null };
+        zusatzstoff.Classes.Add(new StudentProgressItemClass { LicenseClassId = Guid.NewGuid() });
+        Assert.False(StudentProgressRules.IsBasicTheory(zusatzstoff));
+
+        // A counter is not a topic, and practice is not theory.
+        Assert.False(StudentProgressRules.IsBasicTheory(
+            new StudentProgressItem { Section = "Theorie-Zusatzstoff", RequiredCount = 2 }));
+        Assert.False(StudentProgressRules.IsBasicTheory(
+            new StudentProgressItem { Section = "Praxis", RequiredCount = null }));
+    }
+
     [Fact]
     public void IsDone_simple_point_uses_the_flag()
     {
