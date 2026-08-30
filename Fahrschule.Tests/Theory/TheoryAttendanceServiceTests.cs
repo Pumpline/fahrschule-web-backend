@@ -8,6 +8,7 @@ using Fahrschule.Contracts.Theory;
 using Fahrschule.Domain.Entities;
 using Fahrschule.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Fahrschule.Tests.Theory;
 
@@ -159,6 +160,6 @@ public class TheoryAttendanceServiceTests
     /// lesson, KONZEPT 3.6); these tests do not check money, so a plain instance
     /// on the same database is enough.</summary>
     private static PaymentService NewPaymentService(FahrschuleDbContext db)
-        => new(db, new SettingsService(db, new AuditWriter(db)), new AuditWriter(db));
+        => new(db, new SettingsService(db, new AuditWriter(db)), new AuditWriter(db), NullLogger<PaymentService>.Instance);
 
 }

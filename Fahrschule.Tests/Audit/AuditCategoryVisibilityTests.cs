@@ -195,4 +195,18 @@ public class AuditCategoryVisibilityTests
             Assert.Equal(1, (await Query(db).GetListAsync(["Fahrlehrer"], null, null, 1, 20)).Total);
         }
     }
+
+    [Theory]
+    [InlineData("Zahlung eingetragen", "Zahlung")]
+    [InlineData("Zahlung geändert", "Zahlung")]
+    [InlineData("Quittung ausgestellt", "Quittung")]
+    [InlineData("Quittung storniert", "Quittung")]
+    public void Money_entries_land_in_their_own_topic(string action, string entityType)
+    {
+        // Without an explicit mapping these would fall into the catch-all
+        // "security" topic (Admin only) - and the office would never see their
+        // own receipts in the log (KONZEPT 3.6).
+        Assert.Equal(AuditCategory.Money, AuditCategory.For(action, entityType));
+    }
+
 }

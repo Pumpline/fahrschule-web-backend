@@ -639,3 +639,25 @@ Dokument rückwirkend verändern.
   **Kein** PUT und **kein** DELETE für Quittungen – das ist Absicht, nicht vergessen.
 - Einstellungen dazu (Adminpanel, Regel 3): Vorschlags-Steuersatz, Aufbewahrungsfrist für
   Quittungen, Steuernummer/USt-IdNr.
+
+### Nachgebessert nach dem ersten Praxistest (30.08.2026)
+
+- **Alles-oder-nichts beim Ausstellen und Stornieren.** Vorher liefen zwei `SaveChanges`
+  hintereinander: erst die Quittung, dann die Verknüpfung der Posten. Ging etwas dazwischen
+  schief, stand die Quittung schon in der Datenbank, während die Antwort ein Fehler war – die
+  Oberfläche zeigte dann den alten Stand, und erst ein Neuladen brachte die Wahrheit ans Licht.
+  Jetzt werden Quittung, ihre Zeilen und die Verknüpfung in **einem** `SaveChanges` gespeichert
+  (ein `SaveChanges` ist eine Datenbank-Transaktion) – dasselbe beim Storno.
+- **Nummernvergabe:** Der Wiederholungs-Block hat vorher **jede** `DbUpdateException` als
+  „Nummer schon vergeben" gedeutet, dreimal identisch wiederholt und am Ende eine harmlos
+  klingende Meldung geworfen – die echte Ursache stand nirgends. Jetzt wird geprüft, ob die
+  Nummer wirklich vergeben ist; alles andere wird protokolliert und weitergereicht. Beim
+  Wiederholen wird zusätzlich der **ganze** Objektgraph (Quittung *und* Zeilen) gelöst, sonst
+  hängen die Zeilen als „Added" im ChangeTracker und werden nicht neu verknüpft.
+- **Audit-Kategorie „Geld & Quittungen"** (`money`): „Zahlung"/„Quittung" fielen vorher in den
+  Auffang-Zweig `_ => Security` und wären damit nur für den Admin sichtbar gewesen. Für die
+  Rolle Verwaltung ist die neue Kategorie voreingestellt.
+- **PDF-Schrift deterministisch** (`PdfDefaults`): `UseEnvironmentFonts = false` und die Familie
+  ausdrücklich auf Lato (liegt dem QuestPDF-Paket bei). Vorher hing es von der Maschine ab,
+  welche Schnitte gezogen werden. Gilt für **beide** Dokumente. Dazu: größere Schrift und
+  seitliches Zellen-Padding auf der Quittung (die Spalten klebten aneinander).

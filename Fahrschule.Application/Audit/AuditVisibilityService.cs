@@ -44,7 +44,7 @@ public class AuditVisibilityService(FahrschuleDbContext db, IAuditWriter auditWr
     private static readonly Dictionary<string, string[]> Defaults = new()
     {
         [Roles.Fahrlehrer] = [AuditCategory.Students, AuditCategory.Training, AuditCategory.Calendar],
-        [Roles.Verwaltung] = [AuditCategory.Students, AuditCategory.Training, AuditCategory.Calendar, AuditCategory.Setup],
+        [Roles.Verwaltung] = [AuditCategory.Students, AuditCategory.Training, AuditCategory.Calendar, AuditCategory.Money, AuditCategory.Setup],
     };
 
     public async Task<IReadOnlySet<string>> AllowedCategoriesAsync(IEnumerable<string> roles, CancellationToken ct = default)

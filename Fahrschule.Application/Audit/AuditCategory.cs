@@ -19,6 +19,7 @@ public static class AuditCategory
     public const string Students = "students";
     public const string Training = "training";
     public const string Calendar = "calendar";
+    public const string Money = "money";
     public const string Setup = "setup";
 
     /// <summary>All categories with their German labels, in display order.</summary>
@@ -29,6 +30,7 @@ public static class AuditCategory
         (Students, "Schülerdaten"),
         (Training, "Ausbildung"),
         (Calendar, "Termine"),
+        (Money, "Geld & Quittungen"),
         (Setup, "Einrichtung"),
     ];
 
@@ -54,6 +56,10 @@ public static class AuditCategory
         "Schüler" => Students,
         "Ausbildungsfortschritt" or "Ausbildungsstunde" or "Prüfung" or "Unterlage-Schüler" => Training,
         "Termin" => Calendar,
+        // Money (KONZEPT 3.6). Without this line these entries would fall into
+        // the catch-all below and be filed under "Anmeldung & Sicherheit",
+        // where the office would never see their own receipts.
+        "Zahlung" or "Quittung" => Money,
         "Führerscheinklasse" or "Unterlage" or "Ausbildungsplan-Punkt" or "Einstellungen" => Setup,
         _ => Security,
     };

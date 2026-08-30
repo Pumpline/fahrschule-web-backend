@@ -7,6 +7,7 @@ using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
 using Fahrschule.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Fahrschule.Tests.Payments;
 
@@ -27,7 +28,7 @@ public class PaymentServiceTests
     private FahrschuleDbContext NewDb() => new(_options);
 
     private PaymentService NewService(FahrschuleDbContext db)
-        => new(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter());
+        => new(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter(), NullLogger<PaymentService>.Instance);
 
     private readonly Guid _student = Guid.NewGuid();
 

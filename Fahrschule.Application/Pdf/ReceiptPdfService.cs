@@ -30,10 +30,7 @@ public class ReceiptPdfService(
     IStudentService students,
     ISettingsService settings) : IReceiptPdfService
 {
-    static ReceiptPdfService()
-    {
-        QuestPDF.Settings.License = LicenseType.Community;
-    }
+    static ReceiptPdfService() => PdfDefaults.Apply();
 
     public async Task<(byte[] Content, string FileName)> GenerateAsync(
         Guid studentId, Guid receiptId, CancellationToken ct = default)
@@ -102,7 +99,9 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
         {
             page.Size(PageSizes.A4);
             page.Margin(40);
-            page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Black));
+            // Font named explicitly (see PdfDefaults) - and a size that is
+            // comfortable to read on paper (project rule 2: older readers).
+            page.DefaultTextStyle(x => x.FontFamily(PdfDefaults.FontFamily).FontSize(11).FontColor(Colors.Black));
 
             page.Header().Column(Header);
 
@@ -120,7 +119,7 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
 
             page.Footer().AlignCenter().Text(text =>
             {
-                text.DefaultTextStyle(x => x.FontSize(8).FontColor(Colors.Grey.Darken1));
+                text.DefaultTextStyle(x => x.FontSize(9).FontColor(Colors.Grey.Darken1));
                 text.Span("Maschinell erstellt – Seite ");
                 text.CurrentPageNumber();
                 text.Span(" / ");
@@ -133,17 +132,17 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
     {
         if (Blank(settings.SchoolName)) return;
 
-        col.Item().Text(settings.SchoolName).FontSize(12).SemiBold();
+        col.Item().Text(settings.SchoolName).FontSize(13).SemiBold();
         var address = string.Join(", ", new[]
         {
             settings.SchoolStreet,
             string.Join(" ", new[] { settings.SchoolPostalCode, settings.SchoolCity }.Where(NotBlank)),
         }.Where(NotBlank));
-        if (NotBlank(address)) col.Item().Text(address).FontSize(8).FontColor(Colors.Grey.Darken1);
+        if (NotBlank(address)) col.Item().Text(address).FontSize(9).FontColor(Colors.Grey.Darken1);
         if (NotBlank(settings.SchoolTaxNumber))
         {
             col.Item().Text($"Steuernummer / USt-IdNr.: {settings.SchoolTaxNumber}")
-                .FontSize(8).FontColor(Colors.Grey.Darken1);
+                .FontSize(9).FontColor(Colors.Grey.Darken1);
         }
         col.Item().PaddingBottom(6);
     }
@@ -157,22 +156,22 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
             row.ConstantItem(200).AlignRight().Column(right =>
             {
                 right.Item().Text($"Nr. {model.Number}").FontSize(12).SemiBold();
-                right.Item().Text($"vom {model.IssuedOn:dd.MM.yyyy}").FontSize(9);
+                right.Item().Text($"vom {model.IssuedOn:dd.MM.yyyy}").FontSize(10);
             });
         });
 
         if (model.IsCancellation)
         {
-            col.Item().Text($"Storniert die Quittung Nr. {model.LinkedNumber}.").FontSize(9).SemiBold();
+            col.Item().Text($"Storniert die Quittung Nr. {model.LinkedNumber}.").FontSize(10).SemiBold();
             if (NotBlank(model.CancelReason))
             {
-                col.Item().Text($"Grund: {model.CancelReason}").FontSize(9);
+                col.Item().Text($"Grund: {model.CancelReason}").FontSize(10);
             }
         }
         else if (model.IsCancelled)
         {
             col.Item().Text($"Diese Quittung wurde storniert (Storno-Quittung Nr. {model.LinkedNumber}).")
-                .FontSize(9).SemiBold();
+                .FontSize(10).SemiBold();
         }
     }
 
@@ -180,7 +179,7 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
     {
         col.Item().Text(text =>
         {
-            text.Span("Von ").FontSize(10);
+            text.Span("Von ");
             text.Span(model.StudentName).SemiBold();
             text.Span(model.IsCancellation
                 ? " zurückerstattet:"
@@ -194,12 +193,12 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
         {
             table.ColumnsDefinition(c =>
             {
-                c.ConstantColumn(62);   // Datum
+                c.ConstantColumn(76);   // Datum
                 c.RelativeColumn();     // Bezeichnung
-                c.ConstantColumn(62);   // Netto
-                c.ConstantColumn(42);   // USt-Satz
-                c.ConstantColumn(58);   // USt-Betrag
-                c.ConstantColumn(66);   // Brutto
+                c.ConstantColumn(70);   // Netto
+                c.ConstantColumn(48);   // USt-Satz
+                c.ConstantColumn(70);   // USt-Betrag
+                c.ConstantColumn(76);   // Brutto
             });
 
             table.Header(header =>
@@ -228,8 +227,8 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
     {
         col.Item().AlignRight().Column(right =>
         {
-            right.Item().Text($"Summe netto: {Money(model.TotalNet)} EUR").FontSize(10);
-            right.Item().Text($"Umsatzsteuer: {Money(model.TotalVat)} EUR").FontSize(10);
+            right.Item().Text($"Summe netto: {Money(model.TotalNet)} EUR").FontSize(11);
+            right.Item().Text($"Umsatzsteuer: {Money(model.TotalVat)} EUR").FontSize(11);
             right.Item().PaddingTop(2).Text($"Gesamtbetrag: {Money(model.TotalGross)} EUR")
                 .FontSize(13).Bold();
         });
@@ -246,13 +245,13 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
 
         col.Item().Column(inner =>
         {
-            inner.Item().Text("Aufteilung nach Steuersätzen").FontSize(9).SemiBold();
+            inner.Item().Text("Aufteilung nach Steuersätzen").FontSize(10).SemiBold();
             foreach (var group in groups)
             {
                 inner.Item().Text(
                     $"{group.Key} %: netto {Money(group.Sum(l => l.Net))} EUR, "
                     + $"USt {Money(group.Sum(l => l.VatAmount))} EUR, "
-                    + $"brutto {Money(group.Sum(l => l.Gross))} EUR").FontSize(9);
+                    + $"brutto {Money(group.Sum(l => l.Gross))} EUR").FontSize(10);
             }
         });
     }
@@ -262,21 +261,21 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
         col.Item().PaddingTop(10).Text(
             model.IsCancellation
                 ? "Diese Storno-Quittung hebt die oben genannte Quittung vollständig auf."
-                : "Der Betrag wurde erhalten.").FontSize(10);
+                : "Der Betrag wurde erhalten.").FontSize(11);
 
         col.Item().PaddingTop(24).Row(row =>
         {
             row.RelativeItem().Column(left =>
             {
                 left.Item().Text("__________________________________").FontSize(10);
-                left.Item().Text("Ort, Datum").FontSize(8).FontColor(Colors.Grey.Darken1);
+                left.Item().Text("Ort, Datum").FontSize(9).FontColor(Colors.Grey.Darken1);
             });
             row.ConstantItem(24);
             row.RelativeItem().Column(rightCol =>
             {
                 rightCol.Item().Text("__________________________________").FontSize(10);
                 rightCol.Item().Text($"Unterschrift ({model.IssuedByName})")
-                    .FontSize(8).FontColor(Colors.Grey.Darken1);
+                    .FontSize(9).FontColor(Colors.Grey.Darken1);
             });
         });
     }
@@ -285,15 +284,20 @@ public class ReceiptDocument(ReceiptPrintModel model, AppSettingsDto settings) :
 
     private static void HeaderCell(TableCellDescriptor header, string text, bool right = false)
     {
-        var cell = header.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium).PaddingVertical(3);
+        // PaddingHorizontal: without it the columns touch each other and the
+        // numbers sit right against the next column - the training record does
+        // the same. Air between the columns is what makes a table readable.
+        var cell = header.Cell().BorderBottom(1).BorderColor(Colors.Grey.Medium)
+            .PaddingVertical(4).PaddingHorizontal(5);
         (right ? cell.AlignRight() : cell.AlignLeft())
-            .Text(text).FontSize(9).SemiBold();
+            .Text(text).FontSize(10).SemiBold();
     }
 
     private static void Cell(TableDescriptor table, string text, bool right = false)
     {
-        var cell = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingVertical(3);
-        (right ? cell.AlignRight() : cell.AlignLeft()).Text(text).FontSize(9);
+        var cell = table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2)
+            .PaddingVertical(4).PaddingHorizontal(5);
+        (right ? cell.AlignRight() : cell.AlignLeft()).Text(text).FontSize(10);
     }
 
     private static string Money(decimal value) => value.ToString("N2", De);

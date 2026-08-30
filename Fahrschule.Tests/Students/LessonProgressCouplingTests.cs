@@ -8,6 +8,7 @@ using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
 using Fahrschule.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Fahrschule.Tests.Students;
 
@@ -237,6 +238,6 @@ public class LessonProgressCouplingTests
     /// a lesson, KONZEPT 3.6). These tests do not check money, so a plain
     /// instance on the same database is enough.</summary>
     private static PaymentService NewPaymentService(FahrschuleDbContext db)
-        => new(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter());
+        => new(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter(), NullLogger<PaymentService>.Instance);
 
 }

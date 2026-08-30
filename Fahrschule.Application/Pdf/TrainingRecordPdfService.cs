@@ -31,11 +31,7 @@ public class TrainingRecordPdfService(
     IExamService exams,
     ISettingsService settings) : ITrainingRecordPdfService
 {
-    static TrainingRecordPdfService()
-    {
-        // Free for companies below the revenue threshold (KONZEPT 7).
-        QuestPDF.Settings.License = LicenseType.Community;
-    }
+    static TrainingRecordPdfService() => PdfDefaults.Apply();
 
     public async Task<(byte[] Content, string FileName)> GenerateAsync(Guid studentId, CancellationToken ct = default)
     {
@@ -78,7 +74,9 @@ public class TrainingRecordDocument(
         {
             page.Size(PageSizes.A4);
             page.Margin(34);
-            page.DefaultTextStyle(x => x.FontSize(9).FontColor(Colors.Black));
+            // Font named explicitly (see PdfDefaults), so the record looks the
+            // same on every machine and inside the container.
+            page.DefaultTextStyle(x => x.FontFamily(PdfDefaults.FontFamily).FontSize(9).FontColor(Colors.Black));
 
             page.Header().Column(col => Header(col));
 

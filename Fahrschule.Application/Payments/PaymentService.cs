@@ -7,6 +7,7 @@ using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
 using Fahrschule.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Fahrschule.Application.LicenseClasses;
 
 namespace Fahrschule.Application.Payments;
@@ -46,7 +47,8 @@ public interface IPaymentService
 public class PaymentService(
     FahrschuleDbContext db,
     ISettingsService settingsService,
-    IAuditWriter auditWriter) : IPaymentService
+    IAuditWriter auditWriter,
+    ILogger<PaymentService> logger) : IPaymentService
 {
     public async Task<PaymentOverviewDto> GetForStudentAsync(Guid studentId, CancellationToken ct = default)
     {
@@ -216,10 +218,14 @@ public class PaymentService(
         }
 
         SetTotals(receipt);
-        await AssignNumberAndSaveAsync(receipt, now, ct);
 
+        // Link the open items BEFORE saving. One SaveChanges is one database
+        // transaction, so either the receipt AND the links exist, or neither.
+        // Saving in two steps could leave a receipt behind whose amounts still
+        // count as "open" - for money that must not happen.
         foreach (var item in open) item.ReceiptId = receipt.Id;
-        await db.SaveChangesAsync(ct);
+
+        await AssignNumberAndSaveAsync(receipt, now, ct);
 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Quittung ausgestellt",
             "Quittung", studentId.ToString(),
@@ -285,15 +291,17 @@ public class PaymentService(
         }
 
         SetTotals(cancellation);
-        await AssignNumberAndSaveAsync(cancellation, now, ct);
 
+        // Again everything in ONE save: the cancellation receipt, the back-link
+        // on the original and the released items belong together.
         original.CancelledByReceiptId = cancellation.Id;
 
         // The items become open again, so they can be corrected and put on a new
         // receipt. The cancelled receipt keeps its own frozen copy.
         var items = await db.PaymentItems.Where(i => i.ReceiptId == original.Id).ToListAsync(ct);
         foreach (var item in items) item.ReceiptId = null;
-        await db.SaveChangesAsync(ct);
+
+        await AssignNumberAndSaveAsync(cancellation, now, ct);
 
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Quittung storniert",
             "Quittung", studentId.ToString(),
@@ -384,11 +392,16 @@ public class PaymentService(
     /// Hands out the next number of the year and saves. On a collision it tries
     /// the next number: two people issuing at the same moment must never get the
     /// same number - the unique index on (year, sequence) catches that.
+    ///
+    /// Important: only a REAL collision is retried. Any other database error
+    /// (missing migration, foreign key, value too long) is passed on, because
+    /// retrying it three times changes nothing and the friendly "please try
+    /// again" would hide the actual cause from the log.
     /// </summary>
     private async Task AssignNumberAndSaveAsync(Receipt receipt, DateTime now, CancellationToken ct)
     {
         var year = now.Year;
-        for (var attempt = 0; attempt < 3; attempt++)
+        for (var attempt = 1; attempt <= 3; attempt++)
         {
             var last = await db.Receipts.Where(r => r.Year == year)
                 .MaxAsync(r => (int?)r.Sequence, ct) ?? 0;
@@ -403,14 +416,35 @@ public class PaymentService(
                 await db.SaveChangesAsync(ct);
                 return;
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException ex)
             {
+                // Detach the WHOLE graph - the lines too. Otherwise they stay
+                // tracked as "Added" and the next Add() would not link them to
+                // the receipt again.
+                foreach (var line in receipt.Items)
+                {
+                    db.Entry(line).State = EntityState.Detached;
+                }
                 db.Entry(receipt).State = EntityState.Detached;
+
+                // Was the number really taken in the meantime? Only then is a
+                // retry meaningful.
+                var numberTaken = await db.Receipts
+                    .AnyAsync(r => r.Year == receipt.Year && r.Sequence == receipt.Sequence, ct);
+                if (!numberTaken)
+                {
+                    logger.LogError(ex, "Quittung konnte nicht gespeichert werden (Nummer {Number})", receipt.Number);
+                    throw;
+                }
+
+                logger.LogWarning("Quittungsnummer {Number} war bereits vergeben - neuer Versuch {Attempt}",
+                    receipt.Number, attempt);
             }
         }
 
         throw new AppValidationException(
-            "Die Quittung konnte gerade nicht ausgestellt werden. Bitte noch einmal versuchen.");
+            "Die Quittung konnte gerade nicht ausgestellt werden, weil parallel gearbeitet wurde. "
+            + "Bitte noch einmal versuchen.");
     }
 
     private static void SetTotals(Receipt receipt)
