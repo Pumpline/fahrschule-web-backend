@@ -657,6 +657,10 @@ Dokument rückwirkend verändern.
 - **Audit-Kategorie „Geld & Quittungen"** (`money`): „Zahlung"/„Quittung" fielen vorher in den
   Auffang-Zweig `_ => Security` und wären damit nur für den Admin sichtbar gewesen. Für die
   Rolle Verwaltung ist die neue Kategorie voreingestellt.
+- **Storno bei sehr langer Bezeichnung:** Die Storno-Zeile setzt „Storno: " vor die
+  ursprüngliche Bezeichnung. Bei einer Bezeichnung, die die Spalte (200 Zeichen) schon ausfüllt,
+  wäre die Zeile zu lang geworden und der ganze Storno an der Datenbank gescheitert. Wird jetzt
+  gekürzt (Test dazu vorhanden).
 - **PDF-Schrift deterministisch** (`PdfDefaults`): `UseEnvironmentFonts = false` und die Familie
   ausdrücklich auf Lato (liegt dem QuestPDF-Paket bei). Vorher hing es von der Maschine ab,
   welche Schnitte gezogen werden. Gilt für **beide** Dokumente. Dazu: größere Schrift und

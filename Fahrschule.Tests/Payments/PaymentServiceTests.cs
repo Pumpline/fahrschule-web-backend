@@ -215,6 +215,34 @@ public class PaymentServiceTests
             service.AddItemAsync(_student, Item("Grundbetrag", 0m), TestActor));
     }
 
+
+    [Fact]
+    public async Task A_very_long_description_can_still_be_cancelled()
+    {
+        // The cancellation puts "Storno: " in front of the description. With a
+        // description that already fills the column (200 characters) the line
+        // would overflow - and the whole cancellation would fail.
+        await SeedAsync();
+        await AddAsync(Item(new string('A', 200), 100m));
+
+        Guid receiptId;
+        await using (var db = NewDb())
+        {
+            receiptId = (await NewService(db).IssueReceiptAsync(_student, TestActor)).Receipts.Single().Id;
+        }
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).CancelReceiptAsync(
+                _student, receiptId, new CancelReceiptRequest { Reason = "Zu lang" }, TestActor);
+        }
+
+        var after = await LoadAsync();
+        var cancellation = after.Receipts.Single(r => r.IsCancellation);
+        Assert.All(cancellation.Items, line => Assert.True(line.Description.Length <= 200));
+        Assert.StartsWith("Storno: ", cancellation.Items.Single().Description);
+    }
+
     private sealed class NullAuditWriter : IAuditWriter
     {
         public Task WriteAsync(Guid? userId, string userName, string action, string entityType,

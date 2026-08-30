@@ -281,7 +281,7 @@ public class PaymentService(
             {
                 Id = Guid.NewGuid(),
                 DateOn = line.DateOn,
-                Description = "Storno: " + line.Description,
+                Description = Shorten("Storno: " + line.Description, DescriptionLimit),
                 Net = -line.Net,
                 VatRatePercent = line.VatRatePercent,
                 VatAmount = -line.VatAmount,
@@ -446,6 +446,18 @@ public class PaymentService(
             "Die Quittung konnte gerade nicht ausgestellt werden, weil parallel gearbeitet wurde. "
             + "Bitte noch einmal versuchen.");
     }
+
+    /// <summary>Maximum length of a description in the database (varchar(200)).</summary>
+    private const int DescriptionLimit = 200;
+
+    /// <summary>
+    /// Cuts a text to the column length. Needed for the cancellation, where
+    /// "Storno: " is put in front of an existing description - with a
+    /// description that already uses the full 200 characters the line would no
+    /// longer fit, and the cancellation would fail at the database.
+    /// </summary>
+    private static string Shorten(string value, int limit)
+        => value.Length <= limit ? value : value[..(limit - 1)] + "…";
 
     private static void SetTotals(Receipt receipt)
     {
