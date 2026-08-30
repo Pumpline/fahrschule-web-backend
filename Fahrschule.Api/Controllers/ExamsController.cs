@@ -24,6 +24,14 @@ public class ExamsController(IExamService service) : ControllerBase
     public async Task<ActionResult<ExamListDto>> Create(Guid studentId, CreateExamRequest request, CancellationToken ct)
         => Ok(await service.CreateAsync(studentId, request, GetActor(), ct));
 
+    [HttpPut("{examId:guid}")]
+    public async Task<ActionResult<ExamListDto>> Update(Guid studentId, Guid examId, UpdateExamRequest request, CancellationToken ct)
+        => Ok(await service.UpdateAsync(studentId, examId, request, GetActor(), ct));
+
+    [HttpDelete("{examId:guid}")]
+    public async Task<ActionResult<ExamListDto>> Delete(Guid studentId, Guid examId, CancellationToken ct)
+        => Ok(await service.DeleteAsync(studentId, examId, GetActor(), ct));
+
     private Actor GetActor()
     {
         var idValue = User.FindFirstValue(ClaimTypes.NameIdentifier);

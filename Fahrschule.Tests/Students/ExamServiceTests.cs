@@ -160,4 +160,122 @@ public class ExamServiceTests
             string entityId, string? oldValuesJson = null, string? newValuesJson = null,
             CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
+
+    // --- correcting and deleting (KONZEPT 3.4, project rule 7) ---
+
+    private async Task<Guid> ExamIdAsync(string kind, DateOnly date)
+    {
+        await using var db = NewDb();
+        var list = await NewService(db).GetForStudentAsync(_student);
+        return list.Exams.Single(e => e.Kind == kind && e.DateOn == date).Id;
+    }
+
+    [Fact]
+    public async Task Editing_an_exam_changes_date_result_and_note()
+    {
+        await SeedAsync();
+        await CreateAsync(Req("Theory", "Planned", new DateOnly(2026, 4, 1)));
+        var id = await ExamIdAsync("Theory", new DateOnly(2026, 4, 1));
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).UpdateAsync(_student, id, new UpdateExamRequest
+            {
+                DateOn = new DateOnly(2026, 4, 8), Result = "Passed", Note = "Termin verschoben",
+            }, TestActor);
+        }
+
+        await using var check = NewDb();
+        var exam = (await NewService(check).GetForStudentAsync(_student)).Exams.Single();
+        Assert.Equal(new DateOnly(2026, 4, 8), exam.DateOn);
+        Assert.Equal("Passed", exam.Result);
+        Assert.Equal("Termin verschoben", exam.Note);
+    }
+
+    [Fact]
+    public async Task Deleting_an_exam_renumbers_the_remaining_attempts()
+    {
+        await SeedAsync();
+        await CreateAsync(Req("Theory", "Failed", new DateOnly(2026, 4, 1)));   // 1st attempt
+        await CreateAsync(Req("Theory", "Failed", new DateOnly(2026, 5, 1)));   // 2nd attempt
+        var first = await ExamIdAsync("Theory", new DateOnly(2026, 4, 1));
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).DeleteAsync(_student, first, TestActor);
+        }
+
+        await using var check = NewDb();
+        var list = await NewService(check).GetForStudentAsync(_student);
+        var remaining = Assert.Single(list.Exams);
+        Assert.Equal(new DateOnly(2026, 5, 1), remaining.DateOn);
+        Assert.Equal(1, remaining.AttemptNumber);   // was the 2nd attempt before
+    }
+
+    [Fact]
+    public async Task Deleting_the_failed_exam_removes_its_repeat_lock()
+    {
+        await SeedAsync();
+        await CreateAsync(Req("Theory", "Failed", new DateOnly(2026, 4, 1)));
+        var failed = await ExamIdAsync("Theory", new DateOnly(2026, 4, 1));
+
+        await using (var withLock = NewDb())
+        {
+            Assert.Single((await NewService(withLock).GetForStudentAsync(_student)).Locks);
+        }
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).DeleteAsync(_student, failed, TestActor);
+        }
+
+        await using var check = NewDb();
+        Assert.Empty((await NewService(check).GetForStudentAsync(_student)).Locks);
+    }
+
+    [Fact]
+    public async Task A_practice_exam_keeps_its_passed_theory_exam()
+    {
+        await SeedAsync();
+        await CreateAsync(Req("Theory", "Passed", new DateOnly(2026, 4, 1)));
+        await CreateAsync(Req("Practice", "Planned", new DateOnly(2026, 5, 1)));
+        var theory = await ExamIdAsync("Theory", new DateOnly(2026, 4, 1));
+
+        // Neither deleting it ...
+        await using (var db = NewDb())
+        {
+            await Assert.ThrowsAsync<AppValidationException>(() =>
+                NewService(db).DeleteAsync(_student, theory, TestActor));
+        }
+
+        // ... nor setting it back to "not passed" is allowed.
+        await using (var db = NewDb())
+        {
+            await Assert.ThrowsAsync<AppValidationException>(() =>
+                NewService(db).UpdateAsync(_student, theory, new UpdateExamRequest
+                {
+                    DateOn = new DateOnly(2026, 4, 1), Result = "Failed",
+                }, TestActor));
+        }
+    }
+
+    [Fact]
+    public async Task A_deleted_exam_no_longer_blocks_a_new_one()
+    {
+        await SeedAsync();
+        await CreateAsync(Req("Theory", "Failed", new DateOnly(2026, 4, 1)));    // starts a 2-week lock
+        var failed = await ExamIdAsync("Theory", new DateOnly(2026, 4, 1));
+
+        // Inside the lock a repeat is refused ...
+        await Assert.ThrowsAsync<AppValidationException>(() =>
+            CreateAsync(Req("Theory", "Planned", new DateOnly(2026, 4, 3))));
+
+        await using (var db = NewDb())
+        {
+            await NewService(db).DeleteAsync(_student, failed, TestActor);
+        }
+
+        // ... after deleting the failed attempt it works.
+        await CreateAsync(Req("Theory", "Planned", new DateOnly(2026, 4, 3)));   // no throw
+    }
 }

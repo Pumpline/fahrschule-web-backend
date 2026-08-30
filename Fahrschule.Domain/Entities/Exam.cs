@@ -50,4 +50,11 @@ public class Exam
     public string? Note { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }
+
+    // Soft-delete (project rule 7): deleting an exam only flags it, so it
+    // vanishes from the list, the attempt count and the locks, but stays
+    // recoverable and is purged only by the retention job.
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAtUtc { get; set; }
+    public Guid? DeletedByUserId { get; set; }
 }

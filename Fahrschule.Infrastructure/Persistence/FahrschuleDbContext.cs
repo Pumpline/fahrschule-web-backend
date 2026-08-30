@@ -365,7 +365,7 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // Mirror the student's soft-delete filter (EF requires this).
-            exam.HasQueryFilter(x => !x.Student!.IsDeleted);
+            exam.HasQueryFilter(x => !x.IsDeleted && !x.Student!.IsDeleted);
         });
 
         builder.Entity<CalendarEvent>(ev =>

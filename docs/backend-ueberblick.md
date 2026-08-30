@@ -344,6 +344,20 @@ Umsetzung:
 - **`ExamService`**: GetForStudent (Prüfungen + Sperr-Infos), Create mit Regeln:
   Praxisprüfung erst nach bestandener Theorieprüfung; eine echte Wiederholung darf
   nicht vor dem Sperr-Ende geplant werden; Audit „Prüfung eingetragen".
+- **Berichtigen und Löschen** (wie bei den Stunden):
+  - `Update` ändert **Datum, Ergebnis, Notiz**. Art, Klasse und „Vorprüfung" bleiben
+    fest – dafür löschen und neu eintragen. Geprüft wird gegen die Sperre der
+    *übrigen* Versuche (die bearbeitete Prüfung zählt dabei nicht mit).
+  - `Delete` ist ein **Soft-Delete** (Projektregel 7): `IsDeleted` + Zeitpunkt +
+    Benutzer, Migration „PruefungSoftDelete", dazu ein Query-Filter – damit
+    verschwindet die Prüfung überall (Liste, Versuchszählung, Sperren, PDF),
+    bleibt aber bis zum Fristende wiederherstellbar.
+  - **Beide** verweigern den Schritt, wenn danach eine echte Praxisprüfung ohne
+    bestandene Theorieprüfung dastünde (verständliche Meldung, KONZEPT 3.4).
+  - Versuchsnummern und Sperren sind **abgeleitet** – sie stimmen nach jeder
+    Änderung von selbst. Der **Stand** wird dabei nie zurückgesetzt
+    (`RaisePhase` hebt nur an); das sagt der Löschdialog auch.
+  - Audit: „Prüfung geändert" (vorher/nachher) bzw. „Prüfung gelöscht".
 - Endpunkte `/api/students/{id}/exams`. Frontend: dritter Tab „Prüfungen" mit
   Tabelle, „Prüfung eintragen"-Modal und Sperr-Karte(n).
 - Noch offen (später): Prüfungstermine bei TÜV/DEKRA (`ExamBooking`), volle

@@ -57,6 +57,22 @@ public class ExamLockDto
     public int ShortenedWeeks { get; set; }
 }
 
+/// <summary>
+/// "Correct an exam" request. Date, result and note can be changed; kind, class
+/// and "Vorprüfung" stay fixed - for those, delete the exam and enter it again
+/// (same rule as for a lesson). Attempt numbers and locks are derived, so they
+/// follow the change automatically.
+/// </summary>
+public class UpdateExamRequest
+{
+    public DateOnly DateOn { get; set; }
+
+    /// <summary>"Planned", "Passed" or "Failed".</summary>
+    public string Result { get; set; } = string.Empty;
+
+    public string? Note { get; set; }
+}
+
 /// <summary>"Enter an exam" request (KONZEPT 3.4).</summary>
 public class CreateExamRequest
 {

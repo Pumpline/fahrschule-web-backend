@@ -15,6 +15,8 @@ public interface IExamService
 {
     Task<ExamListDto> GetForStudentAsync(Guid studentId, CancellationToken ct = default);
     Task<ExamListDto> CreateAsync(Guid studentId, CreateExamRequest request, Actor actor, CancellationToken ct = default);
+    Task<ExamListDto> UpdateAsync(Guid studentId, Guid examId, UpdateExamRequest request, Actor actor, CancellationToken ct = default);
+    Task<ExamListDto> DeleteAsync(Guid studentId, Guid examId, Actor actor, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -135,7 +137,141 @@ public class ExamService(FahrschuleDbContext db, ISettingsService settingsServic
         return await GetForStudentAsync(studentId, ct);
     }
 
+    /// <summary>
+    /// Corrects an exam: date, result and note. Kind, class and "Vorprüfung"
+    /// stay fixed - for those, delete it and enter it again (same rule as for a
+    /// lesson). Attempt numbers and locks are derived, so they follow along.
+    /// </summary>
+    public async Task<ExamListDto> UpdateAsync(
+        Guid studentId, Guid examId, UpdateExamRequest request, Actor actor, CancellationToken ct = default)
+    {
+        if (!Enum.TryParse<ExamResult>(request.Result, out var result))
+        {
+            throw new AppValidationException("Bitte ein Ergebnis wählen (geplant, bestanden oder nicht bestanden).");
+        }
+
+        var student = await LoadStudentAsync(studentId, ct);
+        var exam = await db.Exams.FirstOrDefaultAsync(e => e.Id == examId && e.StudentId == studentId, ct)
+            ?? throw new NotFoundException("Diese Prüfung wurde nicht gefunden. Bitte die Liste neu laden.");
+
+        var others = await db.Exams
+            .Where(e => e.StudentId == studentId && e.Id != examId).ToListAsync(ct);
+
+        if (!exam.IsPreliminary)
+        {
+            // The theory exam of a class must stay passed as long as a real
+            // practical exam of that class is entered (KONZEPT 3.4).
+            if (exam.Kind == ExamKind.Theory && result != ExamResult.Passed)
+            {
+                EnsureTheoryStaysPassed(others, exam.LicenseClassId);
+            }
+
+            // The new date must not fall into a repeat lock caused by the OTHER
+            // attempts (this exam itself is left out of the calculation).
+            var settings = await settingsService.GetAsync(ct);
+            var lessons = await db.Lessons.Where(l => l.StudentId == studentId).ToListAsync(ct);
+            var siblings = others
+                .Where(e => !e.IsPreliminary && e.Kind == exam.Kind && e.LicenseClassId == exam.LicenseClassId)
+                .ToList();
+            var activeLock = TryBuildLock(exam.Kind, exam.LicenseClassId, "", siblings, lessons, settings);
+            if (activeLock is not null && request.DateOn < activeLock.LockedUntil)
+            {
+                throw new AppValidationException(
+                    $"Wegen der Wiederholungs-Sperre frühestens am {activeLock.LockedUntil:dd.MM.yyyy} möglich.");
+            }
+        }
+
+        var code = ClassCodes(student).GetValueOrDefault(exam.LicenseClassId, "");
+        var before = new
+        {
+            Art = ArtLabel(exam.Kind, exam.IsPreliminary),
+            Klasse = code,
+            Datum = exam.DateOn.ToString("dd.MM.yyyy"),
+            Ergebnis = ResultLabel(exam.Result),
+            Notiz = exam.Note,
+        };
+
+        exam.DateOn = request.DateOn;
+        exam.Result = result;
+        exam.Note = NullIfEmpty(request.Note);
+        await db.SaveChangesAsync(ct);
+
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Prüfung geändert",
+            "Prüfung", studentId.ToString(),
+            oldValuesJson: JsonSerializer.Serialize(before),
+            newValuesJson: JsonSerializer.Serialize(new
+            {
+                Art = ArtLabel(exam.Kind, exam.IsPreliminary),
+                Klasse = code,
+                Datum = exam.DateOn.ToString("dd.MM.yyyy"),
+                Ergebnis = ResultLabel(exam.Result),
+                Notiz = exam.Note,
+            }), cancellationToken: ct);
+
+        return await GetForStudentAsync(studentId, ct);
+    }
+
+    /// <summary>
+    /// Deletes an exam - soft (project rule 7): it disappears from the list,
+    /// the attempt count and the locks, but stays recoverable until the
+    /// retention period ends. The later attempts of the same kind+class are
+    /// renumbered automatically because the numbers are derived.
+    /// </summary>
+    public async Task<ExamListDto> DeleteAsync(
+        Guid studentId, Guid examId, Actor actor, CancellationToken ct = default)
+    {
+        var student = await LoadStudentAsync(studentId, ct);
+        var exam = await db.Exams.FirstOrDefaultAsync(e => e.Id == examId && e.StudentId == studentId, ct)
+            ?? throw new NotFoundException("Diese Prüfung wurde nicht gefunden. Bitte die Liste neu laden.");
+
+        // A passed theory exam may not vanish while a real practical exam of
+        // that class exists - the practical one would then stand without its
+        // precondition (KONZEPT 3.4).
+        if (!exam.IsPreliminary && exam.Kind == ExamKind.Theory && exam.Result == ExamResult.Passed)
+        {
+            var others = await db.Exams
+                .Where(e => e.StudentId == studentId && e.Id != examId).ToListAsync(ct);
+            EnsureTheoryStaysPassed(others, exam.LicenseClassId);
+        }
+
+        var code = ClassCodes(student).GetValueOrDefault(exam.LicenseClassId, "");
+        exam.IsDeleted = true;
+        exam.DeletedAtUtc = DateTime.UtcNow;
+        exam.DeletedByUserId = actor.UserId;
+        await db.SaveChangesAsync(ct);
+
+        await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Prüfung gelöscht",
+            "Prüfung", studentId.ToString(),
+            oldValuesJson: JsonSerializer.Serialize(new
+            {
+                Art = ArtLabel(exam.Kind, exam.IsPreliminary),
+                Klasse = code,
+                Datum = exam.DateOn.ToString("dd.MM.yyyy"),
+                Ergebnis = ResultLabel(exam.Result),
+                Notiz = exam.Note,
+            }), cancellationToken: ct);
+
+        return await GetForStudentAsync(studentId, ct);
+    }
+
     // --- helpers ---
+
+    /// <summary>Blocks a change that would leave a real practical exam of that
+    /// class without a passed theory exam.</summary>
+    private static void EnsureTheoryStaysPassed(List<Exam> remaining, Guid classId)
+    {
+        var practiceExists = remaining.Any(e => e.LicenseClassId == classId
+            && e.Kind == ExamKind.Practice && !e.IsPreliminary);
+        if (!practiceExists) return;
+
+        var theoryStillPassed = remaining.Any(e => e.LicenseClassId == classId
+            && e.Kind == ExamKind.Theory && !e.IsPreliminary && e.Result == ExamResult.Passed);
+        if (theoryStillPassed) return;
+
+        throw new AppValidationException(
+            "Für diese Klasse ist eine Praxisprüfung eingetragen – dafür muss die Theorieprüfung "
+            + "bestanden bleiben. Bitte zuerst die Praxisprüfung ändern oder löschen.");
+    }
 
     /// <summary>Builds the lock info for a kind+class, or null when there is no
     /// unresolved failed exam (no failed one, or a later pass resolved it).</summary>
