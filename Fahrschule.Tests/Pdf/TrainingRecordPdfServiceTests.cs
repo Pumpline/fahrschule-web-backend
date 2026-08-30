@@ -1,4 +1,5 @@
 using Fahrschule.Application.Audit;
+using Fahrschule.Application.Payments;
 using Fahrschule.Application.Pdf;
 using Fahrschule.Application.Settings;
 using Fahrschule.Application.Students;
@@ -72,7 +73,7 @@ public class TrainingRecordPdfServiceTests
         var settings = new SettingsService(db, audit);
         var service = new TrainingRecordPdfService(
             new StudentService(db, settings, audit),
-            new LessonService(db, audit),
+            new LessonService(db, audit, NewPaymentService(db)),
             new ExamService(db, settings, audit),
             settings);
 
@@ -90,4 +91,11 @@ public class TrainingRecordPdfServiceTests
             string entityId, string? oldValuesJson = null, string? newValuesJson = null,
             CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
+
+    /// <summary>The lesson service needs the payment service (money paid for a
+    /// lesson, KONZEPT 3.6); these tests do not check money, so a plain instance
+    /// on the same database is enough.</summary>
+    private static PaymentService NewPaymentService(FahrschuleDbContext db)
+        => new(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter());
+
 }

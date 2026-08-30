@@ -37,7 +37,9 @@ public static class DependencyInjection
         services.AddScoped<ILessonService, LessonService>();
         services.AddScoped<IExamService, ExamService>();
         services.AddScoped<Calendar.ICalendarService, Calendar.CalendarService>();
+        services.AddScoped<Payments.IPaymentService, Payments.PaymentService>();
         services.AddScoped<Pdf.ITrainingRecordPdfService, Pdf.TrainingRecordPdfService>();
+        services.AddScoped<Pdf.IReceiptPdfService, Pdf.ReceiptPdfService>();
         services.AddScoped<IAuditQueryService, AuditQueryService>();
         services.AddScoped<IAuditVisibilityService, AuditVisibilityService>();
         services.AddScoped<Admin.IStudentExportService, Admin.StudentExportService>();

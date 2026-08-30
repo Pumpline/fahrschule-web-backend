@@ -59,6 +59,8 @@ public class SettingsServiceTests
             ExamLockShortenedWeeks = 1,
             ExamLockPracticeLessonsForShortening = 4,
             RetentionStudentYears = 6,
+            ReceiptVatRatePercent = 19,
+            ReceiptRetentionYears = 10,
             LessonDefaultDurationMinutes = 45,
             LessonDurationPresets = "45, 90",
             LessonTheoryDefaultStartTime = "9:00", // stored tidily as "09:00"
@@ -115,6 +117,8 @@ public class SettingsServiceTests
             ExamLockShortenedWeeks = 1,
             ExamLockPracticeLessonsForShortening = 2,
             RetentionStudentYears = 5,
+            ReceiptVatRatePercent = 19,
+            ReceiptRetentionYears = 10,
             LessonDefaultDurationMinutes = 90,
             LessonDurationPresets = "45, 90",
             TheoryBasicDoubleLessons = 12,
@@ -189,6 +193,8 @@ public class SettingsServiceTests
         public int ExamLockShortenedWeeks { get; init; } = 1;
         public int ExamLockPracticeLessonsForShortening { get; init; } = 2;
         public int RetentionStudentYears { get; init; } = 5;
+        public int ReceiptVatRatePercent { get; init; } = 19;
+        public int ReceiptRetentionYears { get; init; } = 10;
         public int LessonDefaultDurationMinutes { get; init; } = 90;
         public string LessonDurationPresets { get; init; } = "45, 90, 135, 180";
         public int TheoryBasicDoubleLessons { get; init; } = 12;
@@ -204,6 +210,8 @@ public class SettingsServiceTests
             ExamLockShortenedWeeks = r.ExamLockShortenedWeeks,
             ExamLockPracticeLessonsForShortening = r.ExamLockPracticeLessonsForShortening,
             RetentionStudentYears = r.RetentionStudentYears,
+            ReceiptVatRatePercent = r.ReceiptVatRatePercent,
+            ReceiptRetentionYears = r.ReceiptRetentionYears,
             LessonDefaultDurationMinutes = r.LessonDefaultDurationMinutes,
             LessonDurationPresets = r.LessonDurationPresets,
         };

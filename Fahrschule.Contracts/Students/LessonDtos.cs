@@ -27,6 +27,17 @@ public class LessonDto
     /// <summary>The points covered in this lesson with their counting state -
     /// used to pre-fill the edit dialog.</summary>
     public List<LessonCoverDto> Covered { get; set; } = [];
+
+    /// <summary>Money paid for this lesson (gross), null = nothing paid yet
+    /// (KONZEPT 3.6). Only used for practical lessons.</summary>
+    public decimal? PaidAmount { get; set; }
+
+    /// <summary>VAT rate of that amount in percent.</summary>
+    public int? PaidVatRatePercent { get; set; }
+
+    /// <summary>Number of the receipt the amount is already on - then it can no
+    /// longer be changed here (GoBD).</summary>
+    public string? PaidReceiptNumber { get; set; }
 }
 
 /// <summary>One point covered by a lesson, with how it was counted.</summary>
@@ -72,6 +83,13 @@ public class CreateLessonRequest
     /// (KONZEPT 3.5). When set, that appointment is marked "durchgeführt" and
     /// linked to this lesson.</summary>
     public Guid? CalendarEventId { get; set; }
+
+    /// <summary>Money paid for this lesson (gross), null or 0 = nothing paid
+    /// (KONZEPT 3.6). Only meaningful for practical lessons.</summary>
+    public decimal? PaidAmount { get; set; }
+
+    /// <summary>VAT rate for that amount; null = the default from the settings.</summary>
+    public int? PaidVatRatePercent { get; set; }
 }
 
 /// <summary>
@@ -97,4 +115,11 @@ public class UpdateLessonRequest
     /// <summary>Subset of <see cref="CoveredItemIds"/> (countable points) that
     /// only count as practice, not a full session (+0 instead of +1).</summary>
     public Guid[] PartialPracticeItemIds { get; set; } = [];
+
+    /// <summary>Money paid for this lesson (gross), null or 0 = nothing paid
+    /// (KONZEPT 3.6). Only meaningful for practical lessons.</summary>
+    public decimal? PaidAmount { get; set; }
+
+    /// <summary>VAT rate for that amount; null = the default from the settings.</summary>
+    public int? PaidVatRatePercent { get; set; }
 }

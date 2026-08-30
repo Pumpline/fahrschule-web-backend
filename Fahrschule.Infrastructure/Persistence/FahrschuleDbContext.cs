@@ -32,6 +32,9 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
     public DbSet<Lesson> Lessons => Set<Lesson>();
     public DbSet<Exam> Exams => Set<Exam>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
+    public DbSet<PaymentItem> PaymentItems => Set<PaymentItem>();
+    public DbSet<Receipt> Receipts => Set<Receipt>();
+    public DbSet<ReceiptItem> ReceiptItems => Set<ReceiptItem>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -366,6 +369,77 @@ public class FahrschuleDbContext(DbContextOptions<FahrschuleDbContext> options)
 
             // Mirror the student's soft-delete filter (EF requires this).
             exam.HasQueryFilter(x => !x.IsDeleted && !x.Student!.IsDeleted);
+        });
+
+        // --- Money (KONZEPT 3.6) -------------------------------------------
+        builder.Entity<PaymentItem>(item =>
+        {
+            item.Property(x => x.Description).HasMaxLength(200).IsRequired();
+            // decimal(10,2) = exact to the cent (project rule 7: never a float).
+            item.Property(x => x.GrossAmount).HasPrecision(10, 2);
+
+            item.HasIndex(x => x.StudentId);
+            item.HasIndex(x => x.ReceiptId);
+
+            item.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // The lesson is only soft-deleted; keep the link explicit (Restrict)
+            // so paid money can never vanish with a lesson by accident.
+            item.HasOne(x => x.Lesson)
+                .WithMany()
+                .HasForeignKey(x => x.LessonId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            item.HasOne(x => x.Receipt)
+                .WithMany()
+                .HasForeignKey(x => x.ReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            item.HasQueryFilter(x => !x.IsDeleted && !x.Student!.IsDeleted);
+        });
+
+        builder.Entity<Receipt>(receipt =>
+        {
+            receipt.Property(x => x.Number).HasMaxLength(20).IsRequired();
+            receipt.Property(x => x.IssuedByName).HasMaxLength(200);
+            receipt.Property(x => x.CancelReason).HasMaxLength(500);
+            receipt.Property(x => x.TotalNet).HasPrecision(10, 2);
+            receipt.Property(x => x.TotalVat).HasPrecision(10, 2);
+            receipt.Property(x => x.TotalGross).HasPrecision(10, 2);
+
+            // What makes the numbering verifiable: the pair year+sequence exists
+            // exactly once, so no number can be handed out twice.
+            receipt.HasIndex(x => new { x.Year, x.Sequence }).IsUnique();
+            receipt.HasIndex(x => x.StudentId);
+
+            receipt.HasOne(x => x.Student)
+                .WithMany()
+                .HasForeignKey(x => x.StudentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            receipt.HasMany(x => x.Items)
+                .WithOne(i => i.Receipt!)
+                .HasForeignKey(i => i.ReceiptId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // NO soft-delete filter on purpose: a receipt is never deleted
+            // (§ 147 AO / GoBD). It is only ever cancelled by a second receipt.
+            // EF warns that Student IS filtered while this relation is required -
+            // that is exactly what we want here: even for a hidden (soft-deleted)
+            // student the receipts must stay readable until their own 10-year
+            // period has run out. Receipts are therefore never queried through
+            // the student navigation.
+        });
+
+        builder.Entity<ReceiptItem>(line =>
+        {
+            line.Property(x => x.Description).HasMaxLength(200).IsRequired();
+            line.Property(x => x.Net).HasPrecision(10, 2);
+            line.Property(x => x.VatAmount).HasPrecision(10, 2);
+            line.Property(x => x.Gross).HasPrecision(10, 2);
         });
 
         builder.Entity<CalendarEvent>(ev =>

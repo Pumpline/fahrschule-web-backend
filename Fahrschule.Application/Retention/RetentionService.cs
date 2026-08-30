@@ -44,9 +44,12 @@ public class RetentionService(
 {
     public async Task<RetentionStatusDto> GetStatusAsync(CancellationToken ct = default)
     {
-        var years = (await settings.GetAsync(ct)).RetentionStudentYears;
+        var appSettings = await settings.GetAsync(ct);
+        var years = appSettings.RetentionStudentYears;
+        var receiptYears = appSettings.ReceiptRetentionYears;
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var (lastLesson, lastExam) = await LoadActivityAsync(ct);
+        var lastReceipt = await LoadLastReceiptAsync(ct);
 
         // Include classes for display; bypass the soft-delete filter so hidden
         // (soft-deleted) students are considered for the legal deadline too.
@@ -59,9 +62,11 @@ public class RetentionService(
             {
                 var end = StudentRetentionRules.TrainingEndDate(
                     DateOnly.FromDateTime(s.CreatedAtUtc), Lookup(lastLesson, s.Id), Lookup(lastExam, s.Id));
-                return (Student: s, TrainingEnd: end);
+                var due = StudentRetentionRules.DueDateWithReceipts(
+                    end, years, Lookup(lastReceipt, s.Id), receiptYears);
+                return (Student: s, TrainingEnd: end, Due: due);
             })
-            .Where(x => StudentRetentionRules.IsDue(today, x.TrainingEnd, years))
+            .Where(x => today >= x.Due)
             .Select(x => new RetentionDueStudentDto
             {
                 Id = x.Student.Id,
@@ -69,7 +74,7 @@ public class RetentionService(
                 ClassCodes = [.. x.Student.LicenseClasses.Where(lc => lc.LicenseClass != null)
                     .Select(lc => lc.LicenseClass!.Code).OrderBy(c => c)],
                 TrainingEndDate = x.TrainingEnd,
-                DueDate = StudentRetentionRules.DeletionDueDate(x.TrainingEnd, years),
+                DueDate = x.Due,
             })
             .OrderBy(d => d.DueDate).ThenBy(d => d.FullName)
             .ToList();
@@ -84,9 +89,12 @@ public class RetentionService(
 
     public async Task<RetentionRunResultDto> RunAsync(Actor? actor = null, CancellationToken ct = default)
     {
-        var years = (await settings.GetAsync(ct)).RetentionStudentYears;
+        var appSettings = await settings.GetAsync(ct);
+        var years = appSettings.RetentionStudentYears;
+        var receiptYears = appSettings.ReceiptRetentionYears;
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var (lastLesson, lastExam) = await LoadActivityAsync(ct);
+        var lastReceipt = await LoadLastReceiptAsync(ct);
 
         // Tracked entities so we can delete them; bypass the soft-delete filter.
         var students = await db.Students.IgnoreQueryFilters().ToListAsync(ct);
@@ -98,7 +106,12 @@ public class RetentionService(
                 DateOnly.FromDateTime(student.CreatedAtUtc),
                 Lookup(lastLesson, student.Id), Lookup(lastExam, student.Id));
 
-            if (!StudentRetentionRules.IsDue(today, trainingEnd, years))
+            // A receipt has its own, longer period (§ 147 AO) - as long as it
+            // runs, the student stays, otherwise the receipt would be deleted
+            // with them.
+            var dueDate = StudentRetentionRules.DueDateWithReceipts(
+                trainingEnd, years, Lookup(lastReceipt, student.Id), receiptYears);
+            if (today < dueDate)
             {
                 continue;
             }
@@ -123,6 +136,7 @@ public class RetentionService(
                 Name = name,
                 Ausbildungsende = trainingEnd,
                 Aufbewahrungsfrist = $"{years} Jahre",
+                Loeschbar_ab = dueDate.ToString("dd.MM.yyyy"),
             });
             await auditWriter.WriteAsync(
                 actor?.UserId, actor?.UserName ?? "System (Aufbewahrung)",
@@ -153,6 +167,18 @@ public class RetentionService(
             .ToDictionaryAsync(x => x.Id, x => x.Last, ct);
 
         return (lessons, exams);
+    }
+
+    /// <summary>Issue date of the newest receipt per student. Receipts are never
+    /// deleted, so the plain table is the full picture (§ 147 AO).</summary>
+    private async Task<Dictionary<Guid, DateOnly>> LoadLastReceiptAsync(CancellationToken ct)
+    {
+        var rows = await db.Receipts
+            .GroupBy(r => r.StudentId)
+            .Select(g => new { Id = g.Key, Last = g.Max(x => x.IssuedAtUtc) })
+            .ToListAsync(ct);
+
+        return rows.ToDictionary(x => x.Id, x => DateOnly.FromDateTime(x.Last));
     }
 
     private static DateOnly? Lookup(Dictionary<Guid, DateOnly> dates, Guid id)

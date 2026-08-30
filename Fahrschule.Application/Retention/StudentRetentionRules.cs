@@ -36,4 +36,21 @@ public static class StudentRetentionRules
     /// <summary>True once the deletion deadline has been reached or passed.</summary>
     public static bool IsDue(DateOnly today, DateOnly trainingEnd, int retentionYears)
         => today >= DeletionDueDate(trainingEnd, retentionYears);
+
+    /// <summary>
+    /// The day a student may really be deleted. Training records fall under
+    /// § 31 FahrlG, but a RECEIPT is a tax document under § 147 AO and has to be
+    /// kept much longer (10 years). So the later of the two deadlines decides -
+    /// otherwise deleting the student would take a receipt with it before its
+    /// own period has run out (project rule 1 and 7).
+    /// </summary>
+    public static DateOnly DueDateWithReceipts(
+        DateOnly trainingEnd, int retentionYears, DateOnly? lastReceiptIssuedOn, int receiptRetentionYears)
+    {
+        var due = DeletionDueDate(trainingEnd, retentionYears);
+        if (lastReceiptIssuedOn is not { } receipt) return due;
+
+        var receiptDue = new DateOnly(receipt.Year + receiptRetentionYears + 1, 1, 1);
+        return receiptDue > due ? receiptDue : due;
+    }
 }

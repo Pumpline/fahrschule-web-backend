@@ -41,6 +41,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string ExamLockShortenedWeeks = "ExamLock.ShortenedWeeks";
     public const string ExamLockPracticeLessonsForShortening = "ExamLock.PracticeLessonsForShortening";
     public const string RetentionStudentYears = "Retention.StudentYears";
+    public const string ReceiptVatRatePercent = "Receipt.VatRatePercent";
+    public const string ReceiptRetentionYears = "Receipt.RetentionYears";
     public const string LessonDefaultDurationMinutes = "Lesson.DefaultDurationMinutes";
     public const string TheoryValidityYears = "Theory.ValidityYears";
     public const string TheoryBasicDoubleLessons = "Theory.BasicDoubleLessons";
@@ -65,6 +67,11 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         // § 31 Abs. 3 FahrlG: 5 years after the end of the training year. Range
         // 1-30 leaves room should the law change; default 5 is the current value.
         new(RetentionStudentYears, 5, 1, 30, "Aufbewahrungsfrist für Schüler-Daten nach Ausbildungsende (Jahre, § 31 FahrlG)"),
+        // Money (KONZEPT 3.6). The rate is only the PRESELECTION - each receipt
+        // item carries its own rate, so 7 % or 0 % stay possible per position.
+        new(ReceiptVatRatePercent, 19, 0, 25, "Umsatzsteuersatz, der bei einem neuen Posten vorgeschlagen wird (%)"),
+        // § 147 AO: 10 years for receipts/invoices. Range leaves room for changes.
+        new(ReceiptRetentionYears, 10, 1, 30, "Aufbewahrungsfrist für Quittungen (Jahre, § 147 AO)"),
     ];
 
     // Driving-school master data (free text, KONZEPT 1b) - shown on the
@@ -74,6 +81,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
     public const string SchoolPostalCode = "School.PostalCode";
     public const string SchoolCity = "School.City";
     public const string SchoolPermitNumber = "School.PermitNumber";
+    public const string SchoolTaxNumber = "School.TaxNumber";
 
     // Fahrlehrer number for the training record's "FL" column. One instructor
     // (the owner), so it pre-fills every row; editable (rule 3), default "01".
@@ -100,6 +108,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         new(SchoolPostalCode, 20, "Postleitzahl"),
         new(SchoolCity, 100, "Ort"),
         new(SchoolPermitNumber, 100, "Erlaubnisnummer"),
+        new(SchoolTaxNumber, 100, "Steuernummer / USt-IdNr. (erscheint auf der Quittung)"),
         new(SchoolInstructorNumber, 10, "Fahrlehrer-Nummer (FL) für den Ausbildungsnachweis"),
         new(SchoolInstructorName, 100, "Name des Fahrlehrers (für die Legende „FL 01 = …“)"),
         new(LessonDurationPresets, 200, "Schnell-Auswahl der Stundendauern (Minuten, mit Komma getrennt)"),
@@ -123,6 +132,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             ExamLockShortenedWeeks = Read(ExamLockShortenedWeeks),
             ExamLockPracticeLessonsForShortening = Read(ExamLockPracticeLessonsForShortening),
             RetentionStudentYears = Read(RetentionStudentYears),
+            ReceiptVatRatePercent = Read(ReceiptVatRatePercent),
+            ReceiptRetentionYears = Read(ReceiptRetentionYears),
             LessonDefaultDurationMinutes = Read(LessonDefaultDurationMinutes),
             TheoryValidityYears = Read(TheoryValidityYears),
             TheoryBasicDoubleLessons = Read(TheoryBasicDoubleLessons),
@@ -135,6 +146,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             SchoolPostalCode = ReadText(SchoolPostalCode),
             SchoolCity = ReadText(SchoolCity),
             SchoolPermitNumber = ReadText(SchoolPermitNumber),
+            SchoolTaxNumber = ReadText(SchoolTaxNumber),
             // Falls back to "01" so the FL column is never empty (single instructor).
             SchoolInstructorNumber = NullIfEmpty(ReadText(SchoolInstructorNumber)) ?? DefaultInstructorNumber,
             SchoolInstructorName = ReadText(SchoolInstructorName),
@@ -151,6 +163,8 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
             [ExamLockShortenedWeeks] = request.ExamLockShortenedWeeks,
             [ExamLockPracticeLessonsForShortening] = request.ExamLockPracticeLessonsForShortening,
             [RetentionStudentYears] = request.RetentionStudentYears,
+            [ReceiptVatRatePercent] = request.ReceiptVatRatePercent,
+            [ReceiptRetentionYears] = request.ReceiptRetentionYears,
             [LessonDefaultDurationMinutes] = request.LessonDefaultDurationMinutes,
             [TheoryValidityYears] = request.TheoryValidityYears,
             [TheoryBasicDoubleLessons] = request.TheoryBasicDoubleLessons,
@@ -243,6 +257,7 @@ public class SettingsService(FahrschuleDbContext db, IAuditWriter auditWriter) :
         [SchoolPostalCode] = r.SchoolPostalCode,
         [SchoolCity] = r.SchoolCity,
         [SchoolPermitNumber] = r.SchoolPermitNumber,
+        [SchoolTaxNumber] = r.SchoolTaxNumber,
         [SchoolInstructorNumber] = r.SchoolInstructorNumber,
         [SchoolInstructorName] = r.SchoolInstructorName,
         [LessonDurationPresets] = r.LessonDurationPresets,

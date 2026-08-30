@@ -1,6 +1,8 @@
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.Common;
 using Fahrschule.Application.LicenseClasses;
+using Fahrschule.Application.Payments;
+using Fahrschule.Application.Settings;
 using Fahrschule.Application.Students;
 using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
@@ -27,7 +29,7 @@ public class LessonProgressCouplingTests
 
     private FahrschuleDbContext NewDb() => new(_options);
     private StudentProgressService Progress(FahrschuleDbContext db) => new(db, new NullAuditWriter());
-    private LessonService Lessons(FahrschuleDbContext db) => new(db, new NullAuditWriter());
+    private LessonService Lessons(FahrschuleDbContext db) => new(db, new NullAuditWriter(), NewPaymentService(db));
 
     private readonly Guid _classB = Guid.NewGuid();
     private readonly Guid _student = Guid.NewGuid();
@@ -230,4 +232,11 @@ public class LessonProgressCouplingTests
             string entityId, string? oldValuesJson = null, string? newValuesJson = null,
             CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
+
+    /// <summary>The lesson service also needs the payment service (money paid for
+    /// a lesson, KONZEPT 3.6). These tests do not check money, so a plain
+    /// instance on the same database is enough.</summary>
+    private static PaymentService NewPaymentService(FahrschuleDbContext db)
+        => new(db, new SettingsService(db, new NullAuditWriter()), new NullAuditWriter());
+
 }

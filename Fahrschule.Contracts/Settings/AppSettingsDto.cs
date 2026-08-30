@@ -86,6 +86,15 @@ public class AppSettingsDto
     /// <summary>Official permit number (Erlaubnisnummer).</summary>
     public string SchoolPermitNumber { get; set; } = string.Empty;
 
+    /// <summary>Tax number / VAT id, printed on a receipt when filled in.</summary>
+    public string SchoolTaxNumber { get; set; } = string.Empty;
+
+    /// <summary>Default VAT rate (percent) preselected for a new receipt item.</summary>
+    public int ReceiptVatRatePercent { get; set; }
+
+    /// <summary>How long receipts must be kept (years, § 147 AO = 10).</summary>
+    public int ReceiptRetentionYears { get; set; }
+
     /// <summary>Fahrlehrer number printed in the "FL" column of the training
     /// record. There is a single instructor (the owner), so this pre-fills every
     /// row. Editable (project rule 3); defaults to "01" when left blank.</summary>

@@ -1,5 +1,7 @@
 using Fahrschule.Application.Audit;
 using Fahrschule.Application.LicenseClasses;
+using Fahrschule.Application.Payments;
+using Fahrschule.Application.Settings;
 using Fahrschule.Application.Students;
 using Fahrschule.Application.Theory;
 using Fahrschule.Contracts.Theory;
@@ -30,7 +32,7 @@ public class TheoryAttendanceServiceTests
     {
         var audit = new AuditWriter(db);
         return new TheoryAttendanceService(
-            db, new StudentProgressService(db, audit), new LessonService(db, audit));
+            db, new StudentProgressService(db, audit), new LessonService(db, audit, NewPaymentService(db)));
     }
 
     private readonly Guid _withClass = Guid.NewGuid();   // has class B → topic applies
@@ -152,4 +154,11 @@ public class TheoryAttendanceServiceTests
         Assert.Equal(90, lesson.DurationMinutes);
         Assert.Single(lesson.Items); // covers the ticked topic
     }
+
+    /// <summary>The lesson service needs the payment service (money paid for a
+    /// lesson, KONZEPT 3.6); these tests do not check money, so a plain instance
+    /// on the same database is enough.</summary>
+    private static PaymentService NewPaymentService(FahrschuleDbContext db)
+        => new(db, new SettingsService(db, new AuditWriter(db)), new AuditWriter(db));
+
 }

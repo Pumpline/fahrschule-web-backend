@@ -7,6 +7,7 @@ using Fahrschule.Contracts.Students;
 using Fahrschule.Domain.Entities;
 using Fahrschule.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
+using Fahrschule.Application.Payments;
 
 namespace Fahrschule.Application.Students;
 
@@ -26,7 +27,7 @@ public interface ILessonService
 /// countable ones get a counted session - and links the points to the lesson so
 /// it can later appear on the Ausbildungsnachweis.
 /// </summary>
-public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : ILessonService
+public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter, IPaymentService payments) : ILessonService
 {
     public async Task<List<LessonDto>> GetForStudentAsync(Guid studentId, CancellationToken ct = default)
     {
@@ -37,8 +38,31 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
             .OrderByDescending(l => l.DateOn).ThenByDescending(l => l.CreatedAtUtc)
             .ToListAsync(ct);
 
-        return lessons.Select(ToDto).ToList();
+        var money = await MoneyByLessonAsync(lessons.Select(l => l.Id).ToList(), ct);
+        return lessons.Select(l => ToDto(l, money)).ToList();
     }
+
+    /// <summary>Paid amount per lesson (plus the receipt number once it is on
+    /// one) - so the hours list can show what was paid (KONZEPT 3.6).</summary>
+    private async Task<Dictionary<Guid, LessonMoney>> MoneyByLessonAsync(List<Guid> lessonIds, CancellationToken ct)
+    {
+        var rows = await db.PaymentItems
+            .Where(i => i.LessonId != null && lessonIds.Contains(i.LessonId!.Value))
+            .Select(i => new
+            {
+                LessonId = i.LessonId!.Value,
+                i.GrossAmount,
+                i.VatRatePercent,
+                ReceiptNumber = i.Receipt != null ? i.Receipt.Number : null,
+            })
+            .ToListAsync(ct);
+
+        return rows.ToDictionary(r => r.LessonId,
+            r => new LessonMoney(r.GrossAmount, r.VatRatePercent, r.ReceiptNumber));
+    }
+
+    /// <summary>What was paid for one lesson.</summary>
+    private sealed record LessonMoney(decimal Amount, int VatRatePercent, string? ReceiptNumber);
 
     public async Task<LessonDto> CreateAsync(
         Guid studentId, CreateLessonRequest request, Actor actor, CancellationToken ct = default)
@@ -152,6 +176,14 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
         await db.SaveChangesAsync(ct);
 
         var classLabel = await ClassLabelAsync(request.LicenseClassId, ct);
+
+        // Money paid for this lesson (KONZEPT 3.6). It is stored as a payment
+        // item, so the receipt has ONE source for all amounts.
+        await payments.SetLessonPaymentAsync(
+            lesson, request.LicenseClassId is null ? null : classLabel,
+            request.PaidAmount, request.PaidVatRatePercent, actor, ct);
+        await db.SaveChangesAsync(ct);
+
         await auditWriter.WriteAsync(actor.UserId, actor.UserName, "Stunde eingetragen",
             "Ausbildungsstunde", studentId.ToString(),
             newValuesJson: JsonSerializer.Serialize(new
@@ -181,6 +213,10 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
 
         var lesson = await db.Lessons
             .Include(l => l.Items)
+            // The class comes along because the paid amount's description carries
+            // it ("Fahrstunde 45 Min. (Klasse B)") - without it the label would
+            // silently lose the class when the lesson is corrected.
+            .Include(l => l.LicenseClass)
             .FirstOrDefaultAsync(l => l.Id == lessonId && l.StudentId == studentId, ct)
             ?? throw new NotFoundException("Diese Stunde wurde nicht gefunden. Bitte die Liste neu laden.");
 
@@ -264,6 +300,12 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
 
         await db.SaveChangesAsync(ct);
 
+        // 3b) The paid amount (KONZEPT 3.6). If it is already on a receipt, the
+        // service refuses a CHANGED amount - an issued receipt must not move.
+        await payments.SetLessonPaymentAsync(
+            lesson, lesson.LicenseClass?.Code, request.PaidAmount, request.PaidVatRatePercent, actor, ct);
+        await db.SaveChangesAsync(ct);
+
         // 4) Recompute the simple points the change touched.
         await ProgressCoupling.RecomputeSimpleAsync(db, affected.ToList(), now, ct);
         await db.SaveChangesAsync(ct);
@@ -300,6 +342,10 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
             .FirstOrDefaultAsync(l => l.Id == lessonId && l.StudentId == studentId, ct)
             ?? throw new NotFoundException("Diese Stunde wurde nicht gefunden. Bitte die Liste neu laden.");
 
+        // Money first: if the paid amount is already on a receipt, the lesson
+        // must stay - otherwise a handed-out document would lose its basis.
+        await payments.EnsureLessonMoneyEditableAsync(lessonId, ct);
+
         var coveredItemIds = lesson.Items.Select(i => i.StudentProgressItemId).ToList();
 
         // Soft-delete (project rule 7): the lesson vanishes from the hours list
@@ -314,6 +360,9 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
         lesson.IsDeleted = true;
         lesson.DeletedAtUtc = now;
         lesson.DeletedByUserId = actor.UserId;
+
+        // The not-yet-receipted paid amount goes with it (soft-delete as well).
+        await payments.SetLessonPaymentAsync(lesson, null, null, null, actor, ct);
         await db.SaveChangesAsync(ct);
 
         await ProgressCoupling.RecomputeSimpleAsync(db, coveredItemIds, now, ct);
@@ -336,7 +385,8 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
             .Include(l => l.LicenseClass)
             .Include(l => l.Items).ThenInclude(i => i.StudentProgressItem)
             .FirstAsync(l => l.Id == lessonId, ct);
-        return ToDto(lesson);
+        var money = await MoneyByLessonAsync([lessonId], ct);
+        return ToDto(lesson, money);
     }
 
     private async Task<string> ClassLabelAsync(Guid? licenseClassId, CancellationToken ct)
@@ -348,7 +398,7 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
         return code ?? "Klasse";
     }
 
-    private static LessonDto ToDto(Lesson l) => new()
+    private static LessonDto ToDto(Lesson l, Dictionary<Guid, LessonMoney>? money = null) => new()
     {
         Id = l.Id,
         Type = l.Type.ToString(),
@@ -372,7 +422,13 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter) : I
                 CountsTowardRequirement = i.CountsTowardRequirement,
             })
             .OrderBy(c => c.Title)],
+        PaidAmount = Money(money, l.Id)?.Amount,
+        PaidVatRatePercent = Money(money, l.Id)?.VatRatePercent,
+        PaidReceiptNumber = Money(money, l.Id)?.ReceiptNumber,
     };
+
+    private static LessonMoney? Money(Dictionary<Guid, LessonMoney>? money, Guid lessonId)
+        => money is not null && money.TryGetValue(lessonId, out var m) ? m : null;
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 

@@ -597,3 +597,45 @@ Gültigkeitsregeln. Ausführen:
 cd backend
 dotnet test
 ```
+
+## Geld: Zahlungen & Quittungen (KONZEPT 3.6)
+
+Zwei Ebenen, weil das Recht sie unterschiedlich behandelt:
+
+1. **`PaymentItem` (Zahlungsposten)** – die Arbeitsdaten. Entweder das Geld für **eine
+   Praxisstunde** (`LessonId` gesetzt) oder ein **frei eingetragener Posten** („Grundbetrag“,
+   „Prüfungsgebühr“). Solange der Posten auf **keiner** Quittung steht, ist er änderbar und
+   löschbar (Soft-Delete, protokolliert).
+2. **`Receipt` (Quittung)** + **`ReceiptItem`** – das Dokument. Beim Ausstellen werden alle
+   offenen Posten genommen, bekommen eine **fortlaufende Nummer** (`Jahr-0001`, Eindeutigkeit
+   über einen Unique-Index auf Jahr+Nummer) und werden als **eingefrorene Kopie** in die
+   Quittung geschrieben. Danach ändert sich daran nichts mehr (GoBD).
+
+**Warum die Kopie?** Eine ausgedruckte Quittung muss Jahre später noch genauso aussehen. Würde
+das PDF die heutigen Posten lesen, würde eine spätere Berichtigung ein bereits ausgehändigtes
+Dokument rückwirkend verändern.
+
+- **Umsatzsteuer je Position**: Eingegeben wird der **Bruttobetrag** (das, was der Schüler
+  bezahlt hat), `PaymentRules.SplitGross` rechnet Netto und USt heraus – je Posten gerundet,
+  damit gedruckte Zeilen und Summen zusammenpassen. Der Satz (19/7/0 %) hängt am Posten,
+  der Vorschlagswert steht im Adminpanel.
+- **Geld ist `decimal`** (`numeric(10,2)`), nie Fließkomma (Projektregel 7).
+- **Storno statt Änderung**: `CancelReceiptAsync` schreibt eine zweite Quittung mit eigener
+  Nummer und **negierten Beträgen**, verlinkt beide und gibt die Posten wieder frei. Das
+  Original bleibt bestehen – gelöscht wird eine Quittung nie.
+- **Sperren**: Ein Posten auf einer Quittung lässt sich nicht mehr ändern/löschen; ebenso wenig
+  der bezahlte Betrag der zugehörigen Stunde (die Stunde selbst darf weiter korrigiert werden,
+  nur der Betrag ist fest). Auch das Löschen einer Stunde wird abgelehnt, solange ihr Geld auf
+  einer Quittung steht – jeweils mit einer Meldung, die sagt, was zuerst zu tun ist.
+- **Aufbewahrung**: `StudentRetentionRules.DueDateWithReceipts` nimmt die **spätere** der beiden
+  Fristen – Ausbildungsdaten (§ 31 FahrlG, Standard 5 Jahre) und Quittungen (§ 147 AO,
+  Standard 10 Jahre). Ein Schüler mit Quittung wird also nicht nach 5 Jahren gelöscht.
+- **Audit**: „Zahlung eingetragen/geändert/gelöscht“, „Quittung ausgestellt“, „Quittung storniert“.
+- **PDF**: `ReceiptPdfService` druckt die eingefrorene Kopie – Kopf mit Fahrschule und
+  Steuernummer, Nummer und Datum, Positionen mit Netto/USt-Satz/USt/Brutto, Summenblock,
+  Aufteilung nach Steuersätzen (wenn mehrere vorkommen), Unterschriftszeilen.
+- Endpunkte: `GET/POST /api/students/{id}/payments`, `PUT/DELETE …/payments/{itemId}`,
+  `POST …/receipts`, `POST …/receipts/{id}/cancel`, `GET …/receipts/{id}/pdf`.
+  **Kein** PUT und **kein** DELETE für Quittungen – das ist Absicht, nicht vergessen.
+- Einstellungen dazu (Adminpanel, Regel 3): Vorschlags-Steuersatz, Aufbewahrungsfrist für
+  Quittungen, Steuernummer/USt-IdNr.
