@@ -16,6 +16,12 @@ namespace Fahrschule.Application.Pdf;
 /// QuestPDF ships the complete Lato family (Regular to Black, each with an
 /// italic) inside the package, so this works everywhere without installing
 /// anything - and every receipt looks the same as the one printed last year.
+///
+/// Measured, so nobody expects too much of it: with and without this setting
+/// the rendered page is byte-identical today, because QuestPDF registers its
+/// bundled Lato either way. The setting does not repair anything - it removes
+/// the possibility that a font installed on one machine quietly changes a
+/// document somewhere else.
 /// </summary>
 public static class PdfDefaults
 {
