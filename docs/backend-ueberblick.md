@@ -314,6 +314,38 @@ Umsetzung:
 - Das ist die **einzige** Eingabestelle für Stunden (KONZEPT 3.3). Endpunkte
   unter `/api/students/{id}/lessons`. Frontend: Modal im Tab „Ausbildungsfortschritt".
 
+### „Zählt als" – eine Stunde kann einen Punkt mehrfach zählen
+
+Werden **zwei Autobahnfahrten am Stück** gefahren, ist das eine Stunde, muss aber zweimal
+zählen. Deshalb ist aus dem Ja/Nein-Schalter `LessonItem.CountsTowardRequirement` die Zahl
+**`CountedSessions`** geworden (Migration „MehrfachZaehlendeStunden"):
+
+- `0` = nur geübt – die Stunde ist erfasst und zeigt den Punkt, der Zähler bewegt sich nicht,
+- `1` = eine volle Fahrt (Normalfall; nicht genannte zählbare Punkte zählen genau einmal),
+- `2`+ = mehrere am Stück. Obergrenze `StudentProgressRules.MaxCountedSessionsPerLesson` (20)
+  – ein Vertipper-Schutz, keine Vorschrift.
+- Bei **einfachen** Punkten (Theoriethemen) steht dort immer `0`: die sind „erledigt", nicht
+  gezählt.
+
+Wichtig ist die **Doppelbuchführung**: jede gezählte Stunde ist weiterhin eine eigene Zeile
+(`StudentProgressEntry`) – die Zahl am `LessonItem` und die Anzahl dieser Zeilen sagen immer
+dasselbe. So bleibt jede gezählte Stunde einzeln entfernbar, und die Zähler rechnen unverändert
+über die Zeilen. `CreateAsync` legt entsprechend viele an, `UpdateAsync` gleicht die Zahl an
+(fehlende ergänzen, überzählige – die jüngsten zuerst – entfernen).
+
+Zwei Stellen mussten mitgezogen werden:
+
+- `StudentProgressService.RemoveEntryAsync` löschte die Stunde weich, sobald sie nur diesen
+  einen Punkt hatte. Bei einer doppelt zählenden Stunde wäre damit die **zweite** gezählte
+  Stunde verwaist. Jetzt wird erst geprüft, ob danach noch etwas an der Stunde hängt; sonst
+  wird nur die Zahl um eins gesenkt.
+- `LessonDto.CoveredTitles` hängt die Zahl an, sobald sie über 1 liegt: „Autobahnfahrt (2×)".
+  Das steht so in der Stundenliste **und** auf dem Ausbildungsnachweis – eine Zeile darf nicht
+  stillschweigend für zwei gefahrene Fahrten stehen.
+
+Im Request heißt das Feld `CountedSessions: [{ ItemId, Count }]` (statt der früheren Liste
+`PartialPracticeItemIds`).
+
 ## Anrechnung beim Klasse-Hinzufügen (KONZEPT 3.3a) – Schritt 4c
 
 - **`StudentProgressService.GetCreditPreviewAsync`**: vergleicht den heutigen Plan

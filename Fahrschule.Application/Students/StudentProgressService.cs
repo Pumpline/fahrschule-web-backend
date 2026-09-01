@@ -248,7 +248,7 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         db.Lessons.Add(lesson);
         lesson.Items.Add(new LessonItem
         {
-            LessonId = lesson.Id, StudentProgressItemId = item.Id, CountsTowardRequirement = true,
+            LessonId = lesson.Id, StudentProgressItemId = item.Id, CountedSessions = 1,
         });
         db.Set<StudentProgressEntry>().Add(new StudentProgressEntry
         {
@@ -280,23 +280,28 @@ public class StudentProgressService(FahrschuleDbContext db, IAuditWriter auditWr
         {
             var lesson = await db.Lessons.Include(l => l.Items)
                 .FirstOrDefaultAsync(l => l.Id == lessonId, ct);
-            if (lesson is not null && lesson.Items.Count <= 1)
+            // Does the lesson still count anything else afterwards? A lesson may
+            // count the SAME point several times (two Autobahnfahrten in one go),
+            // so removing one of them must not take the whole lesson with it.
+            var otherSessions = await db.Set<StudentProgressEntry>()
+                .CountAsync(e => e.LessonId == lessonId && e.Id != entry.Id, ct);
+
+            if (lesson is not null && lesson.Items.Count <= 1 && otherSessions == 0)
             {
                 // The lesson exists only for this counted drive → soft-delete it
                 // and drop its counted session.
                 lesson.IsDeleted = true;
                 lesson.DeletedAtUtc = DateTime.UtcNow;
                 lesson.DeletedByUserId = actor.UserId;
-                db.Set<StudentProgressEntry>().Remove(entry);
             }
             else
             {
-                // Part of a multi-topic lesson → keep the lesson, just downgrade
-                // this point to "practice" and drop the counted session.
+                // The lesson stays (it covers more topics, or still counts this
+                // point another time) → only lower this point's number by one.
                 var li = lesson?.Items.FirstOrDefault(i => i.StudentProgressItemId == itemId);
-                if (li is not null) li.CountsTowardRequirement = false;
-                db.Set<StudentProgressEntry>().Remove(entry);
+                if (li is not null) li.CountedSessions = Math.Max(0, li.CountedSessions - 1);
             }
+            db.Set<StudentProgressEntry>().Remove(entry);
         }
         else
         {

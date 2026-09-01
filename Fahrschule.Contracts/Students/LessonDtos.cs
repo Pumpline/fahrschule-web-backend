@@ -49,9 +49,22 @@ public class LessonCoverDto
     /// <summary>True if the point has a counter (Sonderfahrt etc.).</summary>
     public bool IsCountable { get; set; }
 
-    /// <summary>For a countable point: did this lesson count as a full session
-    /// (+1)? false = only practised (recorded but not counted).</summary>
-    public bool CountsTowardRequirement { get; set; }
+    /// <summary>For a countable point: how often this lesson counted it
+    /// (0 = only practised, 1 = one full session, 2 = two at once). Always 0 for
+    /// a simple point.</summary>
+    public int CountedSessions { get; set; }
+}
+
+/// <summary>"This covered point counts N times in this lesson" - the input for
+/// countable points (Sonderfahrten etc.).</summary>
+public class LessonItemCountRequest
+{
+    /// <summary>The covered progress point.</summary>
+    public Guid ItemId { get; set; }
+
+    /// <summary>0 = only practised (does not count), 1 = one full session,
+    /// 2 or more = several at once.</summary>
+    public int Count { get; set; }
 }
 
 /// <summary>"Enter a lesson" request (KONZEPT 3.3).</summary>
@@ -74,10 +87,10 @@ public class CreateLessonRequest
     /// <summary>The progress points covered in this lesson (their ids).</summary>
     public Guid[] CoveredItemIds { get; set; } = [];
 
-    /// <summary>Subset of <see cref="CoveredItemIds"/> (countable points) that
-    /// were only PRACTISED, not a full session - they are recorded but do NOT
-    /// raise the counter (e.g. 30 min Überlandfahrt).</summary>
-    public Guid[] PartialPracticeItemIds { get; set; } = [];
+    /// <summary>How often the covered COUNTABLE points count in this lesson
+    /// (0 = only practised, 1 = one full session, 2 = two at once). A countable
+    /// point that is not listed here counts ONCE - the normal case.</summary>
+    public LessonItemCountRequest[] CountedSessions { get; set; } = [];
 
     /// <summary>Optional: the calendar appointment this lesson was carried out for
     /// (KONZEPT 3.5). When set, that appointment is marked "durchgeführt" and
@@ -112,9 +125,10 @@ public class UpdateLessonRequest
     /// adds/removes coverage and recomputes the affected progress.</summary>
     public Guid[] CoveredItemIds { get; set; } = [];
 
-    /// <summary>Subset of <see cref="CoveredItemIds"/> (countable points) that
-    /// only count as practice, not a full session (+0 instead of +1).</summary>
-    public Guid[] PartialPracticeItemIds { get; set; } = [];
+    /// <summary>How often the covered COUNTABLE points count in this lesson
+    /// (0 = only practised, 1 = one full session, 2 = two at once). A countable
+    /// point that is not listed here counts ONCE.</summary>
+    public LessonItemCountRequest[] CountedSessions { get; set; } = [];
 
     /// <summary>Money paid for this lesson (gross), null or 0 = nothing paid
     /// (KONZEPT 3.6). Only meaningful for practical lessons.</summary>

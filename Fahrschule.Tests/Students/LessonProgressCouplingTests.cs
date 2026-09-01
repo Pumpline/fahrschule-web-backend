@@ -83,11 +83,14 @@ public class LessonProgressCouplingTests
         return dto.Classes.SelectMany(c => c.Sections).SelectMany(s => s.Items).First(i => i.Id == itemId);
     }
 
-    private CreateLessonRequest Practice(Guid covered, Guid[]? partial = null) => new()
+    /// <summary>A practical lesson covering one point. <paramref name="counts"/> is
+    /// how often it counts: null = the normal full session (+1), 0 = only
+    /// practised, 2 = two at once.</summary>
+    private CreateLessonRequest Practice(Guid covered, int? counts = null) => new()
     {
         Type = "Practice", LicenseClassId = _classB, DateOn = new DateOnly(2026, 6, 1),
         StartTime = "09:00", DurationMinutes = 90, CoveredItemIds = [covered],
-        PartialPracticeItemIds = partial ?? [],
+        CountedSessions = counts is { } n ? [new LessonItemCountRequest { ItemId = covered, Count = n }] : [],
     };
 
     [Fact]
@@ -169,9 +172,89 @@ public class LessonProgressCouplingTests
 
         // Practice-only → still recorded (covered) but counter unchanged.
         await using (var db = NewDb())
-            await Lessons(db).CreateAsync(_student, Practice(drive, partial: [drive]), Actor);
+            await Lessons(db).CreateAsync(_student, Practice(drive, counts: 0), Actor);
         Assert.Equal(1, (await ItemAsync(drive)).CurrentCount);
     }
+
+    [Fact]
+    public async Task A_lesson_can_count_the_same_point_twice()
+    {
+        // Two Autobahnfahrten driven in one go: ONE lesson, but it has to count
+        // twice - and each counted hour is its own, separately removable row.
+        await SeedAsync();
+        var drive = await ItemIdAsync("Überlandfahrt");
+
+        await using (var db = NewDb()) await Lessons(db).CreateAsync(_student, Practice(drive, counts: 2), Actor);
+
+        var item = await ItemAsync(drive);
+        Assert.Equal(2, item.CurrentCount);
+        Assert.Equal(2, item.Entries.Count);
+        Assert.All(item.Entries, e => Assert.Equal(new DateOnly(2026, 6, 1), e.PerformedOn));
+    }
+
+    [Fact]
+    public async Task Counting_a_point_more_often_than_allowed_is_refused()
+    {
+        await SeedAsync();
+        var drive = await ItemIdAsync("Überlandfahrt");
+
+        await using var db = NewDb();
+        await Assert.ThrowsAsync<AppValidationException>(() =>
+            Lessons(db).CreateAsync(_student, Practice(drive, counts: 21), Actor));
+        await Assert.ThrowsAsync<AppValidationException>(() =>
+            Lessons(db).CreateAsync(_student, Practice(drive, counts: -1), Actor));
+    }
+
+    [Fact]
+    public async Task Editing_the_number_adds_and_removes_counted_sessions()
+    {
+        await SeedAsync();
+        var drive = await ItemIdAsync("Überlandfahrt");
+
+        Guid lessonId;
+        await using (var db = NewDb()) lessonId = (await Lessons(db).CreateAsync(_student, Practice(drive), Actor)).Id;
+        Assert.Equal(1, (await ItemAsync(drive)).CurrentCount);
+
+        // Corrected upwards: it really was a double lesson.
+        await using (var db = NewDb()) await Lessons(db).UpdateAsync(_student, lessonId, Correction(drive, 3), Actor);
+        Assert.Equal(3, (await ItemAsync(drive)).CurrentCount);
+
+        // And back down again - only the surplus goes.
+        await using (var db = NewDb()) await Lessons(db).UpdateAsync(_student, lessonId, Correction(drive, 2), Actor);
+        var item = await ItemAsync(drive);
+        Assert.Equal(2, item.CurrentCount);
+        Assert.Equal(2, item.Entries.Count);
+    }
+
+    [Fact]
+    public async Task Removing_one_counted_hour_of_a_double_lesson_keeps_the_other()
+    {
+        // The counted hours are removable one by one in the progress list. With a
+        // lesson that counts twice, removing one must NOT take the lesson (and
+        // with it the second counted hour) away.
+        await SeedAsync();
+        var drive = await ItemIdAsync("Überlandfahrt");
+
+        Guid lessonId;
+        await using (var db = NewDb())
+            lessonId = (await Lessons(db).CreateAsync(_student, Practice(drive, counts: 2), Actor)).Id;
+
+        var entryId = (await ItemAsync(drive)).Entries.First().Id;
+        await using (var db = NewDb()) await Progress(db).RemoveEntryAsync(_student, drive, entryId, Actor);
+
+        Assert.Equal(1, (await ItemAsync(drive)).CurrentCount);
+        await using var check = NewDb();
+        var lesson = await check.Lessons.FirstOrDefaultAsync(l => l.Id == lessonId);
+        Assert.NotNull(lesson); // still there (the query filter hides deleted ones)
+    }
+
+    /// <summary>An edit that only changes how often the point counts.</summary>
+    private static UpdateLessonRequest Correction(Guid drive, int counts) => new()
+    {
+        DateOn = new DateOnly(2026, 6, 1), StartTime = "09:00", DurationMinutes = 90,
+        CoveredItemIds = [drive],
+        CountedSessions = [new LessonItemCountRequest { ItemId = drive, Count = counts }],
+    };
 
     [Fact]
     public async Task Editing_a_lesson_from_full_to_practice_lowers_the_counter()
@@ -188,7 +271,8 @@ public class LessonProgressCouplingTests
             await Lessons(db).UpdateAsync(_student, lessonId, new UpdateLessonRequest
             {
                 DateOn = new DateOnly(2026, 6, 1), StartTime = "09:00", DurationMinutes = 90,
-                CoveredItemIds = [drive], PartialPracticeItemIds = [drive], // now only practice
+                CoveredItemIds = [drive], // now only practice
+                CountedSessions = [new LessonItemCountRequest { ItemId = drive, Count = 0 }],
             }, Actor);
         }
 

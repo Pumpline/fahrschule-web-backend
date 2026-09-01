@@ -221,6 +221,11 @@ fahrschuleweb_new/
   Zeile mit Datum + optionaler Notiz** („1. Fahrt am …", „2. Fahrt am …"); − entfernt die letzte.
   Bei Erreichen des Solls wird der Punkt automatisch als erledigt markiert. Einmalige Punkte
   (Grundfahraufgaben, Themen) bleiben Häkchen.
+- **Wie viel eine Stunde zählt, wird beim Eintragen gewählt** („Zählt als … Stunden"): **0** =
+  nur geübt (die Stunde ist erfasst, der Zähler bleibt stehen), **1** = eine volle Fahrt
+  (Normalfall), **2 und mehr**, wenn mehrere am Stück gefahren wurden (z. B. zwei
+  Autobahnfahrten). Jede gezählte Stunde bleibt eine eigene Zeile; in der Stundenliste und auf
+  dem Ausbildungsnachweis steht die Zahl beim Thema („Autobahnfahrt (2×)").
 - **Alle Stunden werden im Ausbildungsfortschritt eingetragen** – das ist die *einzige* Stelle dafür
   (kein paralleles Eintragen an anderen Stellen). Übungs-/Zusatzstunden (Praxis) und zusätzliche
   Theoriestunden werden **je Klasse und je Bereich (Theorie/Praxis)** mitgezählt (unbegrenzter Zähler

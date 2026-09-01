@@ -9,6 +9,14 @@ namespace Fahrschule.Application.Students;
 /// </summary>
 public static class StudentProgressRules
 {
+    /// <summary>
+    /// How often ONE lesson may count a single countable point at most. A guard
+    /// against a slip of the finger (a "20" typed into the counter), not a rule
+    /// from the law: the longest allowed lesson (600 min) is roughly 13 driving
+    /// units, so nobody will ever bump into this while entering real lessons.
+    /// </summary>
+    public const int MaxCountedSessionsPerLesson = 20;
+
     /// <summary>A point is countable (has a +/− counter) when it carries a
     /// required-count value. Three kinds (KONZEPT 3.3):
     ///  - null  → simple check-off point (a theory topic, Grundfahraufgaben),

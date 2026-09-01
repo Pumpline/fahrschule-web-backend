@@ -117,35 +117,28 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter, IPa
         };
         db.Lessons.Add(lesson);
 
-        var partial = request.PartialPracticeItemIds.ToHashSet();
+        var wantedCounts = CountsById(request.CountedSessions);
         foreach (var item in covered)
         {
             var countable = StudentProgressRules.IsCountable(item.RequiredCount);
-            // For a countable point "partial" means: recorded but not a full
-            // session (+0). Simple points always just "cover" the topic.
-            var counts = countable && !partial.Contains(item.Id);
+            var countedSessions = CountedSessionsFor(item, wantedCounts);
             lesson.Items.Add(new LessonItem
             {
                 LessonId = lesson.Id,
                 StudentProgressItemId = item.Id,
-                CountsTowardRequirement = countable ? counts : true,
+                CountedSessions = countedSessions,
             });
 
             if (countable)
             {
-                // A full session adds one counted, lesson-backed entry; a partial
-                // practice only keeps the link above (no counter increase).
-                if (counts)
+                // Each counted session gets its OWN row - so two Autobahnfahrten
+                // driven in one go show up as two counted hours, each removable
+                // on its own. 0 = only practised: the link above stays (the topic
+                // is recorded), but the counter does not move.
+                for (var i = 0; i < countedSessions; i++)
                 {
-                    db.Set<StudentProgressEntry>().Add(new StudentProgressEntry
-                    {
-                        Id = Guid.NewGuid(),
-                        StudentProgressItemId = item.Id,
-                        LessonId = lesson.Id,
-                        PerformedOn = request.DateOn,
-                        Note = note,
-                        CreatedAtUtc = now,
-                    });
+                    db.Set<StudentProgressEntry>().Add(
+                        NewEntry(item.Id, lesson.Id, request.DateOn, note, now));
                 }
             }
             else
@@ -231,64 +224,68 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter, IPa
 
         var now = DateTime.UtcNow;
         var note = NullIfEmpty(request.Note);
-        var partial = request.PartialPracticeItemIds.ToHashSet();
+        var wantedCounts = CountsById(request.CountedSessions);
         var coveredById = covered.ToDictionary(p => p.Id);
         var currentByItem = lesson.Items.ToDictionary(li => li.StudentProgressItemId);
         var lessonEntries = await db.Set<StudentProgressEntry>()
             .Where(e => e.LessonId == lessonId)
             .ToListAsync(ct);
+        // The counted sessions that survive this edit - only those keep their
+        // date/note in sync below (a removed one is on its way out).
+        var keptEntries = new List<StudentProgressEntry>();
 
         // Simple points whose completion may change (recomputed at the end).
         var affected = new HashSet<Guid>();
 
-        // 1) Removed coverage: drop the link + any counted session it produced.
+        // 1) Removed coverage: drop the link + ALL counted sessions it produced.
         foreach (var li in lesson.Items.ToList())
         {
             if (desiredIds.Contains(li.StudentProgressItemId)) continue;
             lesson.Items.Remove(li);
             db.Set<LessonItem>().Remove(li);
-            var entry = lessonEntries.FirstOrDefault(e => e.StudentProgressItemId == li.StudentProgressItemId);
-            if (entry is not null) db.Set<StudentProgressEntry>().Remove(entry);
+            foreach (var entry in lessonEntries.Where(e => e.StudentProgressItemId == li.StudentProgressItemId))
+            {
+                db.Set<StudentProgressEntry>().Remove(entry);
+            }
             affected.Add(li.StudentProgressItemId);
         }
 
-        // 2) Added or changed coverage.
+        // 2) Added or changed coverage - including a changed NUMBER ("counted as
+        //    2 instead of 1"), which adds or removes counted sessions.
         foreach (var id in desiredIds)
         {
             var item = coveredById[id];
-            var countable = StudentProgressRules.IsCountable(item.RequiredCount);
-            var counts = countable ? !partial.Contains(id) : true;
-            var entry = lessonEntries.FirstOrDefault(e => e.StudentProgressItemId == id);
+            var wanted = CountedSessionsFor(item, wantedCounts);
 
             if (currentByItem.TryGetValue(id, out var li))
             {
-                // Existing coverage - maybe flip "full" ↔ "practice".
-                if (li.CountsTowardRequirement != counts)
-                {
-                    li.CountsTowardRequirement = counts;
-                    if (countable && counts && entry is null)
-                    {
-                        db.Set<StudentProgressEntry>().Add(NewEntry(id, lessonId, request.DateOn, note, now));
-                    }
-                    else if (countable && !counts && entry is not null)
-                    {
-                        db.Set<StudentProgressEntry>().Remove(entry);
-                    }
-                }
+                li.CountedSessions = wanted;
             }
             else
             {
                 // Newly covered.
                 lesson.Items.Add(new LessonItem
                 {
-                    LessonId = lessonId, StudentProgressItemId = id, CountsTowardRequirement = counts,
+                    LessonId = lessonId, StudentProgressItemId = id, CountedSessions = wanted,
                 });
-                if (countable && counts)
-                {
-                    db.Set<StudentProgressEntry>().Add(NewEntry(id, lessonId, request.DateOn, note, now));
-                }
                 affected.Add(id);
             }
+
+            // Bring the counted sessions in line with the wanted number: add the
+            // missing ones, remove the surplus (the youngest first, so the oldest
+            // record of the drive survives).
+            var existing = lessonEntries
+                .Where(e => e.StudentProgressItemId == id)
+                .OrderBy(e => e.CreatedAtUtc).ToList();
+            for (var i = existing.Count; i < wanted; i++)
+            {
+                db.Set<StudentProgressEntry>().Add(NewEntry(id, lessonId, request.DateOn, note, now));
+            }
+            for (var i = wanted; i < existing.Count; i++)
+            {
+                db.Set<StudentProgressEntry>().Remove(existing[i]);
+            }
+            keptEntries.AddRange(existing.Take(wanted));
         }
 
         // 3) The lesson's own fields; keep its counted sessions' date/note in sync.
@@ -296,7 +293,7 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter, IPa
         lesson.StartTime = startTime;
         lesson.DurationMinutes = request.DurationMinutes;
         lesson.Note = note;
-        foreach (var e in lessonEntries) { e.PerformedOn = request.DateOn; e.Note = note; }
+        foreach (var e in keptEntries) { e.PerformedOn = request.DateOn; e.Note = note; }
 
         await db.SaveChangesAsync(ct);
 
@@ -333,6 +330,33 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter, IPa
             Note = note,
             CreatedAtUtc = now,
         };
+
+    /// <summary>The requested numbers as a lookup. A point named twice keeps its
+    /// LAST number - the request is a wish list, not a place to fail on.</summary>
+    private static Dictionary<Guid, int> CountsById(LessonItemCountRequest[] requested)
+    {
+        var counts = new Dictionary<Guid, int>();
+        foreach (var entry in requested) counts[entry.ItemId] = entry.Count;
+        return counts;
+    }
+
+    /// <summary>
+    /// How often a covered point counts in this lesson: for a COUNTABLE point the
+    /// requested number (not mentioned = 1, the normal full session), for a simple
+    /// point always 0 - a theory topic is "done", there is nothing to count.
+    /// </summary>
+    private static int CountedSessionsFor(StudentProgressItem item, IReadOnlyDictionary<Guid, int> requested)
+    {
+        if (!StudentProgressRules.IsCountable(item.RequiredCount)) return 0;
+        if (!requested.TryGetValue(item.Id, out var count)) return 1;
+        if (count < 0 || count > StudentProgressRules.MaxCountedSessionsPerLesson)
+        {
+            throw new AppValidationException(
+                $"Bitte bei „{item.Title}“ eine Anzahl zwischen 0 und " +
+                $"{StudentProgressRules.MaxCountedSessionsPerLesson} eintragen.");
+        }
+        return count;
+    }
 
     public async Task DeleteAsync(Guid studentId, Guid lessonId, Actor actor, CancellationToken ct = default)
     {
@@ -410,7 +434,7 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter, IPa
         Note = l.Note,
         CoveredTitles = [.. l.Items
             .Where(i => i.StudentProgressItem != null)
-            .Select(i => i.StudentProgressItem!.Title)
+            .Select(CoveredTitle)
             .OrderBy(t => t)],
         Covered = [.. l.Items
             .Where(i => i.StudentProgressItem != null)
@@ -419,13 +443,22 @@ public class LessonService(FahrschuleDbContext db, IAuditWriter auditWriter, IPa
                 ItemId = i.StudentProgressItemId,
                 Title = i.StudentProgressItem!.Title,
                 IsCountable = StudentProgressRules.IsCountable(i.StudentProgressItem!.RequiredCount),
-                CountsTowardRequirement = i.CountsTowardRequirement,
+                CountedSessions = i.CountedSessions,
             })
             .OrderBy(c => c.Title)],
         PaidAmount = Money(money, l.Id)?.Amount,
         PaidVatRatePercent = Money(money, l.Id)?.VatRatePercent,
         PaidReceiptNumber = Money(money, l.Id)?.ReceiptNumber,
     };
+
+    /// <summary>The covered point as it reads in the hours list AND on the
+    /// printed Ausbildungsnachweis. Counted more than once, the number belongs
+    /// next to it ("Autobahnfahrt (2×)") - otherwise one line would silently
+    /// stand for two driven sessions.</summary>
+    private static string CoveredTitle(LessonItem item)
+        => item.CountedSessions > 1
+            ? $"{item.StudentProgressItem!.Title} ({item.CountedSessions}×)"
+            : item.StudentProgressItem!.Title;
 
     private static LessonMoney? Money(Dictionary<Guid, LessonMoney>? money, Guid lessonId)
         => money is not null && money.TryGetValue(lessonId, out var m) ? m : null;
